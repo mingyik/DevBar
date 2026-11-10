@@ -1,10 +1,5 @@
 export type JSONValue =
-  | null
-  | boolean
-  | number
-  | string
-  | JSONValue[]
-  | { [key: string]: JSONValue };
+  null | boolean | number | string | JSONValue[] | { [key: string]: JSONValue };
 
 export type Envelope = {
   v: number;
@@ -15,29 +10,43 @@ export type Envelope = {
 
 export function decodeEnvelope(raw: string): Envelope {
   const value = JSON.parse(raw) as Envelope;
-  if (value.v !== 1 || typeof value.id !== "string" || typeof value.type !== "string") {
+  if (
+    value.v !== 1 ||
+    typeof value.id !== "string" ||
+    typeof value.type !== "string"
+  ) {
     throw new Error("bad envelope");
   }
-  if (value.payload === null || typeof value.payload !== "object" || Array.isArray(value.payload)) {
+  if (
+    value.payload === null ||
+    typeof value.payload !== "object" ||
+    Array.isArray(value.payload)
+  ) {
     throw new Error("bad payload");
   }
   return value;
 }
 
 export function encodeEnvelope(envelope: Envelope): string {
-  return canonical(envelope);
+  return canonical({
+    v: envelope.v,
+    id: envelope.id,
+    type: envelope.type,
+    payload: envelope.payload,
+  });
 }
 
-function canonical(value: JSONValue | Envelope): string {
+function canonical(value: JSONValue): string {
   if (value === null) return "null";
   if (typeof value === "boolean") return value ? "true" : "false";
-  if (typeof value === "number") return Number.isInteger(value) ? String(value) : String(value);
+  if (typeof value === "number")
+    return Number.isInteger(value) ? String(value) : String(value);
   if (typeof value === "string") return quoted(value);
-  if (Array.isArray(value)) return `[${value.map((item) => canonical(item)).join(",")}]`;
-  const fields = value;
-  const body = Object.keys(fields)
+  if (Array.isArray(value))
+    return `[${value.map((item) => canonical(item)).join(",")}]`;
+  const body = Object.keys(value)
     .sort()
-    .map((key) => `${quoted(key)}:${canonical(fields[key] ?? null)}`);
+    .map((key) => `${quoted(key)}:${canonical(value[key] ?? null)}`);
   return `{${body.join(",")}}`;
 }
 

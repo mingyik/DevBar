@@ -8,8 +8,8 @@ final class PanelController {
   let model: PanelModel
   let theme: ThemeManager
   let panel: DevBarPanel
+  let webHost: WebHost
   private let host: NSHostingView<PanelView>
-  private let effect = NSVisualEffectView()
   private var outsideMonitor: Any?
   private var resignObserver: NSObjectProtocol?
   private var dismissing = false
@@ -19,10 +19,15 @@ final class PanelController {
 
   init(theme: ThemeManager) {
     let model = PanelModel()
+    let webHost = WebHost(theme: theme)
     self.model = model
     self.theme = theme
+    self.webHost = webHost
     panel = DevBarPanel()
-    host = NSHostingView(rootView: PanelView(model: model, theme: theme))
+    host = NSHostingView(rootView: PanelView(model: model, theme: theme, webHost: webHost))
+    webHost.onToast = { text in
+      model.toast = text
+    }
     installChrome()
     panel.onEscape = { [weak self] in
       self?.dismiss()
@@ -94,43 +99,27 @@ final class PanelController {
   }
 
   private func installChrome() {
-    effect.material = .popover
-    effect.blendingMode = .behindWindow
-    effect.state = .active
-    effect.wantsLayer = true
-    effect.layer?.cornerRadius = DesignTokens.radiusLarge
-    effect.layer?.masksToBounds = true
     host.translatesAutoresizingMaskIntoConstraints = false
-    effect.translatesAutoresizingMaskIntoConstraints = false
     let container = NSView()
-    container.addSubview(effect)
     container.addSubview(host)
     panel.contentView = container
     NSLayoutConstraint.activate([
-      effect.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-      effect.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-      effect.topAnchor.constraint(equalTo: container.topAnchor),
-      effect.bottomAnchor.constraint(equalTo: container.bottomAnchor),
       host.leadingAnchor.constraint(equalTo: container.leadingAnchor),
       host.trailingAnchor.constraint(equalTo: container.trailingAnchor),
       host.topAnchor.constraint(equalTo: container.topAnchor),
       host.bottomAnchor.constraint(equalTo: container.bottomAnchor),
     ])
-    updateMaterial()
+    panel.appearance = theme.appearance()
   }
 
   private func updateMaterial() {
-    let appearance = theme.appearance()
-    panel.appearance = appearance
-    effect.appearance = appearance
-    effect.isHidden = theme.reduceTransparency || isMacOS26
-  }
-
-  private var isMacOS26: Bool {
-    if #available(macOS 26, *) {
-      true
-    } else {
-      false
+    panel.appearance = theme.appearance()
+    webHost.panelVisible = panel.isVisible
+    webHost.syncAppearance(panelSize: model.enlarged && model.showsEnlarge ? "large" : "normal")
+    if model.page == .tools {
+      webHost.showScreen("tools")
+    } else if model.page == .document {
+      webHost.showScreen("doc")
     }
   }
 

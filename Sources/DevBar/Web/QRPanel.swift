@@ -1,6 +1,7 @@
 import AppKit
 import CoreImage
 
+@MainActor
 enum QRPanel {
   static func present(text: String) -> String {
     let bytes = text.utf8.count

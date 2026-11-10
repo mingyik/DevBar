@@ -11,17 +11,15 @@ enum PasteboardBridge {
 
   static func readText() -> String {
     let board = NSPasteboard.general
-    if #available(macOS 15.4, *) {
-      switch board.accessBehavior {
-      case .alwaysDeny:
-        return #"{"status":"denied"}"#
-      case .ask, .default:
-        return #"{"status":"ask"}"#
-      case .alwaysAllow:
-        break
-      @unknown default:
-        return #"{"status":"ask"}"#
-      }
+    switch board.accessBehavior {
+    case .alwaysDeny:
+      return #"{"status":"denied"}"#
+    case .ask, .default:
+      return #"{"status":"ask"}"#
+    case .alwaysAllow:
+      break
+    @unknown default:
+      return #"{"status":"ask"}"#
     }
     let types = board.types ?? []
     if types.contains(where: { concealed.contains($0.rawValue) }) {

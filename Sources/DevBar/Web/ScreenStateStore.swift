@@ -21,7 +21,8 @@ actor ScreenStateStore {
       } else {
         try FileManager.default.moveItem(at: temporary, to: file)
       }
-      logger.notice("stateSave screen=\(screen, privacy: .public) bytes=\(data.count, privacy: .public)")
+      logger.notice(
+        "stateSave screen=\(screen, privacy: .public) bytes=\(data.count, privacy: .public)")
     } catch {
       logger.error("stateSaveFailed screen=\(screen, privacy: .public)")
     }
@@ -32,7 +33,8 @@ actor ScreenStateStore {
       let data = try? Data(contentsOf: file),
       let text = String(data: data, encoding: .utf8)
     else { return nil }
-    logger.notice("stateLoad screen=\(screen, privacy: .public) bytes=\(text.utf8.count, privacy: .public)")
+    logger.notice(
+      "stateLoad screen=\(screen, privacy: .public) bytes=\(text.utf8.count, privacy: .public)")
     return text
   }
 

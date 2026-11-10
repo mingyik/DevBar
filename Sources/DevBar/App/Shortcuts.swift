@@ -5,7 +5,7 @@ import os
 @MainActor
 extension KeyboardShortcuts.Name {
   static let togglePanel = Self(
-    "togglePanel", default: .init(.space, modifiers: [.option, .command]))
+    "togglePanel", default: .init(.d, modifiers: [.control, .option]))
   static let cycleOlder = Self("cycleOlder", default: .init(.v, modifiers: [.control]))
   static let cycleNewer = Self("cycleNewer", default: .init(.v, modifiers: [.control, .shift]))
   static let openTools = Self("openTools", default: .init(.j, modifiers: [.option, .command]))
@@ -22,6 +22,11 @@ enum ShortcutActions {
   private static let logger = Logger(subsystem: "local.devbar.app", category: "shortcut")
 
   static func register(panel: PanelController, status: StatusItemController) {
+    let retired = KeyboardShortcuts.Shortcut(.space, modifiers: [.option, .command])
+    if KeyboardShortcuts.getShortcut(for: .togglePanel) == retired {
+      KeyboardShortcuts.reset(.togglePanel)
+      logger.notice("shortcut=togglePanel reset retired default")
+    }
     KeyboardShortcuts.onKeyUp(for: .togglePanel) {
       Task { @MainActor in
         log("togglePanel")

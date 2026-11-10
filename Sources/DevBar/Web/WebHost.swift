@@ -1,6 +1,6 @@
 import AppKit
-import os
 import WebKit
+import os
 
 @MainActor
 final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDelegate, WKUIDelegate {
@@ -21,7 +21,8 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
 
   init(theme: ThemeManager, webRoot: URL? = nil) {
     self.theme = theme
-    let root = webRoot ?? Bundle.main.resourceURL?.appending(path: "Web") ?? URL(fileURLWithPath: "/")
+    let root =
+      webRoot ?? Bundle.main.resourceURL?.appending(path: "Web") ?? URL(fileURLWithPath: "/")
     handler = DevBarSchemeHandler(root: root)
     webView = WKWebView()
     super.init()
@@ -34,11 +35,14 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   }
 
   func syncAppearance(panelSize: String) {
-    send(type: "theme.set", payload: ["theme": .string(theme.effective == .dark ? "dark" : "light")])
+    send(
+      type: "theme.set", payload: ["theme": .string(theme.effective == .dark ? "dark" : "light")])
     send(type: "panel.size", payload: ["size": .string(panelSize)])
     send(
       type: "settings.set",
-      payload: ["autoImport": .bool(UserDefaults.standard.object(forKey: "autoImport") as? Bool ?? true)]
+      payload: [
+        "autoImport": .bool(UserDefaults.standard.object(forKey: "autoImport") as? Bool ?? true)
+      ]
     )
     applyContrast()
   }
@@ -50,24 +54,19 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
 
   func userContentController(
     _ userContentController: WKUserContentController,
-    didReceive message: WKScriptMessage,
-    replyHandler: @escaping (Any?, String?) -> Void
-  ) {
+    didReceive message: WKScriptMessage
+  ) async -> (Any?, String?) {
     guard let raw = message.body as? String, let envelope = BridgeEnvelope.decode(raw) else {
-      replyHandler(nil, "bad envelope")
-      return
+      return (nil, "bad envelope")
     }
     logger.notice("bridgeIn type=\(envelope.type, privacy: .public)")
-    Task {
-      let reply = await handle(envelope)
-      replyHandler(reply, nil)
-    }
+    return (await handle(envelope), nil)
   }
 
   func webView(
     _ webView: WKWebView,
     decidePolicyFor navigationAction: WKNavigationAction,
-    decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void
   ) {
     let url = navigationAction.request.url
     let mainFrame = navigationAction.targetFrame?.isMainFrame ?? false
@@ -177,12 +176,13 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     let mode = theme.mode.rawValue
     let autoImport = UserDefaults.standard.object(forKey: "autoImport") as? Bool ?? true
     return """
-    {"theme":"\(themeName)","mode":"\(mode)","panelSize":"normal","settings":{"autoImport":\(autoImport)}}
-    """
+      {"theme":"\(themeName)","mode":"\(mode)","panelSize":"normal","settings":{"autoImport":\(autoImport)}}
+      """
   }
 
   private func send(type: String, payload: [String: BridgeJSON]) {
-    let envelope = BridgeEnvelope(v: 1, id: UUID().uuidString, type: type, payload: payload).encoded()
+    let envelope = BridgeEnvelope(v: 1, id: UUID().uuidString, type: type, payload: payload)
+      .encoded()
     guard ready else {
       pending.append(envelope)
       return
@@ -199,12 +199,14 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   }
 
   private func deliver(_ envelope: String) {
-    webView.callAsyncJavaScript(
-      "return await window.__devbar.receive(env)",
-      arguments: ["env": envelope],
-      in: nil,
-      contentWorld: .page
-    ) { _ in }
+    Task {
+      _ = try? await webView.callAsyncJavaScript(
+        "return await window.__devbar.receive(env)",
+        arguments: ["env": envelope],
+        in: nil,
+        contentWorld: .page
+      )
+    }
     logger.notice("bridgeOut bytes=\(envelope.utf8.count, privacy: .public)")
   }
 
@@ -222,14 +224,17 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   private func handleMemoryPressure() {
     guard !panelVisible else { return }
     logger.notice("memoryFlush")
-    let envelope = BridgeEnvelope(v: 1, id: UUID().uuidString, type: "memory.flush", payload: [:]).encoded()
+    let envelope = BridgeEnvelope(v: 1, id: UUID().uuidString, type: "memory.flush", payload: [:])
+      .encoded()
     if ready {
-      webView.callAsyncJavaScript(
-        "return await window.__devbar.receive(env)",
-        arguments: ["env": envelope],
-        in: nil,
-        contentWorld: .page
-      ) { _ in }
+      Task {
+        _ = try? await webView.callAsyncJavaScript(
+          "return await window.__devbar.receive(env)",
+          arguments: ["env": envelope],
+          in: nil,
+          contentWorld: .page
+        )
+      }
     }
     Task {
       try? await Task.sleep(for: .seconds(1))

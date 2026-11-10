@@ -14,6 +14,7 @@ final class PanelModel {
   var page: Page = .clipboard
   var pinned = false
   var enlarged = false
+  var toast = ""
 
   var showsEnlarge: Bool {
     page == .tools || page == .document

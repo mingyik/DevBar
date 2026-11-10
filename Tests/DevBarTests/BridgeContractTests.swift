@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+
 @testable import DevBar
 
 @Test func bridgeSamplesRoundTrip() throws {
@@ -12,7 +13,8 @@ import Testing
   let samples = files.filter { $0.pathExtension == "json" }
   #expect(!samples.isEmpty)
   for file in samples {
-    let raw = try String(contentsOf: file, encoding: .utf8).trimmingCharacters(in: .whitespacesAndNewlines)
+    let raw = try String(contentsOf: file, encoding: .utf8).trimmingCharacters(
+      in: .whitespacesAndNewlines)
     let decoded = try #require(BridgeEnvelope.decode(raw))
     #expect(decoded.encoded() == raw)
   }
@@ -22,7 +24,8 @@ import Testing
   let root = URL(fileURLWithPath: "/tmp/devbar-web")
   #expect(WebFileMap.file(for: URL(string: "devbar://app/../secret")!, root: root) == nil)
   #expect(WebFileMap.file(for: URL(string: "https://example.com/")!, root: root) == nil)
-  let index = try #require(WebFileMap.file(for: URL(string: "devbar://app/index.html")!, root: root))
+  let index = try #require(
+    WebFileMap.file(for: URL(string: "devbar://app/index.html")!, root: root))
   #expect(index.lastPathComponent == "index.html")
 }
 

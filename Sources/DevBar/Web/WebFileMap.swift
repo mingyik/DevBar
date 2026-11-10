@@ -10,7 +10,9 @@ enum WebFileMap {
     let rootStandard = root.standardizedFileURL
     let candidate = rootStandard.appending(path: relative).standardizedFileURL
     let rootPrefix = rootStandard.path.hasSuffix("/") ? rootStandard.path : rootStandard.path + "/"
-    guard candidate.path == rootStandard.path || candidate.path.hasPrefix(rootPrefix) else { return nil }
+    guard candidate.path == rootStandard.path || candidate.path.hasPrefix(rootPrefix) else {
+      return nil
+    }
     return candidate
   }
 

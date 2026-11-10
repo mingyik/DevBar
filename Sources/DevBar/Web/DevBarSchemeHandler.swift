@@ -16,7 +16,8 @@ final class DevBarSchemeHandler: NSObject, WKURLSchemeHandler {
       fail(task, status: 403)
       return
     }
-    guard let data = try? Data(contentsOf: file), FileManager.default.fileExists(atPath: file.path) else {
+    guard let data = try? Data(contentsOf: file), FileManager.default.fileExists(atPath: file.path)
+    else {
       fail(task, status: 404)
       return
     }
@@ -57,9 +58,12 @@ final class DevBarSchemeHandler: NSObject, WKURLSchemeHandler {
   private func fail(_ task: any WKURLSchemeTask, status: Int) {
     if isStopped(ObjectIdentifier(task)) { return }
     let url = task.request.url ?? URL(string: "devbar://app/")!
-    if let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: [
-      "Content-Security-Policy": DevBarCSP.header,
-    ]) {
+    if let response = HTTPURLResponse(
+      url: url, statusCode: status, httpVersion: "HTTP/1.1",
+      headerFields: [
+        "Content-Security-Policy": DevBarCSP.header
+      ])
+    {
       task.didReceive(response)
     }
     task.didFinish()
