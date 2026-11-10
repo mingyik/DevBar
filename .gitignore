@@ -1,0 +1,8 @@
+.build/
+build/
+Web/node_modules/
+Web/dist/
+Reference/
+.DS_Store
+.swiftpm/
+.claude/
