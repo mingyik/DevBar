@@ -24,6 +24,7 @@ let package = Package(
             ]
         ),
         .testTarget(name: "DevBarCoreTests", dependencies: ["DevBarCore"]),
+        .testTarget(name: "DevBarTests", dependencies: ["DevBar"]),
         .testTarget(name: "DevBarCaptureTests", dependencies: ["DevBarCapture"]),
     ],
     swiftLanguageModes: [.v6]

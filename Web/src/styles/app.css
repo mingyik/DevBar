@@ -1,0 +1,32 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  color: var(--text-primary);
+  font-family: ui-monospace, monospace;
+  font-size: var(--font-body);
+}
+
+body {
+  display: flex;
+}
+
+.screen {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.screen[hidden] {
+  display: none;
+}
+
+.cm-editor {
+  height: 100%;
+  font-size: var(--font-body);
+}
+
+html[data-size="large"] .cm-editor {
+  font-size: var(--font-body-large);
+}
