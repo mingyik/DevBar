@@ -3,7 +3,15 @@ import AppKit
 @main
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-  private var statusItem: NSStatusItem?
+  private let theme = ThemeManager()
+  private let statusItem = StatusItemController()
+  private let panel: PanelController
+  private let terminalYield = TerminalYield()
+
+  override init() {
+    panel = PanelController(theme: theme)
+    super.init()
+  }
 
   static func main() {
     let app = NSApplication.shared
@@ -15,22 +23,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   func applicationDidFinishLaunching(_: Notification) {
-    let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    if let button = item.button {
-      button.action = nil
-      button.target = nil
-      let configuration = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
-      let symbol = NSImage(
-        systemSymbolName: "square.stack",
-        accessibilityDescription: Strings.statusItemAccessibilityLabel
-      )
-      if let image = symbol?.withSymbolConfiguration(configuration) {
-        image.isTemplate = true
-        button.image = image
-      } else {
-        button.title = Strings.statusItemTitle
-      }
+    theme.refresh()
+    statusItem.onPrimaryClick = { [weak self] in
+      self?.panel.toggle(anchor: self?.statusItem.anchor)
     }
-    statusItem = item
+    statusItem.onSettings = { [weak self] in
+      self?.panel.showSettings(anchor: self?.statusItem.anchor)
+    }
+    statusItem.onAbout = { [weak self] in
+      self?.panel.model.page = .settings
+      self?.panel.show(anchor: self?.statusItem.anchor)
+    }
+    ShortcutActions.register(panel: panel, status: statusItem)
+    terminalYield.start()
   }
 }

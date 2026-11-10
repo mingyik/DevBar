@@ -1,0 +1,3 @@
+:root[data-theme][data-contrast="high"] {
+  --line-border: var(--line-border-high-contrast);
+}

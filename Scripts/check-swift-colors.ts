@@ -5,10 +5,18 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 export type ColorHit = { line: number; column: number; text: string };
 
 const ALLOW = "devbar:allow-color";
-const CONSTRUCTOR =
-  /\b(?:Color|NSColor|CGColor)\s*\(\s*(?:\.(?:sRGB|displayP3)\b|(?:red|white|hue|srgbRed|displayP3Red|calibratedRed|calibratedWhite|deviceRed|deviceWhite)\s*:)/g;
+const COLOR_PARAMS =
+  "(?:red|white|hue|gray|genericGrayGamma2_2Gray|srgbRed|displayP3Red|calibratedRed|calibratedWhite|deviceRed|deviceWhite)";
+const CONSTRUCTOR = new RegExp(
+  `\\b(?:Color|NSColor|CGColor)\\s*\\(\\s*(?:\\.(?:sRGB|displayP3)\\b|${COLOR_PARAMS}\\s*:)`,
+  "g",
+);
+const INIT_CALL = new RegExp(
+  `\\.init\\s*\\(\\s*(?:\\.(?:sRGB|displayP3)\\b|${COLOR_PARAMS}\\s*:)`,
+  "g",
+);
 const COLOR_CALL = /\b(?:rgba?|hsla?)\s*\(|#colorLiteral\b/g;
-const HEX_IN_STRING = /#(?:[\da-fA-F]{8}|[\da-fA-F]{6}|[\da-fA-F]{3})(?![\da-fA-F])/g;
+const HEX_IN_STRING = /#(?:[\da-fA-F]{8}|[\da-fA-F]{6}|[\da-fA-F]{4}|[\da-fA-F]{3})(?![\da-fA-F])/g;
 
 function lineAt(source: string, index: number): { line: number; column: number; text: string } {
   let line = 1;
@@ -85,7 +93,7 @@ function stringRanges(source: string): Array<{ start: number; end: number }> {
 
 export function findSwiftColorViolations(source: string): ColorHit[] {
   const hits: ColorHit[] = [];
-  for (const pattern of [CONSTRUCTOR, COLOR_CALL]) {
+  for (const pattern of [CONSTRUCTOR, INIT_CALL, COLOR_CALL]) {
     pattern.lastIndex = 0;
     for (const match of source.matchAll(pattern)) {
       push(hits, source, match.index ?? 0, match[0].length);
