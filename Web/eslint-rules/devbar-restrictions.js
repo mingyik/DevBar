@@ -4,7 +4,7 @@ const devbarRestrictions = {
     type: "problem",
     docs: {
       description:
-        "禁止 eval、Function、字符串定时器，以及联网 API；tools/tree 禁止访问原生 JSON.parse / JSON.stringify。字面颜色规则归属 T0.2。",
+        "tools/tree 禁止 JSON 标识符；只禁止全局 eval、Function 和联网 API 的引用。字面颜色规则另见 no-literal-color。",
     },
     schema: [],
     messages: {
@@ -20,6 +20,15 @@ const devbarRestrictions = {
     const bansNativeJSON =
       !/(?:^|\/)src\/bridge\/envelope\.ts$/.test(filename) &&
       /(?:^|\/)src\/(?:tools|tree)\//.test(filename);
+    const globalObjects = new Set(["window", "globalThis", "self"]);
+    const bannedGlobals = new Set([
+      "eval",
+      "Function",
+      "fetch",
+      "XMLHttpRequest",
+      "WebSocket",
+      "EventSource",
+    ]);
 
     /**
      * @param {import("estree").Node | null | undefined} node
@@ -27,12 +36,8 @@ const devbarRestrictions = {
      */
     function unwrap(node) {
       let current = node ?? null;
-      while (current) {
-        if (current.type === "ChainExpression") {
-          current = current.expression;
-          continue;
-        }
-        break;
+      while (current && current.type === "ChainExpression") {
+        current = current.expression;
       }
       return current;
     }
@@ -46,11 +51,7 @@ const devbarRestrictions = {
       if (!node.computed && key.type === "Identifier") {
         return key.name;
       }
-      if (
-        (node.computed || key.type === "Literal") &&
-        key.type === "Literal" &&
-        typeof key.value === "string"
-      ) {
+      if (key.type === "Literal" && typeof key.value === "string") {
         return key.value;
       }
       if (
@@ -65,9 +66,68 @@ const devbarRestrictions = {
 
     /**
      * @param {import("estree").Node | null | undefined} node
+     * @returns {boolean}
+     */
+    function isGlobalObject(node) {
+      const current = unwrap(node);
+      return current?.type === "Identifier" && globalObjects.has(current.name);
+    }
+
+    /**
+     * @param {import("estree").Identifier} node
+     * @returns {boolean}
+     */
+    function isOrdinaryMethodName(node) {
+      const parent = node.parent;
+      if (
+        !parent ||
+        parent.type !== "MemberExpression" ||
+        parent.computed ||
+        parent.property !== node
+      ) {
+        return false;
+      }
+      return !isGlobalObject(parent.object);
+    }
+    /**
+     * @param {import("estree").Identifier} node
+     * @returns {boolean}
+     */
+    function isMethodOrPropertyKey(node) {
+      const parent = node.parent;
+      if (
+        !parent ||
+        (parent.type !== "Property" && parent.type !== "MethodDefinition") ||
+        parent.key !== node ||
+        parent.computed ||
+        (parent.type === "Property" && parent.shorthand)
+      ) {
+        return false;
+      }
+      return true;
+    }
+
+    /**
+     * @param {import("estree").Node} node
+     * @param {string} name
+     */
+    function reportBanned(node, name) {
+      if (name === "eval") {
+        context.report({ node, messageId: "eval" });
+        return;
+      }
+      if (name === "Function") {
+        context.report({ node, messageId: "functionConstructor" });
+        return;
+      }
+      context.report({ node, messageId: "network", data: { name } });
+    }
+
+    /**
+     * @param {import("estree").Node | null | undefined} node
      * @returns {string | null}
      */
-    function calleeName(node) {
+    function globalCalleeName(node) {
       const current = unwrap(node);
       if (!current) {
         return null;
@@ -75,7 +135,10 @@ const devbarRestrictions = {
       if (current.type === "Identifier") {
         return current.name;
       }
-      if (current.type === "MemberExpression") {
+      if (
+        current.type === "MemberExpression" &&
+        isGlobalObject(current.object)
+      ) {
         return staticKey(current);
       }
       return null;
@@ -95,77 +158,36 @@ const devbarRestrictions = {
       return node.type === "TemplateLiteral";
     }
 
-    /**
-     * @param {import("estree").Node | null | undefined} node
-     */
-    function reportJSONPattern(node) {
-      if (!node || node.type !== "ObjectPattern") {
-        return;
-      }
-      for (const prop of node.properties) {
-        if (prop.type !== "Property") {
-          continue;
-        }
-        const name = staticKey(prop);
-        if (name === "parse" || name === "stringify") {
-          context.report({
-            node: prop,
-            messageId: "json",
-            data: { name: `JSON.${name}` },
-          });
-        }
-      }
-    }
-
-    /**
-     * @param {import("estree").Node | null | undefined} node
-     * @returns {boolean}
-     */
-    function isJSON(node) {
-      const current = unwrap(node);
-      return current?.type === "Identifier" && current.name === "JSON";
-    }
-
     return {
+      Identifier(node) {
+        if (bansNativeJSON && node.name === "JSON") {
+          context.report({ node, messageId: "json", data: { name: "JSON" } });
+        }
+        if (
+          bannedGlobals.has(node.name) &&
+          !isOrdinaryMethodName(node) &&
+          !isMethodOrPropertyKey(node)
+        ) {
+          reportBanned(node, node.name);
+        }
+      },
       MemberExpression(node) {
-        if (!bansNativeJSON || !isJSON(node.object)) {
+        if (!node.computed || !isGlobalObject(node.object)) {
           return;
         }
         const name = staticKey(node);
-        if (name === "parse" || name === "stringify") {
-          context.report({
-            node,
-            messageId: "json",
-            data: { name: `JSON.${name}` },
-          });
-        }
-      },
-      VariableDeclarator(node) {
-        if (!bansNativeJSON || !isJSON(node.init)) {
+        if (!name) {
           return;
         }
-        reportJSONPattern(node.id);
-      },
-      AssignmentExpression(node) {
-        if (!bansNativeJSON || !isJSON(node.right)) {
-          return;
+        if (bansNativeJSON && name === "JSON") {
+          context.report({ node, messageId: "json", data: { name: "JSON" } });
         }
-        reportJSONPattern(node.left);
+        if (bannedGlobals.has(name)) {
+          reportBanned(node, name);
+        }
       },
       CallExpression(node) {
-        const name = calleeName(node.callee);
-        if (name === "eval") {
-          context.report({ node, messageId: "eval" });
-        } else if (name === "Function") {
-          context.report({ node, messageId: "functionConstructor" });
-        } else if (
-          name === "fetch" ||
-          name === "XMLHttpRequest" ||
-          name === "WebSocket" ||
-          name === "EventSource"
-        ) {
-          context.report({ node, messageId: "network", data: { name } });
-        }
+        const name = globalCalleeName(node.callee);
         if (
           (name === "setTimeout" || name === "setInterval") &&
           isStringCode(node.arguments[0])
@@ -175,18 +197,6 @@ const devbarRestrictions = {
             messageId: "setTimeoutString",
             data: { name },
           });
-        }
-      },
-      NewExpression(node) {
-        const name = calleeName(node.callee);
-        if (name === "Function") {
-          context.report({ node, messageId: "functionConstructor" });
-        } else if (
-          name === "XMLHttpRequest" ||
-          name === "WebSocket" ||
-          name === "EventSource"
-        ) {
-          context.report({ node, messageId: "network", data: { name } });
         }
       },
     };

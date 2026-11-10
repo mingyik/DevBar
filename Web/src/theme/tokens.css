@@ -1,0 +1,62 @@
+/* 自动生成，勿手改。来源：design/tokens.json */
+:root {
+  --radius-small: 7px;
+  --radius-medium: 10px;
+  --radius-large: 12px;
+  --radius-inline: 4px;
+  --stroke-hairline: 0.7px;
+  --stroke-strong: 1px;
+  --font-body: 14px;
+  --font-body-large: 15px;
+  --font-line-height: 1.65;
+}
+
+:root[data-theme="light"] {
+  --panel-base: rgba(255, 255, 255, 0.68);
+  --panel-card: rgba(255, 255, 255, 0.38);
+  --panel-control: rgba(0, 0, 0, 0.055);
+  --panel-raised: rgba(255, 255, 255, 0.88);
+  --line-border: rgba(0, 0, 0, 0.09);
+  --line-border-high-contrast: rgba(0, 0, 0, 0.24);
+  --line-divider: rgba(0, 0, 0, 0.12);
+  --text-primary: rgba(0, 0, 0, 1);
+  --text-secondary: rgba(0, 0, 0, 0.75);
+  --text-tertiary: rgba(0, 0, 0, 0.6);
+  --syntax-keyword: rgba(0, 0, 0, 1);
+  --syntax-keyword-weight: 600;
+  --syntax-string: rgba(0, 0, 0, 0.75);
+  --syntax-number: rgba(0, 0, 0, 1);
+  --syntax-number-variant: tabular-nums;
+  --syntax-constant: rgba(0, 0, 0, 1);
+  --syntax-constant-style: italic;
+  --syntax-comment: rgba(0, 0, 0, 0.6);
+  --syntax-comment-style: italic;
+  --syntax-punct: rgba(0, 0, 0, 0.6);
+  --selection-fill: rgba(0, 0, 0, 1);
+  --selection-text: rgba(255, 255, 255, 1);
+}
+
+:root[data-theme="dark"] {
+  --panel-base: rgba(0, 0, 0, 0.42);
+  --panel-card: rgba(255, 255, 255, 0.075);
+  --panel-control: rgba(255, 255, 255, 0.085);
+  --panel-raised: rgba(255, 255, 255, 0.14);
+  --line-border: rgba(255, 255, 255, 0.11);
+  --line-border-high-contrast: rgba(255, 255, 255, 0.28);
+  --line-divider: rgba(255, 255, 255, 0.12);
+  --text-primary: rgba(255, 255, 255, 1);
+  --text-secondary: rgba(255, 255, 255, 0.75);
+  --text-tertiary: rgba(255, 255, 255, 0.6);
+  --syntax-keyword: rgba(255, 255, 255, 1);
+  --syntax-keyword-weight: 600;
+  --syntax-string: rgba(255, 255, 255, 0.75);
+  --syntax-number: rgba(255, 255, 255, 1);
+  --syntax-number-variant: tabular-nums;
+  --syntax-constant: rgba(255, 255, 255, 1);
+  --syntax-constant-style: italic;
+  --syntax-comment: rgba(255, 255, 255, 0.6);
+  --syntax-comment-style: italic;
+  --syntax-punct: rgba(255, 255, 255, 0.6);
+  --selection-fill: rgba(255, 255, 255, 1);
+  --selection-text: rgba(0, 0, 0, 1);
+}

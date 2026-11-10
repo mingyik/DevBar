@@ -1,0 +1,55 @@
+{
+  "comment": "自动生成，勿手改。来源：design/tokens.json",
+  "name": "devbar-light",
+  "displayName": "DevBar Light",
+  "type": "light",
+  "colors": {
+    "editor.background": "#FFFFFF61",
+    "editor.foreground": "#000000"
+  },
+  "tokenColors": [
+    {
+      "scope": ["keyword", "storage.type", "storage.modifier"],
+      "settings": {
+        "foreground": "#000000",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "scope": ["string"],
+      "settings": {
+        "foreground": "#000000BF"
+      }
+    },
+    {
+      "scope": ["constant.numeric"],
+      "settings": {
+        "foreground": "#000000"
+      }
+    },
+    {
+      "scope": [
+        "constant.language",
+        "constant.language.boolean",
+        "constant.language.null"
+      ],
+      "settings": {
+        "foreground": "#000000",
+        "fontStyle": "italic"
+      }
+    },
+    {
+      "scope": ["comment"],
+      "settings": {
+        "foreground": "#00000099",
+        "fontStyle": "italic"
+      }
+    },
+    {
+      "scope": ["punctuation"],
+      "settings": {
+        "foreground": "#00000099"
+      }
+    }
+  ]
+}
