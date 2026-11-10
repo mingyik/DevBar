@@ -14,6 +14,9 @@ const blocked = [
   'let hex = "#fff"',
   'let wide = "#112233"',
   'let alpha = "#11223344"',
+  "let gray = CGColor(gray: 0.5, alpha: 1)",
+  "let c: Color = .init(red: 1, green: 0, blue: 0)",
+  "let short = \"#F00A\"",
 ];
 
 for (const [index, source] of blocked.entries()) {
