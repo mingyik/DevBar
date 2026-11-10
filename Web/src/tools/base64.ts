@@ -25,10 +25,14 @@ export function decode(text: string): Decoded {
     );
     const bytes = Uint8Array.from(raw, (c) => c.charCodeAt(0));
     try {
-      return {
-        kind: "text",
-        text: new TextDecoder("utf-8", { fatal: true }).decode(bytes),
-      };
+      const decoded = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      if (
+        Array.from(decoded).some(
+          (c) => c.charCodeAt(0) < 32 && ![9, 10, 13].includes(c.charCodeAt(0)),
+        )
+      )
+        return { kind: "binary", bytes: bytes.length };
+      return { kind: "text", text: decoded };
     } catch {
       return { kind: "binary", bytes: bytes.length };
     }
