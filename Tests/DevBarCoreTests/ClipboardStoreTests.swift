@@ -212,14 +212,25 @@ private func addText(_ text: String, to store: ClipboardStore, date: Date = Date
   #expect(await reopened.items == [saved])
 }
 
-@Test func clipboardCorruptIndexFailsWithoutDeletingOriginals() async throws {
+@Test func clipboardCorruptIndexBacksUpAndRestartsWithOneNotification() async throws {
   let root = try temporaryClipboardDirectory()
   defer { try? FileManager.default.removeItem(at: root) }
-  let store = try ClipboardStore(directory: root)
-  let saved = try await addText("saved", to: store)
-  try Data("broken".utf8).write(to: root.appendingPathComponent("index.json"))
-  #expect(throws: ClipboardStore.StoreError.self) { _ = try ClipboardStore(directory: root) }
-  #expect(try await store.payloads(for: saved.id)[0].data == Data("saved".utf8))
+  let calls = Mutex(0)
+  let corrupt = Data("not json".utf8)
+  try corrupt.write(to: root.appendingPathComponent("index.json"))
+  let store = try ClipboardStore(directory: root, onCorruptHistory: { calls.withLock { $0 += 1 } })
+  #expect(await store.items.isEmpty)
+  #expect(calls.withLock { $0 } == 1)
+  let backups = try FileManager.default.contentsOfDirectory(
+    at: root, includingPropertiesForKeys: nil
+  ).filter { $0.lastPathComponent.hasPrefix("index.json.corrupt-") }
+  #expect(backups.count == 1)
+  #expect(try Data(contentsOf: #require(backups.first)) == corrupt)
+  _ = try await addText("new", to: store)
+  let reopened = try ClipboardStore(
+    directory: root, onCorruptHistory: { calls.withLock { $0 += 1 } })
+  #expect(await reopened.items.count == 1)
+  #expect(calls.withLock { $0 } == 1)
 }
 
 @Test func clipboardRejectsTraversalInStoredBlobReference() async throws {
@@ -283,4 +294,25 @@ private func addText(_ text: String, to store: ClipboardStore, date: Date = Date
       try FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent(folder).path)
         .isEmpty)
   }
+}
+
+@Test func clipboardCorruptIndexWithInvalidTempKeepsDistinctBackups() async throws {
+  let root = try temporaryClipboardDirectory()
+  defer { try? FileManager.default.removeItem(at: root) }
+  let calls = Mutex(0)
+  for content in ["broken first", "broken second"] {
+    try Data(content.utf8).write(to: root.appendingPathComponent("index.json"))
+    try Data("{".utf8).write(to: root.appendingPathComponent("index.json.tmp"))
+    let store = try ClipboardStore(
+      directory: root, onCorruptHistory: { calls.withLock { $0 += 1 } })
+    #expect(await store.items.isEmpty)
+  }
+  let backups = try FileManager.default.contentsOfDirectory(
+    at: root, includingPropertiesForKeys: nil
+  ).filter { $0.lastPathComponent.hasPrefix("index.json.corrupt-") }
+  #expect(backups.count == 2)
+  #expect(
+    try Set(backups.map { try String(contentsOf: $0, encoding: .utf8) })
+      == Set(["broken first", "broken second"]))
+  #expect(calls.withLock { $0 } == 2)
 }

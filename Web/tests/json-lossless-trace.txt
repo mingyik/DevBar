@@ -1,0 +1,98 @@
+T3.3 lossless chain: literal input/output; synthetic test fixture only.
+Undo restores the original immutable snapshot. Copy reads current text.
+
+paste
+INPUT
+{"big":12345678901234567890,"decimal":1.0,"exp":1e10,"negative":-0,"fraction":0.1000}
+OUTPUT
+{
+  "big": 12345678901234567890,
+  "decimal": 1.0,
+  "exp": 1e10,
+  "negative": -0,
+  "fraction": 0.1000
+}
+
+compact
+INPUT
+{
+  "big": 12345678901234567890,
+  "decimal": 1.0,
+  "exp": 1e10,
+  "negative": -0,
+  "fraction": 0.1000
+}
+OUTPUT
+{"big":12345678901234567890,"decimal":1.0,"exp":1e10,"negative":-0,"fraction":0.1000}
+
+format
+INPUT
+{"big":12345678901234567890,"decimal":1.0,"exp":1e10,"negative":-0,"fraction":0.1000}
+OUTPUT
+{
+  "big": 12345678901234567890,
+  "decimal": 1.0,
+  "exp": 1e10,
+  "negative": -0,
+  "fraction": 0.1000
+}
+
+copyValue
+INPUT
+{
+  "big": 12345678901234567890,
+  "decimal": 1.0,
+  "exp": 1e10,
+  "negative": -0,
+  "fraction": 0.1000
+}
+OUTPUT
+{
+  "big": 12345678901234567890,
+  "decimal": 1.0,
+  "exp": 1e10,
+  "negative": -0,
+  "fraction": 0.1000
+}
+
+escape
+INPUT
+{
+  "big": 12345678901234567890,
+  "decimal": 1.0,
+  "exp": 1e10,
+  "negative": -0,
+  "fraction": 0.1000
+}
+OUTPUT
+"{\n  \"big\": 12345678901234567890,\n  \"decimal\": 1.0,\n  \"exp\": 1e10,\n  \"negative\": -0,\n  \"fraction\": 0.1000\n}"
+
+unescape
+INPUT
+"{\n  \"big\": 12345678901234567890,\n  \"decimal\": 1.0,\n  \"exp\": 1e10,\n  \"negative\": -0,\n  \"fraction\": 0.1000\n}"
+OUTPUT
+{
+  "big": 12345678901234567890,
+  "decimal": 1.0,
+  "exp": 1e10,
+  "negative": -0,
+  "fraction": 0.1000
+}
+
+undo
+INPUT
+{
+  "big": 12345678901234567890,
+  "decimal": 1.0,
+  "exp": 1e10,
+  "negative": -0,
+  "fraction": 0.1000
+}
+OUTPUT
+{"big":12345678901234567890,"decimal":1.0,"exp":1e10,"negative":-0,"fraction":0.1000}
+
+copy
+INPUT
+{"big":12345678901234567890,"decimal":1.0,"exp":1e10,"negative":-0,"fraction":0.1000}
+OUTPUT
+{"big":12345678901234567890,"decimal":1.0,"exp":1e10,"negative":-0,"fraction":0.1000}
