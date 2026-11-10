@@ -32,11 +32,13 @@ web_needs_build() {
   [[ -n "$newer" ]]
 }
 
-if web_needs_build; then
+if web_needs_build || [[ ! -d Web/node_modules || ! -f Web/node_modules/.package-lock.json || Web/package-lock.json -nt Web/node_modules/.package-lock.json ]]; then
   echo "== web build =="
   (
     cd Web
-    npm ci
+    if [[ ! -d node_modules || ! -f node_modules/.package-lock.json || package-lock.json -nt node_modules/.package-lock.json ]]; then
+      npm ci
+    fi
     npm run build
   )
 else

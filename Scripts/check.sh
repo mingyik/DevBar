@@ -16,7 +16,7 @@ swift test
 echo "== web =="
 (
   cd Web
-  if [[ ! -d node_modules ]]; then
+  if [[ ! -d node_modules || ! -f node_modules/.package-lock.json || package-lock.json -nt node_modules/.package-lock.json ]]; then
     npm ci
   fi
   npm run lint

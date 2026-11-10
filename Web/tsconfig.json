@@ -16,6 +16,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "tests", "vite.config.ts", "vitest.config.ts"],
-  "exclude": ["src/theme/cm-highlight.ts"]
+  "include": ["src", "tests", "vite.config.ts", "vitest.config.ts"]
 }

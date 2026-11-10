@@ -5,6 +5,7 @@ import SwiftUI
 struct PanelView: View {
   @Bindable var model: PanelModel
   @Bindable var theme: ThemeManager
+  var webHost: WebHost
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
   var body: some View {
@@ -41,13 +42,10 @@ struct PanelView: View {
       panelShape.fill(DesignTokens.opaqueBackdrop(scheme))
         .overlay(panelShape.fill(DesignTokens.panelBase(scheme)))
         .overlay(panelOutline(scheme))
-    } else if #available(macOS 26, *) {
+    } else {
       panelShape.fill(Color.clear)
         .glassEffect(.regular, in: panelShape)
         .overlay(panelShape.fill(DesignTokens.panelGlassTint(scheme)))
-        .overlay(panelOutline(scheme))
-    } else {
-      panelShape.fill(DesignTokens.panelBase(scheme))
         .overlay(panelOutline(scheme))
     }
   }
@@ -149,10 +147,9 @@ struct PanelView: View {
     switch model.page {
     case .clipboard:
       placeholder(Strings.clipboardPlaceholder, scheme)
-    case .tools:
-      placeholder(Strings.toolsPlaceholder, scheme)
-    case .document:
-      placeholder(Strings.documentPlaceholder, scheme)
+    case .tools, .document:
+      WebViewBox(host: webHost)
+        .id(webHost.generation)
     case .capture:
       placeholder(Strings.capturePlaceholder, scheme)
     case .settings:
@@ -232,6 +229,36 @@ private struct ActionIcon: View {
     .onHover { hovered = $0 }
     .help(label)
     .accessibilityLabel(label)
+  }
+}
+
+private struct WebViewBox: NSViewRepresentable {
+  var host: WebHost
+
+  func makeNSView(context: Context) -> NSView {
+    let container = NSView()
+    mount(host.webView, in: container)
+    return container
+  }
+
+  func updateNSView(_ container: NSView, context: Context) {
+    if container.subviews.first !== host.webView {
+      for view in container.subviews {
+        view.removeFromSuperview()
+      }
+      mount(host.webView, in: container)
+    }
+  }
+
+  private func mount(_ view: NSView, in container: NSView) {
+    view.translatesAutoresizingMaskIntoConstraints = false
+    container.addSubview(view)
+    NSLayoutConstraint.activate([
+      view.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      view.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+      view.topAnchor.constraint(equalTo: container.topAnchor),
+      view.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+    ])
   }
 }
 
