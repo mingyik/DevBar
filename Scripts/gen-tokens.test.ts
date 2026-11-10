@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertTextAlphas, compositeOpaque, loadTokens, resolveColor } from "./gen-tokens.ts";
+import { assertTextAlphas, compositeOpaque, loadTokens, renderTokens, resolveColor } from "./gen-tokens.ts";
 
 test("#000000 @ 0.6 叠在 #F2F2F2 上得到 #616161", () => {
   assert.equal(compositeOpaque("#000000", 0.6, "#F2F2F2"), "#616161");
@@ -28,4 +28,50 @@ test("当前 tokens 的文字角色不低于 0.60", () => {
   const tokens = loadTokens();
   assert.doesNotThrow(() => assertTextAlphas(tokens));
   assert.equal(resolveColor(tokens, "light", "syntax.comment").alpha, 0.6);
+});
+test("syntax.keyword 字重改变后 CodeMirror 产物跟着变", () => {
+  const tokens = structuredClone(loadTokens());
+  const role = tokens.light["syntax.keyword"];
+  if (!role || !("weight" in role)) {
+    throw new Error("缺少 syntax.keyword.weight");
+  }
+  role.weight = 500;
+  const highlight = renderTokens(tokens)["Web/src/theme/cm-highlight.ts"] ?? "";
+  assert.match(highlight, /500/);
+  assert.match(highlight, /tags\.propertyName/);
+  assert.match(highlight, /tags\.definition\(tags\.propertyName\)/);
+});
+
+test("黑主题引用与白主题不同时 Swift 按主题解析", () => {
+  const tokens = structuredClone(loadTokens());
+  const role = tokens.dark["syntax.string"];
+  if (!role || !("ref" in role)) {
+    throw new Error("缺少 syntax.string.ref");
+  }
+  role.ref = "text.primary";
+  const swift = renderTokens(tokens)["Sources/DevBar/Generated/DesignTokens.swift"] ?? "";
+  assert.match(swift, /func syntaxString\(_ scheme: ColorScheme\)[\s\S]*?case \.dark:\s*return textPrimary\(scheme\)/);
+});
+
+test("JSON 键映射到 CodeMirror propertyName 和 Shiki property-name", () => {
+  const files = renderTokens(loadTokens());
+  const highlight = files["Web/src/theme/cm-highlight.ts"] ?? "";
+  const shiki = files["Web/src/theme/shiki-devbar-light.json"] ?? "";
+  assert.match(highlight, /tags\.propertyName/);
+  assert.match(highlight, /tags\.definition\(tags\.propertyName\)/);
+  assert.match(shiki, /support\.type\.property-name/);
+  assert.match(shiki, /meta\.object-literal\.key/);
+});
+
+test("Mermaid 结构线使用 text.tertiary 叠色", () => {
+  const tokens = loadTokens();
+  const expected = compositeOpaque(
+    resolveColor(tokens, "light", "text.tertiary").color,
+    resolveColor(tokens, "light", "text.tertiary").alpha,
+    tokens.opaqueBackdrop.light,
+  );
+  const source = renderTokens(tokens)["Web/src/theme/mermaid-vars.ts"] ?? "";
+  assert.match(source, new RegExp(`lineColor: "${expected}"`));
+  assert.match(source, new RegExp(`nodeBorder: "${expected}"`));
+  assert.equal(expected, "#616161");
 });

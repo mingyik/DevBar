@@ -65,6 +65,15 @@ const noLiteralColor = {
           pattern.lastIndex = 0;
           for (const match of text.matchAll(pattern)) {
             const start = match.index ?? 0;
+            const lineStart = text.lastIndexOf("\n", start) + 1;
+            const lineEnd = text.indexOf("\n", start);
+            const line = text.slice(
+              lineStart,
+              lineEnd === -1 ? text.length : lineEnd,
+            );
+            if (line.includes("devbar:allow-color")) {
+              continue;
+            }
             const end = start + match[0].length;
             context.report({
               node,

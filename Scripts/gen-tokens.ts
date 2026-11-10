@@ -170,7 +170,7 @@ function formatPrettier(filename: string, source: string): string {
   const prettier = join(root, "Web/node_modules/.bin/prettier");
   const result = spawnSync(prettier, ["--write", file], { encoding: "utf8" });
   if (result.status !== 0) {
-    throw new Error(result.stderr || "prettier 失败");
+    throw new Error(result.stderr || result.stdout || result.error?.message || "prettier 失败");
   }
   const formatted = readFileSync(file, "utf8");
   rmSync(dir, { recursive: true, force: true });
@@ -211,14 +211,28 @@ function renderSwift(tokens: Tokens): string {
     if (!light || !dark) {
       throw new Error(`白、黑角色不一致：${key}`);
     }
-    if ("ref" in light) {
+    if ("ref" in light || "ref" in dark) {
       lines.push(`  static func ${name}(_ scheme: ColorScheme) -> Color {`);
-      lines.push(`    ${camel(light.ref)}(scheme)`);
+      lines.push("    switch scheme {");
+      lines.push("    case .light:");
+      lines.push(`      return ${swiftColorExpr(light)}`);
+      lines.push("    case .dark:");
+      lines.push(`      return ${swiftColorExpr(dark)}`);
+      lines.push("    @unknown default:");
+      lines.push(`      return ${swiftColorExpr(light)}`);
+      lines.push("    }");
       lines.push("  }");
       lines.push("");
-      lines.push(
-        `  static let ${name}Style = SyntaxStyle(weight: ${light.weight ?? "nil"}, italic: ${light.italic === true}, tabular: ${light.tabular === true})`,
-      );
+      lines.push(`  static func ${name}Style(_ scheme: ColorScheme) -> SyntaxStyle {`);
+      lines.push("    switch scheme {");
+      lines.push("    case .light:");
+      lines.push(`      return ${swiftStyleExpr(light)}`);
+      lines.push("    case .dark:");
+      lines.push(`      return ${swiftStyleExpr(dark)}`);
+      lines.push("    @unknown default:");
+      lines.push(`      return ${swiftStyleExpr(light)}`);
+      lines.push("    }");
+      lines.push("  }");
       lines.push("");
       continue;
     }
@@ -314,27 +328,70 @@ function renderCSS(tokens: Tokens): string {
   return [...shared, ...themes].join("\n");
 }
 
-function renderCodeMirror(): string {
+function styleFields(role: Role | undefined): { weight?: number; italic: boolean; tabular: boolean } {
+  if (!role || !("ref" in role)) {
+    return { italic: false, tabular: false };
+  }
+  return { weight: role.weight, italic: role.italic === true, tabular: role.tabular === true };
+}
+
+function swiftColorExpr(role: Role): string {
+  return "ref" in role ? `${camel(role.ref)}(scheme)` : swiftColor(role);
+}
+
+function swiftStyleExpr(role: Role): string {
+  const fields = styleFields(role);
+  const weight = fields.weight === undefined ? "nil" : String(fields.weight);
+  return `SyntaxStyle(weight: ${weight}, italic: ${fields.italic}, tabular: ${fields.tabular})`;
+}
+
+function cmStyleProps(tokens: Tokens, key: string): string[] {
+  const light = styleFields(tokens.light[key]);
+  const dark = styleFields(tokens.dark[key]);
+  const props: string[] = [];
+  if (light.weight !== undefined || dark.weight !== undefined) {
+    props.push(
+      light.weight === dark.weight
+        ? `fontWeight: "${light.weight}"`
+        : `fontWeight: "var(${cssName(key)}-weight)" /* light ${light.weight ?? "none"}, dark ${dark.weight ?? "none"} */`,
+    );
+  }
+  if (light.italic || dark.italic) {
+    props.push(
+      light.italic === dark.italic
+        ? `fontStyle: "italic"`
+        : `fontStyle: "var(${cssName(key)}-style, normal)" /* light ${light.italic}, dark ${dark.italic} */`,
+    );
+  }
+  if (light.tabular || dark.tabular) {
+    props.push(
+      light.tabular === dark.tabular
+        ? `fontVariantNumeric: "tabular-nums"`
+        : `fontVariantNumeric: "var(${cssName(key)}-variant, normal)" /* light ${light.tabular}, dark ${dark.tabular} */`,
+    );
+  }
+  return props;
+}
+
+function renderCodeMirror(tokens: Tokens): string {
+  const keywordProps = ["color: \"var(--syntax-keyword)\"", ...cmStyleProps(tokens, "syntax.keyword")].join(", ");
+  const stringProps = ["color: \"var(--syntax-string)\"", ...cmStyleProps(tokens, "syntax.string")].join(", ");
+  const numberProps = ["color: \"var(--syntax-number)\"", ...cmStyleProps(tokens, "syntax.number")].join(", ");
+  const constantProps = ["color: \"var(--syntax-constant)\"", ...cmStyleProps(tokens, "syntax.constant")].join(", ");
+  const commentProps = ["color: \"var(--syntax-comment)\"", ...cmStyleProps(tokens, "syntax.comment")].join(", ");
+  const punctProps = ["color: \"var(--syntax-punct)\"", ...cmStyleProps(tokens, "syntax.punct")].join(", ");
   return [
     "// " + header,
     'import { HighlightStyle } from "@codemirror/language";',
     'import { tags } from "@lezer/highlight";',
     "",
     "export const devbarHighlightStyle = HighlightStyle.define([",
-    "  { tag: tags.keyword, color: \"var(--syntax-keyword)\", fontWeight: \"600\" },",
-    "  { tag: tags.string, color: \"var(--syntax-string)\" },",
-    "  {",
-    "    tag: tags.number,",
-    "    color: \"var(--syntax-number)\",",
-    "    fontVariantNumeric: \"tabular-nums\",",
-    "  },",
-    "  {",
-    "    tag: [tags.bool, tags.null, tags.atom],",
-    "    color: \"var(--syntax-constant)\",",
-    "    fontStyle: \"italic\",",
-    "  },",
-    "  { tag: tags.comment, color: \"var(--syntax-comment)\", fontStyle: \"italic\" },",
-    "  { tag: tags.punctuation, color: \"var(--syntax-punct)\" },",
+    `  { tag: [tags.keyword, tags.propertyName, tags.definition(tags.propertyName)], ${keywordProps} },`,
+    `  { tag: tags.string, ${stringProps} },`,
+    `  { tag: tags.number, ${numberProps} },`,
+    `  { tag: [tags.bool, tags.null, tags.atom], ${constantProps} },`,
+    `  { tag: tags.comment, ${commentProps} },`,
+    `  { tag: tags.punctuation, ${punctProps} },`,
     "]);",
     "",
   ].join("\n");
@@ -357,7 +414,7 @@ function renderShiki(tokens: Tokens, scheme: Scheme): string {
   const foreground = resolveColor(tokens, scheme, "text.primary");
   const background = resolveColor(tokens, scheme, "panel.card");
   const scopes: Array<[string, string[]]> = [
-    ["syntax.keyword", ["keyword", "storage.type", "storage.modifier"]],
+    ["syntax.keyword", ["keyword", "storage.type", "storage.modifier", "support.type.property-name", "support.type.property-name.json", "meta.object-literal.key"]],
     ["syntax.string", ["string"]],
     ["syntax.number", ["constant.numeric"]],
     ["syntax.constant", ["constant.language", "constant.language.boolean", "constant.language.null"]],
@@ -397,22 +454,22 @@ function renderMermaid(tokens: Tokens): string {
       background: paint("panel.base"),
       primaryColor: paint("panel.card"),
       primaryTextColor: paint("text.primary"),
-      primaryBorderColor: paint("line.border"),
+      primaryBorderColor: paint("text.tertiary"),
       secondaryColor: paint("panel.raised"),
       tertiaryColor: paint("panel.control"),
-      lineColor: paint("line.border"),
+      lineColor: paint("text.tertiary"),
       textColor: paint("text.primary"),
       mainBkg: paint("panel.card"),
-      nodeBorder: paint("line.border"),
+      nodeBorder: paint("text.tertiary"),
       clusterBkg: paint("panel.control"),
-      clusterBorder: paint("line.border"),
+      clusterBorder: paint("text.tertiary"),
       noteBkgColor: paint("panel.raised"),
       noteTextColor: paint("text.primary"),
-      noteBorderColor: paint("line.border"),
+      noteBorderColor: paint("text.tertiary"),
       actorBkg: paint("panel.card"),
-      actorBorder: paint("line.border"),
+      actorBorder: paint("text.tertiary"),
       actorTextColor: paint("text.primary"),
-      signalColor: paint("text.primary"),
+      signalColor: paint("text.tertiary"),
       labelBoxBkgColor: paint("panel.card"),
       edgeLabelBackground: paint("panel.raised"),
       sectionBkgColor: paint("panel.card"),
@@ -420,23 +477,23 @@ function renderMermaid(tokens: Tokens): string {
       gridColor: paint("line.divider"),
       todayLineColor: paint("text.primary"),
       taskBkgColor: paint("panel.raised"),
-      taskBorderColor: paint("line.border"),
+      taskBorderColor: paint("text.tertiary"),
       taskTextColor: paint("text.primary"),
       activeTaskBkgColor: paint("text.secondary"),
-      activeTaskBorderColor: paint("text.primary"),
+      activeTaskBorderColor: paint("text.tertiary"),
       doneTaskBkgColor: paint("panel.card"),
-      doneTaskBorderColor: paint("line.border"),
+      doneTaskBorderColor: paint("text.tertiary"),
       critBkgColor: paint("text.tertiary"),
-      critBorderColor: paint("text.primary"),
+      critBorderColor: paint("text.tertiary"),
       pieTitleTextColor: paint("text.primary"),
       pieSectionTextColor: paint("text.primary"),
       pieLegendTextColor: paint("text.secondary"),
-      pieStrokeColor: paint("line.border"),
+      pieStrokeColor: paint("text.tertiary"),
       commitLabelColor: paint("text.primary"),
       commitLabelBackground: paint("panel.card"),
       tagLabelColor: paint("text.primary"),
       tagLabelBackground: paint("panel.raised"),
-      tagLabelBorder: paint("line.border"),
+      tagLabelBorder: paint("text.tertiary"),
     };
     for (let index = 1; index <= 12; index += 1) {
       vars[`pie${index}`] = grayStep(tokens, scheme, index / 13);
@@ -455,7 +512,7 @@ export function renderTokens(tokens: Tokens): Record<string, string> {
   return {
     "Sources/DevBar/Generated/DesignTokens.swift": formatSwift(renderSwift(tokens)),
     "Web/src/theme/tokens.css": formatPrettier("tokens.css", renderCSS(tokens)),
-    "Web/src/theme/cm-highlight.ts": formatPrettier("cm-highlight.ts", renderCodeMirror()),
+    "Web/src/theme/cm-highlight.ts": formatPrettier("cm-highlight.ts", renderCodeMirror(tokens)),
     "Web/src/theme/shiki-devbar-light.json": formatPrettier(
       "shiki-devbar-light.json",
       renderShiki(tokens, "light"),

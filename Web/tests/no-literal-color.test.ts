@@ -26,6 +26,11 @@ tester.run("devbar/no-literal-color", rule, {
       filename: "src/theme/mermaid-vars.ts",
       code: 'export const color = "#fff";',
     },
+    {
+      name: "带允许标记的行不报",
+      filename: "src/editor/probe.ts",
+      code: 'export const color = "#fff"; // devbar:allow-color',
+    },
   ],
   invalid: [
     {

@@ -9,7 +9,14 @@
   },
   "tokenColors": [
     {
-      "scope": ["keyword", "storage.type", "storage.modifier"],
+      "scope": [
+        "keyword",
+        "storage.type",
+        "storage.modifier",
+        "support.type.property-name",
+        "support.type.property-name.json",
+        "meta.object-literal.key"
+      ],
       "settings": {
         "foreground": "#FFFFFF",
         "fontStyle": "bold"
