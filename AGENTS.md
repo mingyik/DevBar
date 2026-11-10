@@ -23,7 +23,7 @@ DevBar 是一个 macOS 菜单栏小工具（内部自用），四个大块：剪
 **分工、轮次、工作目录、分支、谁审核，见 `docs/分工与轮次.md`。**
 
 1. 只做分配给你的这一轮任务（`docs/分工与轮次.md` §4），任务内容按 `docs/实现规格.md` §10。
-2. **只在自己的工作目录和分支上工作**（Codex：`~/Desktop/DevBar-codex`；Grok：`~/Desktop/DevBar-grok`）。不在 `~/Desktop/DevBar` 里改代码，不自己合并进 `main`。
+2. **只在自己的工作目录和分支上工作**（Grok：`~/Desktop/DevBar-grok`；Codex：`~/Desktop/DevBar-codex`）。不在 `~/Desktop/DevBar` 里改代码，不自己合并进 `main`。
 3. 只改本轮任务涉及的目录；需要改公共文件时在回报里单独列出。
 4. 做完运行 `Scripts/check.sh`，提交时逐个列出文件（不用 `git add -A` / `git add .`），不修改 git 作者配置。按 `docs/实现规格.md` §11 的格式回报，开头写明轮次、分支名、提交号。
 5. 回报后停下，**审核通过、合并进 `main` 前不开始下一轮**。
