@@ -15,7 +15,9 @@ final class TerminalYield {
       object: nil,
       queue: .main
     ) { [weak self] notification in
-      let bundleID = (notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.bundleIdentifier
+      let bundleID =
+        (notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?
+        .bundleIdentifier
       MainActor.assumeIsolated {
         self?.update(bundleID)
       }

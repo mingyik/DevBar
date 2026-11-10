@@ -44,7 +44,9 @@ final class DevBarPanel: NSPanel {
       return true
     }
     let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-    guard flags == .command, let characters = event.charactersIgnoringModifiers, characters.count == 1 else {
+    guard flags == .command, let characters = event.charactersIgnoringModifiers,
+      characters.count == 1
+    else {
       return false
     }
     switch characters {

@@ -11,6 +11,7 @@ final class ThemeManager {
 
   private(set) var systemScheme: ColorScheme
   private(set) var increaseContrast: Bool
+  private(set) var reduceTransparency: Bool
   private let defaults: UserDefaults
   private let key = "themeMode"
   private var observers: [NSObjectProtocol] = []
@@ -24,6 +25,7 @@ final class ThemeManager {
     }
     systemScheme = .light
     increaseContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+    reduceTransparency = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
     refreshSystem()
     observe()
   }
@@ -55,6 +57,7 @@ final class ThemeManager {
   func refresh() {
     refreshSystem()
     increaseContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+    reduceTransparency = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
   }
 
   private func observe() {
@@ -78,6 +81,7 @@ final class ThemeManager {
       ) { [weak self] _ in
         MainActor.assumeIsolated {
           self?.increaseContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast
+          self?.reduceTransparency = NSWorkspace.shared.accessibilityDisplayShouldReduceTransparency
         }
       }
     )

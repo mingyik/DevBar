@@ -4,13 +4,17 @@ import os
 
 @MainActor
 extension KeyboardShortcuts.Name {
-  static let togglePanel = Self("togglePanel", default: .init(.space, modifiers: [.option, .command]))
+  static let togglePanel = Self(
+    "togglePanel", default: .init(.space, modifiers: [.option, .command]))
   static let cycleOlder = Self("cycleOlder", default: .init(.v, modifiers: [.control]))
   static let cycleNewer = Self("cycleNewer", default: .init(.v, modifiers: [.control, .shift]))
   static let openTools = Self("openTools", default: .init(.j, modifiers: [.option, .command]))
-  static let captureRegion = Self("captureRegion", default: .init(.four, modifiers: [.option, .command, .shift]))
-  static let captureLong = Self("captureLong", default: .init(.five, modifiers: [.option, .command, .shift]))
-  static let record = Self("record", default: .init(.six, modifiers: [.option, .command, .shift]))
+  static let captureRegion = Self(
+    "captureRegion", default: .init(.four, modifiers: [.option, .command]))
+  static let captureScroll = Self(
+    "captureScroll", default: .init(.five, modifiers: [.option, .command]))
+  static let recordToggle = Self(
+    "recordToggle", default: .init(.six, modifiers: [.option, .command]))
 }
 
 @MainActor
@@ -36,11 +40,11 @@ enum ShortcutActions {
     KeyboardShortcuts.onKeyUp(for: .captureRegion) {
       Task { @MainActor in log("captureRegion") }
     }
-    KeyboardShortcuts.onKeyUp(for: .captureLong) {
-      Task { @MainActor in log("captureLong") }
+    KeyboardShortcuts.onKeyUp(for: .captureScroll) {
+      Task { @MainActor in log("captureScroll") }
     }
-    KeyboardShortcuts.onKeyUp(for: .record) {
-      Task { @MainActor in log("record") }
+    KeyboardShortcuts.onKeyUp(for: .recordToggle) {
+      Task { @MainActor in log("recordToggle") }
     }
   }
 

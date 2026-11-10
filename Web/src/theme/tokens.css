@@ -16,6 +16,7 @@
   --panel-card: rgba(255, 255, 255, 0.38);
   --panel-control: rgba(0, 0, 0, 0.055);
   --panel-raised: rgba(255, 255, 255, 0.88);
+  --panel-glassTint: rgba(255, 255, 255, 0.24);
   --line-border: rgba(0, 0, 0, 0.09);
   --line-border-high-contrast: rgba(0, 0, 0, 0.24);
   --line-divider: rgba(0, 0, 0, 0.12);
@@ -41,6 +42,7 @@
   --panel-card: rgba(255, 255, 255, 0.075);
   --panel-control: rgba(255, 255, 255, 0.085);
   --panel-raised: rgba(255, 255, 255, 0.14);
+  --panel-glassTint: rgba(0, 0, 0, 0.19);
   --line-border: rgba(255, 255, 255, 0.11);
   --line-border-high-contrast: rgba(255, 255, 255, 0.28);
   --line-divider: rgba(255, 255, 255, 0.12);

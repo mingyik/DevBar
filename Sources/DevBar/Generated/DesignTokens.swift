@@ -63,6 +63,17 @@ enum DesignTokens {
     }
   }
 
+  static func panelGlassTint(_ scheme: ColorScheme) -> Color {
+    switch scheme {
+    case .light:
+      return Color(red: 1, green: 1, blue: 1, opacity: 0.24)
+    case .dark:
+      return Color(red: 0, green: 0, blue: 0, opacity: 0.19)
+    @unknown default:
+      return Color(red: 1, green: 1, blue: 1, opacity: 0.24)
+    }
+  }
+
   @MainActor
   static func lineBorder(_ scheme: ColorScheme) -> Color {
     let increaseContrast = NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast

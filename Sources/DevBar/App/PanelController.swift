@@ -1,7 +1,7 @@
 import AppKit
 import DevBarCore
-import os
 import SwiftUI
+import os
 
 @MainActor
 final class PanelController {
@@ -9,6 +9,7 @@ final class PanelController {
   let theme: ThemeManager
   let panel: DevBarPanel
   private let host: NSHostingView<PanelView>
+  private let effect = NSVisualEffectView()
   private var outsideMonitor: Any?
   private var resignObserver: NSObjectProtocol?
   private var dismissing = false
@@ -40,7 +41,8 @@ final class PanelController {
         self?.handleResignKey()
       }
     }
-    outsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
+    outsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown])
+    { [weak self] _ in
       MainActor.assumeIsolated {
         self?.handleOutsideClick()
       }
@@ -62,7 +64,7 @@ final class PanelController {
     if let anchor {
       lastAnchor = anchor
     }
-    panel.appearance = theme.appearance()
+    updateMaterial()
     reposition()
     panel.makeKeyAndOrderFront(nil)
     NSApp.activate()
@@ -92,7 +94,6 @@ final class PanelController {
   }
 
   private func installChrome() {
-    let effect = NSVisualEffectView()
     effect.material = .popover
     effect.blendingMode = .behindWindow
     effect.state = .active
@@ -115,6 +116,22 @@ final class PanelController {
       host.topAnchor.constraint(equalTo: container.topAnchor),
       host.bottomAnchor.constraint(equalTo: container.bottomAnchor),
     ])
+    updateMaterial()
+  }
+
+  private func updateMaterial() {
+    let appearance = theme.appearance()
+    panel.appearance = appearance
+    effect.appearance = appearance
+    effect.isHidden = theme.reduceTransparency || isMacOS26
+  }
+
+  private var isMacOS26: Bool {
+    if #available(macOS 26, *) {
+      true
+    } else {
+      false
+    }
   }
 
   private func watchSize() {
@@ -124,9 +141,10 @@ final class PanelController {
       _ = theme.mode
       _ = theme.systemScheme
       _ = theme.increaseContrast
+      _ = theme.reduceTransparency
     } onChange: { [weak self] in
       Task { @MainActor in
-        self?.panel.appearance = self?.theme.appearance()
+        self?.updateMaterial()
         self?.reposition()
         self?.watchSize()
       }
