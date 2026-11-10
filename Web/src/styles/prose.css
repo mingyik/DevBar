@@ -1,0 +1,124 @@
+.prose {
+  color: var(--text-primary);
+  font:
+    var(--font-body) / var(--font-line-height) -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  overflow-wrap: break-word;
+}
+.prose.large {
+  font-size: var(--font-body-large);
+}
+.prose > :first-child {
+  margin-top: 0;
+}
+.prose p,
+.prose ul,
+.prose ol,
+.prose blockquote {
+  margin: 0.75em 0;
+}
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4,
+.prose h5,
+.prose h6 {
+  margin: 1.2em 0 0.55em;
+  line-height: 1.4;
+}
+.prose h1 {
+  font-size: 1.35em;
+  font-weight: 700;
+}
+.prose h2 {
+  font-size: 1.18em;
+  font-weight: 650;
+}
+.prose h3 {
+  font-size: 1.05em;
+  font-weight: 600;
+}
+.prose h4,
+.prose h5,
+.prose h6 {
+  font-size: 1em;
+  font-weight: 600;
+}
+.prose h1,
+.prose h2 {
+  border-bottom: var(--stroke-hairline) solid var(--line-divider);
+  padding-bottom: 0.35em;
+}
+.prose a {
+  color: var(--text-primary);
+  text-decoration: underline;
+  text-decoration-thickness: var(--stroke-hairline);
+  text-underline-offset: 0.18em;
+}
+.prose a:hover {
+  text-decoration-thickness: var(--stroke-strong);
+}
+.prose blockquote {
+  border-left: 2px solid
+    color-mix(in srgb, var(--text-primary) 25%, transparent);
+  color: var(--text-secondary);
+  padding-left: 0.9em;
+  margin-left: 0;
+  margin-right: 0;
+}
+.prose hr {
+  border: 0;
+  border-top: var(--stroke-hairline) solid var(--line-divider);
+  margin: 1.2em 0;
+}
+.prose img {
+  max-width: 100%;
+  border-radius: var(--radius-small);
+}
+.prose .external-image {
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+  border: var(--stroke-hairline) solid var(--line-border);
+  border-radius: var(--radius-small);
+  gap: 4px;
+}
+.prose .image-address {
+  color: var(--text-tertiary);
+  font-size: 0.9em;
+  overflow-wrap: anywhere;
+}
+.prose .task-list-item {
+  list-style: none;
+}
+.prose .task-list-item-checkbox {
+  appearance: none;
+  width: 1em;
+  height: 1em;
+  margin: 0 0.5em 0 -1.5em;
+  vertical-align: -0.1em;
+  border: var(--stroke-hairline) solid var(--text-secondary);
+  border-radius: var(--radius-inline);
+  background: var(--panel-card);
+  opacity: 1;
+}
+.prose .task-list-item-checkbox:checked {
+  background: var(--selection-fill);
+  position: relative;
+}
+.prose .task-list-item-checkbox:checked::after {
+  content: "";
+  position: absolute;
+  width: 0.3em;
+  height: 0.55em;
+  left: 0.3em;
+  top: 0.1em;
+  border: solid var(--selection-text);
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+.prose ::selection {
+  background: var(--selection-fill);
+  color: var(--selection-text);
+}
