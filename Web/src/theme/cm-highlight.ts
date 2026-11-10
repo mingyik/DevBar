@@ -3,7 +3,11 @@ import { HighlightStyle } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 
 export const devbarHighlightStyle = HighlightStyle.define([
-  { tag: tags.keyword, color: "var(--syntax-keyword)", fontWeight: "600" },
+  {
+    tag: [tags.keyword, tags.propertyName, tags.definition(tags.propertyName)],
+    color: "var(--syntax-keyword)",
+    fontWeight: "600",
+  },
   { tag: tags.string, color: "var(--syntax-string)" },
   {
     tag: tags.number,

@@ -127,46 +127,158 @@ enum DesignTokens {
   }
 
   static func syntaxKeyword(_ scheme: ColorScheme) -> Color {
-    textPrimary(scheme)
+    switch scheme {
+    case .light:
+      return textPrimary(scheme)
+    case .dark:
+      return textPrimary(scheme)
+    @unknown default:
+      return textPrimary(scheme)
+    }
   }
 
-  static let syntaxKeywordStyle = SyntaxStyle(weight: 600, italic: false, tabular: false)
+  static func syntaxKeywordStyle(_ scheme: ColorScheme) -> SyntaxStyle {
+    switch scheme {
+    case .light:
+      return SyntaxStyle(weight: 600, italic: false, tabular: false)
+    case .dark:
+      return SyntaxStyle(weight: 600, italic: false, tabular: false)
+    @unknown default:
+      return SyntaxStyle(weight: 600, italic: false, tabular: false)
+    }
+  }
 
   static func syntaxString(_ scheme: ColorScheme) -> Color {
-    textSecondary(scheme)
+    switch scheme {
+    case .light:
+      return textSecondary(scheme)
+    case .dark:
+      return textSecondary(scheme)
+    @unknown default:
+      return textSecondary(scheme)
+    }
   }
 
-  static let syntaxStringStyle = SyntaxStyle(weight: nil, italic: false, tabular: false)
+  static func syntaxStringStyle(_ scheme: ColorScheme) -> SyntaxStyle {
+    switch scheme {
+    case .light:
+      return SyntaxStyle(weight: nil, italic: false, tabular: false)
+    case .dark:
+      return SyntaxStyle(weight: nil, italic: false, tabular: false)
+    @unknown default:
+      return SyntaxStyle(weight: nil, italic: false, tabular: false)
+    }
+  }
 
   static func syntaxNumber(_ scheme: ColorScheme) -> Color {
-    textPrimary(scheme)
+    switch scheme {
+    case .light:
+      return textPrimary(scheme)
+    case .dark:
+      return textPrimary(scheme)
+    @unknown default:
+      return textPrimary(scheme)
+    }
   }
 
-  static let syntaxNumberStyle = SyntaxStyle(weight: nil, italic: false, tabular: true)
+  static func syntaxNumberStyle(_ scheme: ColorScheme) -> SyntaxStyle {
+    switch scheme {
+    case .light:
+      return SyntaxStyle(weight: nil, italic: false, tabular: true)
+    case .dark:
+      return SyntaxStyle(weight: nil, italic: false, tabular: true)
+    @unknown default:
+      return SyntaxStyle(weight: nil, italic: false, tabular: true)
+    }
+  }
 
   static func syntaxConstant(_ scheme: ColorScheme) -> Color {
-    textPrimary(scheme)
+    switch scheme {
+    case .light:
+      return textPrimary(scheme)
+    case .dark:
+      return textPrimary(scheme)
+    @unknown default:
+      return textPrimary(scheme)
+    }
   }
 
-  static let syntaxConstantStyle = SyntaxStyle(weight: nil, italic: true, tabular: false)
+  static func syntaxConstantStyle(_ scheme: ColorScheme) -> SyntaxStyle {
+    switch scheme {
+    case .light:
+      return SyntaxStyle(weight: nil, italic: true, tabular: false)
+    case .dark:
+      return SyntaxStyle(weight: nil, italic: true, tabular: false)
+    @unknown default:
+      return SyntaxStyle(weight: nil, italic: true, tabular: false)
+    }
+  }
 
   static func syntaxComment(_ scheme: ColorScheme) -> Color {
-    textTertiary(scheme)
+    switch scheme {
+    case .light:
+      return textTertiary(scheme)
+    case .dark:
+      return textTertiary(scheme)
+    @unknown default:
+      return textTertiary(scheme)
+    }
   }
 
-  static let syntaxCommentStyle = SyntaxStyle(weight: nil, italic: true, tabular: false)
+  static func syntaxCommentStyle(_ scheme: ColorScheme) -> SyntaxStyle {
+    switch scheme {
+    case .light:
+      return SyntaxStyle(weight: nil, italic: true, tabular: false)
+    case .dark:
+      return SyntaxStyle(weight: nil, italic: true, tabular: false)
+    @unknown default:
+      return SyntaxStyle(weight: nil, italic: true, tabular: false)
+    }
+  }
 
   static func syntaxPunct(_ scheme: ColorScheme) -> Color {
-    textTertiary(scheme)
+    switch scheme {
+    case .light:
+      return textTertiary(scheme)
+    case .dark:
+      return textTertiary(scheme)
+    @unknown default:
+      return textTertiary(scheme)
+    }
   }
 
-  static let syntaxPunctStyle = SyntaxStyle(weight: nil, italic: false, tabular: false)
+  static func syntaxPunctStyle(_ scheme: ColorScheme) -> SyntaxStyle {
+    switch scheme {
+    case .light:
+      return SyntaxStyle(weight: nil, italic: false, tabular: false)
+    case .dark:
+      return SyntaxStyle(weight: nil, italic: false, tabular: false)
+    @unknown default:
+      return SyntaxStyle(weight: nil, italic: false, tabular: false)
+    }
+  }
 
   static func selectionFill(_ scheme: ColorScheme) -> Color {
-    textPrimary(scheme)
+    switch scheme {
+    case .light:
+      return textPrimary(scheme)
+    case .dark:
+      return textPrimary(scheme)
+    @unknown default:
+      return textPrimary(scheme)
+    }
   }
 
-  static let selectionFillStyle = SyntaxStyle(weight: nil, italic: false, tabular: false)
+  static func selectionFillStyle(_ scheme: ColorScheme) -> SyntaxStyle {
+    switch scheme {
+    case .light:
+      return SyntaxStyle(weight: nil, italic: false, tabular: false)
+    case .dark:
+      return SyntaxStyle(weight: nil, italic: false, tabular: false)
+    @unknown default:
+      return SyntaxStyle(weight: nil, italic: false, tabular: false)
+    }
+  }
 
   static func selectionText(_ scheme: ColorScheme) -> Color {
     switch scheme {
