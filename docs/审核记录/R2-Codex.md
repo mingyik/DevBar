@@ -27,3 +27,9 @@
 ### 对「与规格的差异」的意见
 
 - 「URL 错误区间用原输入的 UTF-16 下标、左闭右开」：同意，正好和 CodeMirror 的位置一致。
+
+### 合并后发现：`check.sh` 不会更新过期的依赖
+
+合并后在 `main` 目录第一次运行 `Scripts/check.sh` 失败（`Cannot find package 'lossless-json'`）：`check.sh` 只在 `Web/node_modules` **不存在**时才 `npm ci`，`package-lock.json` 变了也不会重装。补跑 `npm ci` 后退出码 0，Web 143 项通过——代码本身没问题。
+
+**并入下一轮（谁先改 `Scripts/check.sh` 谁处理，R3 默认给 Grok）**：`Web/package-lock.json` 比 `Web/node_modules/.package-lock.json` 新（或后者不存在）时自动 `npm ci`；`Scripts/build-app.sh` 同理。
