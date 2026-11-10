@@ -1,0 +1,52 @@
+.prose .table-wrap {
+  overflow-x: auto;
+  border: var(--stroke-hairline) solid var(--line-border);
+  border-radius: var(--radius-medium);
+  margin: 0.75em 0;
+}
+.prose table {
+  border-collapse: collapse;
+  width: max-content;
+  min-width: 100%;
+}
+.prose th,
+.prose td {
+  padding: 6px 10px;
+  vertical-align: middle;
+  border-bottom: var(--stroke-hairline) solid var(--line-border);
+  white-space: normal;
+  min-width: 4em;
+  max-width: 28em;
+}
+.prose tr:last-child td {
+  border-bottom: 0;
+}
+.prose th {
+  text-align: left;
+  font-weight: 600;
+  background: var(--panel-card);
+  border-bottom-width: var(--stroke-strong);
+}
+.prose td.num,
+.prose th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.prose td.align-left,
+.prose th.align-left {
+  text-align: left;
+}
+.prose td.align-center,
+.prose th.align-center {
+  text-align: center;
+}
+.prose td.align-right,
+.prose th.align-right {
+  text-align: right;
+}
+.prose td code {
+  white-space: nowrap;
+}
+.prose tbody tr:hover {
+  background: var(--panel-card);
+}

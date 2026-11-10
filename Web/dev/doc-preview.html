@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DevBar 排版验收（开发）</title>
+    <link rel="stylesheet" href="/src/theme/tokens.css" />
+    <link rel="stylesheet" href="/src/styles/prose.css" />
+    <link rel="stylesheet" href="/src/styles/table.css" />
+    <link rel="stylesheet" href="/src/styles/code.css" />
+    <link rel="stylesheet" href="/src/styles/mermaid.css" />
+    <style>
+      body {
+        margin: 0;
+        padding: 14px;
+        background: var(--selection-text);
+      }
+      article {
+        padding: 10px;
+        border: var(--stroke-hairline) solid var(--line-border);
+        border-radius: var(--radius-medium);
+        background: var(--panel-card);
+      }
+    </style>
+  </head>
+  <body>
+    <article id="preview" class="prose"></article>
+    <script type="module">
+      import text from "../../Samples/样张-排版.md?raw";
+      import {
+        createMarkdownPreview,
+        bindPreviewLinks,
+      } from "/src/doc/preview.ts";
+      const parameters = new URLSearchParams(location.search);
+      document.documentElement.dataset.theme =
+        parameters.get("theme") === "dark" ? "dark" : "light";
+      const root = document.querySelector("#preview");
+      root.classList.toggle("large", parameters.get("size") === "large");
+      root.innerHTML = createMarkdownPreview().render(text);
+      bindPreviewLinks(root);
+      window.docPreviewReady = true;
+    </script>
+  </body>
+</html>

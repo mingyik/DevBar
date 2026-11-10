@@ -65,7 +65,7 @@ it.each([
   ['"\\uD83D\\uDE00"', "😀"],
   ['{\\"a\\":1}', '{"a":1}'],
   ['"\\/"', "/"],
-  ["  bare  ", "  bare  "],
+  ["  bare  ", "bare"],
   ['  "a"  ', "a"],
 ])("unescape %s", (s, w) => expect(unescapeJsonString(s)).toBe(w));
 it.each(['"\\x"', '"\\uZZZZ"', '"a\nb"', '"a"b"', "abc\\"])(
@@ -135,4 +135,21 @@ it("real parser offset maps CRLF and emoji in UTF-16 exactly", () => {
       line: 2,
       column: 8,
     });
+});
+it.each(['{\\"a\\":1}\n', '  {\\"a\\":1}  ', '\n\t{\\"a\\":1}\r\n'])(
+  "unquoted input trims boundary whitespace %s",
+  (s) => expect(unescapeJsonString(s)).toBe('{"a":1}'),
+);
+it("unquoted trimmed errors map back to original offsets", () => {
+  const input = "  a\\x\n";
+  try {
+    unescapeJsonString(input);
+    throw new Error("expected failure");
+  } catch (error) {
+    expect(positionFromError(error, input)).toMatchObject({
+      offset: 4,
+      line: 1,
+      column: 5,
+    });
+  }
 });
