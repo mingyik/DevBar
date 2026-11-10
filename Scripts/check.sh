@@ -6,7 +6,7 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 
 echo "== swift format lint =="
-swift format lint -r Sources Tests
+swift format lint --strict -r Sources Tests
 
 echo "== swift build =="
 swift build
