@@ -141,8 +141,8 @@ class StringSyntaxError extends SyntaxError {
 export function unescapeJsonString(text: string): string {
   const trimmed = text.trim();
   const quoted = trimmed.startsWith('"') && trimmed.endsWith('"');
-  const source = quoted ? trimmed : '"' + text + '"';
-  const origin = quoted ? text.indexOf(trimmed) : -1;
+  const source = quoted ? trimmed : '"' + trimmed + '"';
+  const origin = text.indexOf(trimmed) + (quoted ? 0 : -1);
   const fail = (i: number): never => {
     throw new StringSyntaxError(Math.max(0, Math.min(text.length, i + origin)));
   };
