@@ -125,8 +125,22 @@ try {
         true,
         "page must not overflow; tables scroll inside containers",
       );
+      assert.equal(
+        await page.evaluate(() => {
+          const table = Array.from(document.querySelectorAll(".table-wrap")).at(
+            -1,
+          );
+          const cell = table.querySelector("tbody td:nth-child(2)");
+          return (
+            cell.getBoundingClientRect().width <=
+            document.querySelector(".prose").clientWidth * 0.7 + 22
+          );
+        }),
+        true,
+        "long Chinese cell wraps inside visible panel width",
+      );
       await page.screenshot({
-        path: `../Screenshots/R5/${theme}-${size}.png`,
+        path: `../Screenshots/R6/r5-${theme}-${size}.png`,
         fullPage: true,
       });
     }

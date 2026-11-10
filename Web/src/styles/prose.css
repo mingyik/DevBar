@@ -1,4 +1,5 @@
 .prose {
+  container-type: inline-size;
   color: var(--text-primary);
   font:
     var(--font-body) / var(--font-line-height) -apple-system,
