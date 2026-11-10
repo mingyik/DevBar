@@ -18,11 +18,10 @@
 
 | 系统 | 做法 |
 |---|---|
-| **macOS 26 及以上** | SwiftUI `.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 12, style: .continuous))`，上面只叠一层**很淡**的底色 `panel.glassTint`（白主题约白 24%、黑主题约黑 19%；即参考实现里 `baseFill × 0.35 / × 0.45`），再加 0.7pt 描边。**不再叠满 `panel.base`** |
-| macOS 15 | `NSVisualEffectView`（`material: .popover`、`blendingMode: .behindWindow`、`state: .active`），上面叠 `panel.base` |
+| **macOS 26**（唯一支持的系统） | SwiftUI `.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 12, style: .continuous))`，上面只叠一层**很淡**的底色 `panel.glassTint`（白主题约白 24%、黑主题约黑 19%；即参考实现里 `baseFill × 0.35 / × 0.45`），再加 0.7pt 描边。**不再叠满 `panel.base`** |
 | 系统开启「降低透明度」 | 不用玻璃，用不透明的 `opaqueBackdrop` + `panel.base` |
 
-- `NSVisualEffectView` / 玻璃的外观（`appearance`）必须跟随 DevBar 的白 / 黑设置，而不是跟随系统，否则手动选白主题时材质仍是深色。
+- 玻璃的外观（`appearance`）必须跟随 DevBar 的白 / 黑设置，而不是跟随系统，否则手动选白主题时材质仍是深色。
 - 顶部高光：保留参考实现 `rimHighlight` 的做法（0.7pt 描边从上到下由亮变暗），不用整块渐变色带。
 - 新增设计变量 `panel.glassTint`（白、黑各一），由 `design/tokens.json` 生成，不在代码里写数值。
 

@@ -40,13 +40,36 @@ export function decode(s: string) {
       i += 3;
     }
     if (bytes.length) {
-      try {
-        text += new TextDecoder("utf-8", { fatal: true }).decode(
-          new Uint8Array(bytes),
-        );
-      } catch {
-        text += s.slice(start, i);
-        errors.push({ start, end: i });
+      for (let b = 0; b < bytes.length;) {
+        const lead = bytes[b];
+        const length =
+          lead <= 0x7f
+            ? 1
+            : lead >= 0xc2 && lead <= 0xdf
+              ? 2
+              : lead >= 0xe0 && lead <= 0xef
+                ? 3
+                : lead >= 0xf0 && lead <= 0xf4
+                  ? 4
+                  : 0;
+        if (length > 0 && b + length <= bytes.length) {
+          try {
+            text += new TextDecoder("utf-8", {
+              fatal: true,
+              ignoreBOM: true,
+            }).decode(new Uint8Array(bytes.slice(b, b + length)));
+            b += length;
+            continue;
+          } catch {
+            /* Preserve only the offending byte, then resume scanning. */
+          }
+        }
+        const position = start + b * 3;
+        text += s.slice(position, position + 3);
+        const last = errors.at(-1);
+        if (last?.end === position) last.end += 3;
+        else errors.push({ start: position, end: position + 3 });
+        b++;
       }
     } else {
       i = Math.min(i + 3, s.length);

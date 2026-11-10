@@ -62,7 +62,7 @@ describe("spec detection", () => {
   it("distinguishes valid, repairable and invalid without changing input", () => {
     expect(detect("{}").json).toBe("valid");
     expect(detect("{a:1}").json).toBe("repairable");
-    expect(detect("{1,2}").json).toBe("invalid");
+    expect(detect('{"x":\\uZZZZ}').json).toBe("invalid");
   });
 });
 it.each(["8J-YgA==", "aAkKYg=="])(
