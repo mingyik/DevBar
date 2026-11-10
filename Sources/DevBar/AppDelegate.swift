@@ -36,5 +36,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
     ShortcutActions.register(panel: panel, status: statusItem)
     terminalYield.start()
+    #if DEBUG
+      WebSelfCheck.runIfRequested(panel: panel)
+    #endif
   }
 }
