@@ -19,7 +19,8 @@ public actor ClipboardStore {
 
   public init(
     directory: URL = URL.applicationSupportDirectory.appendingPathComponent("DevBar/clipboard"),
-    onImageTooLarge: @escaping @Sendable () -> Void = {}
+    onImageTooLarge: @escaping @Sendable () -> Void = {},
+    onCorruptHistory: @escaping @Sendable () -> Void = {}
   ) throws {
     self.directory = directory
     self.onImageTooLarge = onImageTooLarge
@@ -35,8 +36,22 @@ public actor ClipboardStore {
     let pending = Self.readIndex(temp)
     // A valid committed index wins: a leftover temp was never committed. If the
     // committed index is absent/damaged, a complete temp can recover the transaction.
-    guard let loaded = committed ?? pending ?? (mainExists ? nil : ClipboardIndex(items: []))
-    else { throw StoreError.invalidIndex }
+    let restarted = committed == nil && pending == nil && mainExists
+    if restarted {
+      let formatter = DateFormatter()
+      formatter.locale = Locale(identifier: "en_US_POSIX")
+      formatter.dateFormat = "yyyyMMdd-HHmmss"
+      var timestamp = Date()
+      var backup = directory.appendingPathComponent(
+        "index.json.corrupt-" + formatter.string(from: timestamp))
+      while fm.fileExists(atPath: backup.path) {
+        timestamp.addTimeInterval(1)
+        backup = directory.appendingPathComponent(
+          "index.json.corrupt-" + formatter.string(from: timestamp))
+      }
+      try fm.moveItem(at: main, to: backup)
+    }
+    let loaded = committed ?? pending ?? ClipboardIndex(items: [])
     var ids = Set<UUID>()
     let valid = loaded.items.filter { item in
       ids.insert(item.id).inserted && !item.representations.isEmpty
@@ -48,6 +63,7 @@ public actor ClipboardStore {
     items = Array(valid.prefix(10))
     try Self.persist(items, directory: directory)
     Self.cleanup(items, directory: directory)
+    if restarted { onCorruptHistory() }
   }
 
   /// Persists all originals before committing the index. The caller owns thumbnail
