@@ -35,12 +35,21 @@ export async function exportPreview(
 ): Promise<void> {
   const root = document.createElement("div");
   root.className = "snapshot-root snapshot-measure";
+  if (shell.kind === "doc") {
+    root.classList.add("prose");
+    root.classList.toggle(
+      "large",
+      document.documentElement.dataset.size === "large",
+    );
+  }
   root.style.width = `${shell.content.clientWidth}px`;
   root.append(
     ...(content
       ? [content.cloneNode(true)]
       : Array.from(shell.preview.childNodes, (node) => node.cloneNode(true))),
   );
+  for (const button of Array.from(root.querySelectorAll(".diagram-copy")))
+    button.remove();
   document.body.append(root);
   try {
     await document.fonts.ready;
@@ -64,6 +73,7 @@ export async function exportPreview(
         .trim(),
     });
     if (result.status === "saved" && typeof result.path === "string") {
+      shell.updateInfo(strings.saved);
       shell.info.replaceChildren(
         document.createTextNode(strings.saved + " · "),
       );
