@@ -178,24 +178,22 @@ final class PanelController {
   }
 
   private func reposition() {
-    let visible = screen(for: lastAnchor).visibleFrame
-    let iconCenterX = lastAnchor?.midX ?? visible.midX
-    let menuBottom = lastAnchor?.minY ?? visible.maxY
+    let screens = NSScreen.screens.map {
+      PanelLayout.DisplaySlice(frame: $0.frame, visibleFrame: $0.visibleFrame)
+    }
+    let mouse = NSEvent.mouseLocation
+    let mouseScreen =
+      NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main ?? NSScreen.screens[0]
+    let placed = PanelLayout.placement(
+      anchor: lastAnchor, screens: screens, fallbackVisible: mouseScreen.visibleFrame)
     let frame = PanelLayout.frame(
-      iconCenterX: iconCenterX, menuBarBottomY: menuBottom,
-      size: model.panelSize, visibleFrame: visible)
+      iconCenterX: placed.centerX, menuBarBottomY: placed.menuBottom,
+      size: model.panelSize, visibleFrame: placed.visible)
     NSAnimationContext.runAnimationGroup(
       { context in
         context.duration = panel.isVisible ? 0.15 : 0
         panel.animator().setFrame(frame, display: true)
       }, completionHandler: nil)
-  }
-
-  private func screen(for anchor: CGRect?) -> NSScreen {
-    if let anchor, let match = NSScreen.screens.first(where: { $0.frame.intersects(anchor) }) {
-      return match
-    }
-    return NSScreen.main ?? NSScreen.screens[0]
   }
 
   private func handleOutsideClick() {
