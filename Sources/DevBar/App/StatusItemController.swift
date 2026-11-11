@@ -27,6 +27,15 @@ final class StatusItemController: NSObject {
     }
   }
 
+  func installFileDrop(_ coordinator: FileDropCoordinator) {
+    guard let button = item.button else { return }
+    let target = StatusFileDropView(frame: button.bounds)
+    target.autoresizingMask = [.width, .height]
+    target.coordinator = coordinator
+    target.onClick = { [weak self] in self?.handleClick() }
+    button.addSubview(target)
+  }
+
   var anchor: CGRect? {
     guard let button = item.button, let window = button.window else { return nil }
     return window.convertToScreen(button.convert(button.bounds, to: nil))

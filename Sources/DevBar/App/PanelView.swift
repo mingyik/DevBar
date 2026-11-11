@@ -17,6 +17,11 @@ struct PanelView: View {
       titleRow(scheme).frame(height: 32).padding(.bottom, 8)
       content(scheme)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .opacity(model.dropActive ? 0 : 1)
+        .overlay {
+          if model.dropActive { FileDropOverlay(document: model.dropDocument, scheme: scheme) }
+        }
+        .onDrop(of: [.fileURL], delegate: PanelFileDrop(model: model))
         .transition(.opacity)
       if !model.toast.isEmpty {
         Text(model.toast).font(.system(size: 11))

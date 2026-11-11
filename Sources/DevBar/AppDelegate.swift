@@ -38,11 +38,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       self?.panel.model.page = .settings
       self?.panel.show(anchor: self?.statusItem.anchor)
     }
+    let fileDrop = FileDropCoordinator(panel: panel, status: statusItem)
+    panel.model.fileDrop = fileDrop
+    panel.webHost.acceptsFiles = { [weak self] in
+      self?.panel.model.page == .json || self?.panel.model.page == .doc
+    }
+    panel.webHost.receivedFiles = { [weak fileDrop] urls in fileDrop?.receive(urls) }
+    statusItem.installFileDrop(fileDrop)
     ShortcutActions.register(panel: panel, status: statusItem)
     terminalYield.start()
     #if DEBUG
       WebSelfCheck.runIfRequested(panel: panel)
       R7UICheck.runIfRequested(panel: panel)
+      R8UICheck.runIfRequested(panel: panel)
       if CommandLine.arguments.contains("--devbar-manual-editor") {
         panel.model.page = .json
         panel.show(anchor: statusItem.anchor)

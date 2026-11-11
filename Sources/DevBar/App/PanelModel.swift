@@ -40,6 +40,9 @@ final class PanelModel {
     case .settings: CGSize(width: 420, height: 560)
     }
   }
+  var dropActive = false
+  var dropDocument = false
+  @ObservationIgnored var fileDrop: FileDropCoordinator?
   var toast = ""
   var recordSystemAudio: Bool {
     didSet { defaults.set(recordSystemAudio, forKey: "recordSystemAudio") }

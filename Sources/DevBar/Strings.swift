@@ -1,4 +1,19 @@
+import DevBarCore
+
 enum Strings {
+  static let fileDropJSON = "{ } JSON\n在工具中打开"
+  static let fileDropDoc = "# Markdown / Mermaid\n在文稿中打开"
+  static let fileDropFirst = "已打开第一个文件"
+  static func fileDropError(_ reason: FileDropReason) -> String {
+    switch reason {
+    case .tooLarge: "文件超过 10MB，未打开"
+    case .notUTF8: "只支持 UTF-8 文本文件"
+    case .notRegularFile: "不支持文件夹或应用包"
+    case .unsupportedType: "不支持此文件类型"
+    case .noFile, .unreadable: "无法读取文件"
+    }
+  }
+
   static let settingsBack = "返回"
   static let generalGroup = "通用"
   static let clipboardGroup = "剪贴板"
@@ -59,8 +74,7 @@ enum Strings {
   static let light = "浅色"
   static let dark = "深色"
   static let shortcutToggle = "打开面板"
-  static let shortcutOlder = "上一条剪贴板"
-  static let shortcutNewer = "下一条剪贴板"
+  static let shortcutOlder = "切换剪贴板"
   static let shortcutTools = "打开工具并带入剪贴板"
   static let shortcutCapture = "区域截图"
   static let shortcutLong = "长图"

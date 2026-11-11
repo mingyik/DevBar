@@ -13,6 +13,8 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   var onClipboardWrite: ((Int) -> Void)?
   var onToast: ((String) -> Void)?
   var lastPreviewImagePath: String? { previewImage.lastSavedPath }
+  var acceptsFiles: (() -> Bool)?
+  var receivedFiles: (([URL]) -> Void)?
 
   private let previewImage = PreviewImage()
   private let theme: ThemeManager
@@ -40,6 +42,14 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   }
 
   func importClipboard() { send(type: "tools.importClipboard", payload: [:]) }
+
+  func importFile(text: String, name: String, docMode: String? = nil, document: Bool) {
+    var payload: [String: BridgeJSON] = [
+      "text": .string(text), "fileName": .string(name), "mode": .string("replace"),
+    ]
+    if let docMode { payload["docMode"] = .string(docMode) }
+    send(type: document ? "doc.import" : "tools.import", payload: payload)
+  }
 
   func showScreen(_ screen: String) {
     send(type: "screen.show", payload: ["page": .string(screen)])
@@ -124,7 +134,10 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       contentWorld: .page,
       name: "devbar"
     )
-    let view = WKWebView(frame: webView.frame, configuration: configuration)
+    let view = FileDropWebView(frame: webView.frame, configuration: configuration)
+    view.acceptsFiles = { [weak self] in self?.acceptsFiles?() ?? false }
+    view.receivedFiles = { [weak self] urls in self?.receivedFiles?(urls) }
+    view.registerForDraggedTypes([.fileURL])
     view.navigationDelegate = self
     view.uiDelegate = self
     view.setValue(false, forKey: "drawsBackground")
