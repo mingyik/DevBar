@@ -1,3 +1,4 @@
+import { installReadOnlyScrollbars } from "../styles/readonly-scroll";
 import { createMarkdownPreview } from "./preview";
 import { renderMermaidElements } from "./mermaid";
 import type { Theme } from "./highlight";
@@ -13,6 +14,7 @@ export async function renderDocument(
   text: string,
   options: { theme: Theme; mode: DocMode },
 ): Promise<void> {
+  installReadOnlyScrollbars(root.ownerDocument);
   const revision = (revisions.get(root) ?? 0) + 1;
   revisions.set(root, revision);
   const staged = root.ownerDocument.createElement("div");
