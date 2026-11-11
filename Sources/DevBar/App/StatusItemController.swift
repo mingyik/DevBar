@@ -14,17 +14,8 @@ final class StatusItemController: NSObject {
     button.target = self
     button.action = #selector(handleClick)
     button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-    let configuration = NSImage.SymbolConfiguration(pointSize: 16, weight: .regular)
-    let symbol = NSImage(
-      systemSymbolName: "square.stack",
-      accessibilityDescription: Strings.statusItemAccessibilityLabel
-    )
-    if let image = symbol?.withSymbolConfiguration(configuration) {
-      image.isTemplate = true
-      button.image = image
-    } else {
-      button.title = Strings.statusItemTitle
-    }
+    button.image = AppIcons.menuBar
+    button.setAccessibilityLabel(Strings.statusItemAccessibilityLabel)
   }
 
   func installFileDrop(_ coordinator: FileDropCoordinator) {
