@@ -178,7 +178,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       previewImage.reveal(path: payload["path"]?.stringValue ?? "")
       return "{}"
     case "qr.show":
-      return QRPanel.present(text: payload["text"]?.stringValue ?? "")
+      return QRGenerator.reply(text: payload["text"]?.stringValue ?? "")
     case "state.save":
       if let screen = payload["screen"]?.stringValue, let state = payload["state"] {
         await store.save(screen: screen, json: state.canonical())

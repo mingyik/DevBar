@@ -335,6 +335,17 @@ enum DesignTokens {
     }
   }
 
+  static func qrBackground(_ scheme: ColorScheme) -> Color {
+    switch scheme {
+    case .light:
+      return Color(red: 1, green: 1, blue: 1, opacity: 1)
+    case .dark:
+      return Color(red: 1, green: 1, blue: 1, opacity: 1)
+    @unknown default:
+      return Color(red: 1, green: 1, blue: 1, opacity: 1)
+    }
+  }
+
   static func opaqueBackdrop(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
