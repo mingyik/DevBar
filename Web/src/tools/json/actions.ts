@@ -1,14 +1,18 @@
+import { parse } from "lossless-json";
 import { detect } from "../detect";
 import { decode as decodeBase64 } from "../base64";
 import { decode } from "../url";
 export type Encoding = "url" | "base64";
 export function actionLabels(text: string, encoding: Encoding) {
   const t = text.trim();
+  let unescape = false;
+  try {
+    unescape = typeof parse(t) === "string";
+  } catch {
+    unescape = t.includes('\\"');
+  }
   return {
-    escape:
-      (t.startsWith('"') && t.endsWith('"')) || t.includes('\\"')
-        ? ("unescape" as const)
-        : ("escape" as const),
+    escape: unescape ? ("unescape" as const) : ("escape" as const),
     codec:
       encoding === "url"
         ? /%[0-9a-f]{2}/i.test(text)

@@ -49,3 +49,15 @@ it("tree values preserve number spelling and special-key paths", () => {
   expect(copyValue(true)).toBe("true");
   expect(copyValue(null)).toBe("null");
 });
+
+it.each([
+  ['{"a":"escaped \\" quote"}', "escape"],
+  ['["escaped \\" quote"]', "escape"],
+  ['"whole string"', "unescape"],
+  ['  "whole string"  ', "unescape"],
+  ['\\"unquoted\\"', "unescape"],
+  ['"broken" trailing', "escape"],
+  ['{"a":1}', "escape"],
+])("escape label for %s is %s", (text, expected) => {
+  expect(actionLabels(text, "url").escape).toBe(expected);
+});
