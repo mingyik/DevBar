@@ -27,6 +27,7 @@ enum Strings {
   static let clipboardPending = "有新内容，点击记录"
   static let clipboardWaiting = "等待系统授权…"
   static let openSystemSettings = "打开系统设置"
+  static let shortcutUnset = "未设置"
   static let deleteItem = "删除"
   static let justNow = "刚刚"
   static let yesterday = "昨天"

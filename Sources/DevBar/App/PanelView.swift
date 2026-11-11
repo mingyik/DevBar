@@ -199,14 +199,34 @@ struct PanelView: View {
   private func shortcut(_ title: String, _ name: KeyboardShortcuts.Name, _ scheme: ColorScheme)
     -> some View
   {
+    ShortcutRow(title: title, name: name, scheme: scheme)
+  }
+}
+
+private struct ShortcutRow: View {
+  let title: String
+  let name: KeyboardShortcuts.Name
+  let scheme: ColorScheme
+  @State private var shown = ""
+
+  var body: some View {
     HStack {
       Text(title)
         .font(.system(size: 13))
         .foregroundStyle(DesignTokens.textPrimary(scheme))
         .lineLimit(1)
       Spacer(minLength: 8)
-      KeyboardShortcuts.Recorder(for: name) { EmptyView() }
+      Text(shown.isEmpty ? Strings.shortcutUnset : shown)
+        .font(.system(size: 12, design: .monospaced))
+        .foregroundStyle(DesignTokens.textSecondary(scheme))
+        .lineLimit(1)
+      KeyboardShortcuts.Recorder(
+        for: name,
+        onChange: { shortcut in
+          shown = shortcut?.description ?? ""
+        })
     }
+    .onAppear { shown = KeyboardShortcuts.getShortcut(for: name)?.description ?? "" }
   }
 }
 
