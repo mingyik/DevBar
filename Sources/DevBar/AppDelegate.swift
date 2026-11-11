@@ -42,6 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     terminalYield.start()
     #if DEBUG
       WebSelfCheck.runIfRequested(panel: panel)
+      R7UICheck.runIfRequested(panel: panel)
       if CommandLine.arguments.contains("--devbar-manual-editor") {
         panel.model.page = .json
         panel.show(anchor: statusItem.anchor)

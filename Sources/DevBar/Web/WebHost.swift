@@ -9,6 +9,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   private(set) var webView: WKWebView
   private(set) var generation = 0
   var panelVisible = false
+  var onClipboardWrite: ((Int) -> Void)?
   var onToast: ((String) -> Void)?
 
   private let theme: ThemeManager
@@ -141,9 +142,11 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       return PasteboardBridge.readText()
     case "clipboard.writeText":
       PasteboardBridge.writeText(payload["text"]?.stringValue ?? "")
+      onClipboardWrite?(NSPasteboard.general.changeCount)
       return #"{"ok":true}"#
     case "clipboard.writeImage":
       PasteboardBridge.writePNGBase64(payload["pngBase64"]?.stringValue ?? "")
+      onClipboardWrite?(NSPasteboard.general.changeCount)
       return #"{"ok":true}"#
     case "qr.show":
       return QRPanel.present(text: payload["text"]?.stringValue ?? "")

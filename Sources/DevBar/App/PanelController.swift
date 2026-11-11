@@ -9,8 +9,10 @@ final class PanelController {
   let theme: ThemeManager
   let panel: DevBarPanel
   let webHost: WebHost
+  let clipboard: ClipboardController
   private let host: NSHostingView<PanelView>
   private var outsideMonitor: Any?
+  private var activationObserver: NSObjectProtocol?
   private var resignObserver: NSObjectProtocol?
   private var dismissing = false
   private var lastAnchor: CGRect?
@@ -18,15 +20,39 @@ final class PanelController {
   private let signposter = OSSignposter(subsystem: "local.devbar.app", category: "panel")
 
   init(theme: ThemeManager) {
-    let model = PanelModel()
+    #if DEBUG
+      let model = PanelModel(defaults: SelfCheckEnvironment.defaults)
+      let clipboard = ClipboardController(
+        theme: theme,
+        directory: SelfCheckEnvironment.stateDirectory?.deletingLastPathComponent().appending(
+          path: "clipboard"),
+        reader: SelfCheckEnvironment.isActive
+          ? SelfCheckPasteboardReader() as any PasteboardReading : SystemPasteboardReader(),
+        startMonitoring: !SelfCheckEnvironment.isActive)
+    #else
+      let model = PanelModel()
+      let clipboard = ClipboardController(theme: theme)
+    #endif
     let webHost = WebHost(theme: theme)
+    self.clipboard = clipboard
     self.model = model
     self.theme = theme
     self.webHost = webHost
     panel = DevBarPanel()
-    host = NSHostingView(rootView: PanelView(model: model, theme: theme, webHost: webHost))
+    host = NSHostingView(
+      rootView: PanelView(model: model, theme: theme, webHost: webHost, clipboard: clipboard))
     webHost.onToast = { text in
       model.toast = text
+    }
+    webHost.onClipboardWrite = { [weak clipboard] count in clipboard?.monitor.markSelfWrite(count) }
+    panel.onClipboardKey = { [weak self] code in
+      guard self?.model.page == .clipboard else { return false }
+      return self?.clipboard.handleKey(code) ?? false
+    }
+    activationObserver = NotificationCenter.default.addObserver(
+      forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+    ) { [weak clipboard] _ in
+      Task { @MainActor in await clipboard?.monitor.poll() }
     }
     installChrome()
     panel.onEscape = { [weak self] in
@@ -82,6 +108,7 @@ final class PanelController {
     panel.makeKeyAndOrderFront(nil)
     webHost.panelVisible = true
     NSApp.activate()
+    Task { await clipboard.monitor.poll() }
     let elapsed = started.duration(to: .now)
     let milliseconds = milliseconds(elapsed)
     signposter.endInterval("openPanel", interval)

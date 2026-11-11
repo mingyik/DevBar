@@ -5,8 +5,14 @@
 // 结果只记录检查项、状态和长度，不记录编辑器内容（自检只写入自己的标记文本）。
 #if DEBUG
   import AppKit
+  import DevBarCore
   import Network
   import WebKit
+
+  struct SelfCheckPasteboardReader: PasteboardReading {
+    func metadata() -> PasteboardMetadata { .init(count: 0, types: [], access: .allow) }
+    func read() -> [ClipboardPayload] { [] }
+  }
 
   /// 自检环境。只在带 --devbar-selfcheck 启动时生效；ScreenStateStore 据此改用测试目录。
   enum SelfCheckEnvironment {

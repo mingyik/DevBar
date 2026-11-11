@@ -11,19 +11,15 @@ enum PasteboardBridge {
 
   static func readText() -> String {
     let board = NSPasteboard.general
-    switch board.accessBehavior {
-    case .alwaysDeny:
-      return #"{"status":"denied"}"#
-    case .ask, .default:
-      return #"{"status":"ask"}"#
-    case .alwaysAllow:
-      break
-    @unknown default:
-      return #"{"status":"ask"}"#
-    }
+    let count = board.changeCount
     let types = board.types ?? []
     if types.contains(where: { concealed.contains($0.rawValue) }) {
       return #"{"status":"concealed"}"#
+    }
+    switch board.accessBehavior {
+    case .alwaysDeny: return #"{"status":"denied"}"#
+    case .alwaysAllow: break
+    default: return #"{"status":"ask"}"#
     }
     guard types.contains(where: { $0 == .string }) else {
       return types.isEmpty ? #"{"status":"empty"}"# : #"{"status":"notText"}"#
@@ -31,6 +27,7 @@ enum PasteboardBridge {
     guard let text = board.string(forType: .string) else {
       return #"{"status":"empty"}"#
     }
+    guard board.changeCount == count else { return #"{"status":"empty"}"# }
     logger.notice("clipboardRead bytes=\(text.utf8.count, privacy: .public)")
     return #"{"status":"ok","text":"# + BridgeJSON.quoted(text) + "}"
   }

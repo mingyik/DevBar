@@ -46,11 +46,13 @@ enum ShortcutActions {
     KeyboardShortcuts.onKeyUp(for: .cycleOlder) {
       Task { @MainActor in
         log("cycleOlder")
+        panel.clipboard.cycle(older: true)
       }
     }
     KeyboardShortcuts.onKeyUp(for: .cycleNewer) {
       Task { @MainActor in
         log("cycleNewer")
+        panel.clipboard.cycle(older: false)
       }
     }
     KeyboardShortcuts.onKeyUp(for: .openTools) {

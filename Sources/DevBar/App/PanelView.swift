@@ -6,6 +6,7 @@ struct PanelView: View {
   @Bindable var model: PanelModel
   @Bindable var theme: ThemeManager
   var webHost: WebHost
+  var clipboard: ClipboardController
   @State private var titleHovered = false
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
@@ -116,7 +117,7 @@ struct PanelView: View {
   private func content(_ scheme: ColorScheme) -> some View {
     switch model.page {
     case .clipboard:
-      placeholder(Strings.clipboardPlaceholder, scheme)
+      ClipboardListView(controller: clipboard, scheme: scheme)
     case .json, .encode, .qr, .doc:
       #if DEBUG
         if model.showsWebViewForSelfCheck {
