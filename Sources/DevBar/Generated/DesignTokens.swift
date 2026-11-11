@@ -3,9 +3,9 @@ import AppKit
 import SwiftUI
 
 enum DesignTokens {
-  static let radiusSmall: CGFloat = 7
-  static let radiusMedium: CGFloat = 10
-  static let radiusLarge: CGFloat = 12
+  static let radiusSmall: CGFloat = 8
+  static let radiusMedium: CGFloat = 14
+  static let radiusLarge: CGFloat = 16
   static let radiusInline: CGFloat = 4
   static let strokeHairline: CGFloat = 0.7
   static let strokeStrong: CGFloat = 1
@@ -66,11 +66,11 @@ enum DesignTokens {
   static func panelGlassTint(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 1, green: 1, blue: 1, opacity: 0.24)
+      return Color(red: 1, green: 1, blue: 1, opacity: 0.18)
     case .dark:
-      return Color(red: 0, green: 0, blue: 0, opacity: 0.19)
+      return Color(red: 0, green: 0, blue: 0, opacity: 0.14)
     @unknown default:
-      return Color(red: 1, green: 1, blue: 1, opacity: 0.24)
+      return Color(red: 1, green: 1, blue: 1, opacity: 0.18)
     }
   }
 
@@ -299,6 +299,17 @@ enum DesignTokens {
       return Color(red: 0, green: 0, blue: 0, opacity: 1)
     @unknown default:
       return Color(red: 1, green: 1, blue: 1, opacity: 1)
+    }
+  }
+
+  static func scrollThumb(_ scheme: ColorScheme) -> Color {
+    switch scheme {
+    case .light:
+      return Color(red: 0, green: 0, blue: 0, opacity: 0.22)
+    case .dark:
+      return Color(red: 1, green: 1, blue: 1, opacity: 0.22)
+    @unknown default:
+      return Color(red: 0, green: 0, blue: 0, opacity: 0.22)
     }
   }
 

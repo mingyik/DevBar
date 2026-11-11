@@ -124,10 +124,10 @@ struct PanelView: View {
           // Mount the existing host only in the runtime harness. Product pages remain placeholders.
           WebViewBox(host: webHost).id(webHost.generation)
         } else {
-          placeholder(Strings.pageNotImplemented(model.page.title), scheme)
+          PlaceholderPage(page: model.page, scheme: scheme)
         }
       #else
-        placeholder(Strings.pageNotImplemented(model.page.title), scheme)
+        PlaceholderPage(page: model.page, scheme: scheme)
       #endif
     case .settings:
       settings(scheme)
@@ -143,7 +143,7 @@ struct PanelView: View {
   }
 
   private func settings(_ scheme: ColorScheme) -> some View {
-    ScrollView {
+    ReadOnlyScrollView(scheme: scheme) {
       VStack(alignment: .leading, spacing: 12) {
         Picker(Strings.appearance, selection: $theme.mode) {
           Text(Strings.followSystem).tag(ThemeMode.system)

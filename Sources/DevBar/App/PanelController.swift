@@ -181,16 +181,14 @@ final class PanelController {
     let visible = screen(for: lastAnchor).visibleFrame
     let iconCenterX = lastAnchor?.midX ?? visible.midX
     let menuBottom = lastAnchor?.minY ?? visible.maxY
-    let enlarged = model.enlarged && model.showsEnlarge
-    panel.setFrame(
-      PanelLayout.frame(
-        iconCenterX: iconCenterX,
-        menuBarBottomY: menuBottom,
-        enlarged: enlarged,
-        visibleFrame: visible
-      ),
-      display: true
-    )
+    let frame = PanelLayout.frame(
+      iconCenterX: iconCenterX, menuBarBottomY: menuBottom,
+      size: model.panelSize, visibleFrame: visible)
+    NSAnimationContext.runAnimationGroup(
+      { context in
+        context.duration = panel.isVisible ? 0.15 : 0
+        panel.animator().setFrame(frame, display: true)
+      }, completionHandler: nil)
   }
 
   private func screen(for anchor: CGRect?) -> NSScreen {

@@ -1,4 +1,11 @@
 enum Strings {
+  static let clipboardTextType = "文本"
+  static let clipboardImageType = "图片"
+  static let clipboardFileType = "文件"
+  static let notImplemented = "尚未实现"
+  static let result = "结果"
+  static let backToList = "返回列表"
+  static let copy = "复制"
   static let pageJSON = "JSON"
   static let pageEncode = "编码"
   static let pageQR = "二维码"

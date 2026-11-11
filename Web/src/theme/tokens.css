@@ -1,8 +1,8 @@
 /* 自动生成，勿手改。来源：design/tokens.json */
 :root {
-  --radius-small: 7px;
-  --radius-medium: 10px;
-  --radius-large: 12px;
+  --radius-small: 8px;
+  --radius-medium: 14px;
+  --radius-large: 16px;
   --radius-inline: 4px;
   --stroke-hairline: 0.7px;
   --stroke-strong: 1px;
@@ -16,7 +16,7 @@
   --panel-card: rgba(255, 255, 255, 0.38);
   --panel-control: rgba(0, 0, 0, 0.055);
   --panel-raised: rgba(255, 255, 255, 0.88);
-  --panel-glassTint: rgba(255, 255, 255, 0.24);
+  --panel-glassTint: rgba(255, 255, 255, 0.18);
   --line-border: rgba(0, 0, 0, 0.09);
   --line-border-high-contrast: rgba(0, 0, 0, 0.24);
   --line-divider: rgba(0, 0, 0, 0.12);
@@ -35,6 +35,7 @@
   --syntax-punct: rgba(0, 0, 0, 0.6);
   --selection-fill: rgba(0, 0, 0, 1);
   --selection-text: rgba(255, 255, 255, 1);
+  --scroll-thumb: rgba(0, 0, 0, 0.22);
 }
 
 :root[data-theme="dark"] {
@@ -42,7 +43,7 @@
   --panel-card: rgba(255, 255, 255, 0.075);
   --panel-control: rgba(255, 255, 255, 0.085);
   --panel-raised: rgba(255, 255, 255, 0.14);
-  --panel-glassTint: rgba(0, 0, 0, 0.19);
+  --panel-glassTint: rgba(0, 0, 0, 0.14);
   --line-border: rgba(255, 255, 255, 0.11);
   --line-border-high-contrast: rgba(255, 255, 255, 0.28);
   --line-divider: rgba(255, 255, 255, 0.12);
@@ -61,4 +62,5 @@
   --syntax-punct: rgba(255, 255, 255, 0.6);
   --selection-fill: rgba(255, 255, 255, 1);
   --selection-text: rgba(0, 0, 0, 1);
+  --scroll-thumb: rgba(255, 255, 255, 0.22);
 }

@@ -1,23 +1,32 @@
 import CoreGraphics
 
 public enum PanelLayout: Sendable {
-  public static let normal = CGSize(width: 420, height: 560)
-  public static let large = CGSize(width: 600, height: 700)
+  public static let normal = CGSize(width: 480, height: 600)
+  public static let large = CGSize(width: 640, height: 720)
   public static let menuGap: CGFloat = 6
 
-  /// 普通尺寸以图标中心对齐；放大时保持顶边，宽度向左扩展。超出可见区域再向内收。
+  /// 以图标中心对齐，改变尺寸时保持顶边；超出可见区域再向内收。
   public static func frame(
     iconCenterX: CGFloat,
     menuBarBottomY: CGFloat,
     enlarged: Bool,
     visibleFrame: CGRect
   ) -> CGRect {
-    let size = enlarged ? large : normal
-    let top = menuBarBottomY - menuGap
-    let right = iconCenterX + normal.width / 2
-    let originX = enlarged ? right - size.width : iconCenterX - size.width / 2
-    let proposed = CGRect(x: originX, y: top - size.height, width: size.width, height: size.height)
-    return clamp(proposed, in: visibleFrame)
+    frame(
+      iconCenterX: iconCenterX, menuBarBottomY: menuBarBottomY,
+      size: enlarged ? large : normal, visibleFrame: visibleFrame)
+  }
+
+  public static func frame(
+    iconCenterX: CGFloat, menuBarBottomY: CGFloat,
+    size: CGSize, visibleFrame: CGRect
+  ) -> CGRect {
+    let top = min(menuBarBottomY - menuGap, visibleFrame.maxY)
+    let height = min(size.height, max(0, top - visibleFrame.minY))
+    return clamp(
+      CGRect(
+        x: iconCenterX - size.width / 2, y: top - height,
+        width: size.width, height: height), in: visibleFrame)
   }
 
   public static func clamp(_ rect: CGRect, in visible: CGRect) -> CGRect {
