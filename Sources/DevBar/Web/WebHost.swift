@@ -9,9 +9,14 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   private(set) var webView: WKWebView
   private(set) var generation = 0
   var panelVisible = false
+  var autoImport = true
   var onClipboardWrite: ((Int) -> Void)?
   var onToast: ((String) -> Void)?
+  var lastPreviewImagePath: String? { previewImage.lastSavedPath }
+  var acceptsFiles: (() -> Bool)?
+  var receivedFiles: (([URL]) -> Void)?
 
+  private let previewImage = PreviewImage()
   private let theme: ThemeManager
   private let store = ScreenStateStore()
   private let handler: DevBarSchemeHandler
@@ -24,6 +29,9 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
 
   init(theme: ThemeManager, webRoot: URL? = nil) {
     self.theme = theme
+    #if DEBUG
+      autoImport = !SelfCheckEnvironment.isActive
+    #endif
     let root =
       webRoot ?? Bundle.main.resourceURL?.appending(path: "Web") ?? URL(fileURLWithPath: "/")
     handler = DevBarSchemeHandler(root: root)
@@ -33,18 +41,29 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     Task { await start() }
   }
 
-  func showScreen(_ screen: String) {
-    send(type: "screen.show", payload: ["screen": .string(screen)])
+  func importClipboard() { send(type: "tools.importClipboard", payload: [:]) }
+
+  func importFile(text: String, name: String, docMode: String? = nil, document: Bool) {
+    var payload: [String: BridgeJSON] = [
+      "text": .string(text), "fileName": .string(name), "mode": .string("replace"),
+    ]
+    if let docMode { payload["docMode"] = .string(docMode) }
+    send(type: document ? "doc.import" : "tools.import", payload: payload)
   }
 
-  func syncAppearance(panelSize: String) {
+  func showScreen(_ screen: String) {
+    send(type: "screen.show", payload: ["page": .string(screen)])
+  }
+
+  func syncAppearance(panelSize: String, autoImport: Bool = true) {
+    self.autoImport = autoImport
     send(
       type: "theme.set", payload: ["theme": .string(theme.effective == .dark ? "dark" : "light")])
     send(type: "panel.size", payload: ["size": .string(panelSize)])
     send(
       type: "settings.set",
       payload: [
-        "autoImport": .bool(UserDefaults.standard.object(forKey: "autoImport") as? Bool ?? true)
+        "autoImport": .bool(autoImport)
       ]
     )
     applyContrast()
@@ -115,7 +134,10 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       contentWorld: .page,
       name: "devbar"
     )
-    let view = WKWebView(frame: webView.frame, configuration: configuration)
+    let view = FileDropWebView(frame: webView.frame, configuration: configuration)
+    view.acceptsFiles = { [weak self] in self?.acceptsFiles?() ?? false }
+    view.receivedFiles = { [weak self] urls in self?.receivedFiles?(urls) }
+    view.registerForDraggedTypes([.fileURL])
     view.navigationDelegate = self
     view.uiDelegate = self
     view.setValue(false, forKey: "drawsBackground")
@@ -148,8 +170,35 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       PasteboardBridge.writePNGBase64(payload["pngBase64"]?.stringValue ?? "")
       onClipboardWrite?(NSPasteboard.general.changeCount)
       return #"{"ok":true}"#
+    case "preview.exportImage":
+      guard case .number(let width) = payload["width"], case .number(let height) = payload["height"]
+      else { return "{}" }
+      #if DEBUG
+        let exportDirectory = SelfCheckEnvironment.stateDirectory?.appending(path: "exports")
+        if let exportDirectory {
+          try? FileManager.default.createDirectory(
+            at: exportDirectory, withIntermediateDirectories: true)
+          previewImage.writesClipboard = false
+        }
+      #else
+        let exportDirectory: URL? = nil
+      #endif
+      let result = await previewImage.export(
+        page: payload["page"]?.stringValue ?? "",
+        width: width,
+        height: height,
+        html: payload["html"]?.stringValue ?? "",
+        css: payload["css"]?.stringValue ?? "",
+        theme: payload["theme"]?.stringValue ?? "light",
+        background: payload["background"]?.stringValue ?? "", directory: exportDirectory,
+        host: webView.window?.contentView)
+      if result.contains("\"saved\"") { onClipboardWrite?(NSPasteboard.general.changeCount) }
+      return result
+    case "preview.reveal":
+      previewImage.reveal(path: payload["path"]?.stringValue ?? "")
+      return "{}"
     case "qr.show":
-      return QRPanel.present(text: payload["text"]?.stringValue ?? "")
+      return QRGenerator.reply(text: payload["text"]?.stringValue ?? "")
     case "state.save":
       if let screen = payload["screen"]?.stringValue, let state = payload["state"] {
         await store.save(screen: screen, json: state.canonical())
@@ -179,7 +228,6 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   private func readyPayload() -> String {
     let themeName = theme.effective == .dark ? "dark" : "light"
     let mode = theme.mode.rawValue
-    let autoImport = UserDefaults.standard.object(forKey: "autoImport") as? Bool ?? true
     return """
       {"theme":"\(themeName)","mode":"\(mode)","panelSize":"normal","settings":{"autoImport":\(autoImport)}}
       """

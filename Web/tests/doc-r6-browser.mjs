@@ -209,13 +209,13 @@ try {
       );
       if (card.name === "图表 error") assert.equal(card.error, true);
       else assert.equal(card.error, false, theme + " " + card.name);
-      if (card.name !== "图表 explicit-color")
-        assert.deepEqual(card.colors, [], theme + " " + card.name);
-      else assert.ok(card.colors.length > 0);
+      // Official themes use colors; explicit user styling remains allowed.
+      if (card.name === "图表 explicit-color")
+        assert.ok(card.colors.length > 0);
     }
   for (const security of Object.values(results.security)) {
-    assert.equal(security.theme, "base");
-    assert.equal(security.look, "neo");
+    assert.equal(security.theme, "default");
+    assert.equal(security.look, "classic");
     assert.equal(security.htmlLabels, false);
     assert.equal(security.darkMode, false);
     assert.notEqual(security.fontFamily, "Comic");

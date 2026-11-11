@@ -31,11 +31,9 @@ final class TerminalYield {
     yielding = next
     if next {
       KeyboardShortcuts.disable(.cycleOlder)
-      KeyboardShortcuts.disable(.cycleNewer)
       logger.notice("terminalYield=on")
     } else {
       KeyboardShortcuts.enable(.cycleOlder)
-      KeyboardShortcuts.enable(.cycleNewer)
       logger.notice("terminalYield=off")
     }
   }

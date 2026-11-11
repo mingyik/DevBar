@@ -5,7 +5,11 @@ actor ScreenStateStore {
   private let directory: URL
   private let logger = Logger(subsystem: "local.devbar.app", category: "web")
 
-  init() {
+  init(directory explicitDirectory: URL? = nil) {
+    if let explicitDirectory {
+      directory = explicitDirectory
+      return
+    }
     #if DEBUG
       // 自检时改用独立的测试目录，不读写用户的状态目录（见 Debug/WebSelfCheck.swift）。
       if let testDirectory = SelfCheckEnvironment.stateDirectory {
@@ -36,6 +40,13 @@ actor ScreenStateStore {
   }
 
   func load(screen: String) -> String? {
+    if screen == "json" || screen == "tools",
+      let file = fileURL(screen), !FileManager.default.fileExists(atPath: file.path),
+      let data = try? Data(contentsOf: directory.appending(path: "tools.json")),
+      let legacy = String(data: data, encoding: .utf8)
+    {
+      save(screen: "json", json: legacy)
+    }
     guard let file = fileURL(screen),
       let data = try? Data(contentsOf: file),
       let text = String(data: data, encoding: .utf8)
@@ -47,7 +58,8 @@ actor ScreenStateStore {
 
   private func fileURL(_ screen: String) -> URL? {
     switch screen {
-    case "tools": directory.appending(path: "tools.json")
+    case "tools", "json": directory.appending(path: "json.json")
+    case "qr": directory.appending(path: "qr.json")
     case "doc": directory.appending(path: "doc.json")
     default: nil
     }

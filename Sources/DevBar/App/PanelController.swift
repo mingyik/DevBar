@@ -56,7 +56,12 @@ final class PanelController {
     }
     installChrome()
     panel.onEscape = { [weak self] in
-      self?.dismiss()
+      guard let self else { return }
+      if model.dropActive {
+        model.fileDrop?.cancel()
+        model.dropActive = false
+      }
+      dismiss()
     }
     panel.onCyclePage = { [weak self] backwards in
       self?.model.cyclePage(backwards: backwards)
@@ -124,7 +129,7 @@ final class PanelController {
   }
 
   func showSettings(anchor: CGRect?) {
-    model.page = .settings
+    model.enterSettings()
     if panel.isVisible {
       if let anchor {
         lastAnchor = anchor
@@ -152,9 +157,11 @@ final class PanelController {
   private func updateMaterial() {
     panel.appearance = theme.appearance()
     webHost.panelVisible = panel.isVisible
-    webHost.syncAppearance(panelSize: model.enlarged && model.showsEnlarge ? "large" : "normal")
-    if model.page == .json {
-      webHost.showScreen("tools")
+    webHost.syncAppearance(
+      panelSize: model.enlarged && model.showsEnlarge ? "large" : "normal",
+      autoImport: model.autoImport)
+    if model.page == .json || model.page == .qr {
+      webHost.showScreen(model.page.rawValue)
     } else if model.page == .doc {
       webHost.showScreen("doc")
     }
@@ -162,6 +169,8 @@ final class PanelController {
 
   private func watchSize() {
     withObservationTracking {
+      _ = model.dropActive
+      _ = model.autoImport
       _ = model.enlarged
       _ = model.page
       _ = theme.mode
@@ -178,24 +187,22 @@ final class PanelController {
   }
 
   private func reposition() {
-    let visible = screen(for: lastAnchor).visibleFrame
-    let iconCenterX = lastAnchor?.midX ?? visible.midX
-    let menuBottom = lastAnchor?.minY ?? visible.maxY
+    let screens = NSScreen.screens.map {
+      PanelLayout.DisplaySlice(frame: $0.frame, visibleFrame: $0.visibleFrame)
+    }
+    let mouse = NSEvent.mouseLocation
+    let mouseScreen =
+      NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main ?? NSScreen.screens[0]
+    let placed = PanelLayout.placement(
+      anchor: lastAnchor, screens: screens, fallbackVisible: mouseScreen.visibleFrame)
     let frame = PanelLayout.frame(
-      iconCenterX: iconCenterX, menuBarBottomY: menuBottom,
-      size: model.panelSize, visibleFrame: visible)
+      iconCenterX: placed.centerX, menuBarBottomY: placed.menuBottom,
+      size: model.panelSize, visibleFrame: placed.visible)
     NSAnimationContext.runAnimationGroup(
       { context in
         context.duration = panel.isVisible ? 0.15 : 0
         panel.animator().setFrame(frame, display: true)
       }, completionHandler: nil)
-  }
-
-  private func screen(for anchor: CGRect?) -> NSScreen {
-    if let anchor, let match = NSScreen.screens.first(where: { $0.frame.intersects(anchor) }) {
-      return match
-    }
-    return NSScreen.main ?? NSScreen.screens[0]
   }
 
   private func handleOutsideClick() {

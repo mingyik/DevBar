@@ -27,6 +27,15 @@ final class StatusItemController: NSObject {
     }
   }
 
+  func installFileDrop(_ coordinator: FileDropCoordinator) {
+    guard let button = item.button else { return }
+    let target = StatusFileDropView(frame: button.bounds)
+    target.autoresizingMask = [.width, .height]
+    target.coordinator = coordinator
+    target.onClick = { [weak self] in self?.handleClick() }
+    button.addSubview(target)
+  }
+
   var anchor: CGRect? {
     guard let button = item.button, let window = button.window else { return nil }
     return window.convertToScreen(button.convert(button.bounds, to: nil))
@@ -43,8 +52,12 @@ final class StatusItemController: NSObject {
   private func showMenu() {
     let menu = NSMenu()
     menu.autoenablesItems = false
-    for title in [Strings.shortcutCapture, Strings.shortcutLong, Strings.startRecording] {
+    for (title, symbol) in [
+      (Strings.shortcutCapture, "viewfinder"), (Strings.shortcutLong, "rectangle.stack"),
+      (Strings.startRecording, "record.circle"),
+    ] {
       let entry = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+      entry.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
       entry.isEnabled = false
       menu.addItem(entry)
     }
@@ -60,6 +73,7 @@ final class StatusItemController: NSObject {
 
   private func item(_ title: String, action: Selector) -> NSMenuItem {
     let entry = NSMenuItem(title: title, action: action, keyEquivalent: "")
+    if title == Strings.settingsTitle { entry.image = AppIcons.settings }
     entry.target = self
     return entry
   }

@@ -66,11 +66,11 @@ enum DesignTokens {
   static func panelGlassTint(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 1, green: 1, blue: 1, opacity: 0.18)
+      return Color(red: 1, green: 1, blue: 1, opacity: 0.08)
     case .dark:
-      return Color(red: 0, green: 0, blue: 0, opacity: 0.14)
+      return Color(red: 0, green: 0, blue: 0, opacity: 0.08)
     @unknown default:
-      return Color(red: 1, green: 1, blue: 1, opacity: 0.18)
+      return Color(red: 1, green: 1, blue: 1, opacity: 0.08)
     }
   }
 
@@ -112,6 +112,17 @@ enum DesignTokens {
       return Color(red: 1, green: 1, blue: 1, opacity: 1)
     @unknown default:
       return Color(red: 0, green: 0, blue: 0, opacity: 1)
+    }
+  }
+
+  static func selectionBorder(_ scheme: ColorScheme) -> Color {
+    switch scheme {
+    case .light:
+      return Color(red: 0, green: 0, blue: 0, opacity: 0.6)
+    case .dark:
+      return Color(red: 1, green: 1, blue: 1, opacity: 0.6)
+    @unknown default:
+      return Color(red: 0, green: 0, blue: 0, opacity: 0.6)
     }
   }
 
@@ -321,6 +332,17 @@ enum DesignTokens {
       return Color(red: 0, green: 0, blue: 0, opacity: 0.18)
     @unknown default:
       return Color(red: 0, green: 0, blue: 0, opacity: 0.035)
+    }
+  }
+
+  static func qrBackground(_ scheme: ColorScheme) -> Color {
+    switch scheme {
+    case .light:
+      return Color(red: 1, green: 1, blue: 1, opacity: 1)
+    case .dark:
+      return Color(red: 1, green: 1, blue: 1, opacity: 1)
+    @unknown default:
+      return Color(red: 1, green: 1, blue: 1, opacity: 1)
     }
   }
 

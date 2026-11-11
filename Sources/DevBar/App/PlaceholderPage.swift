@@ -1,54 +1,43 @@
 import SwiftUI
 
-/// Layout only. Conversion, preview and QR generation belong to R8/R9.
+/// Document functionality is integrated in R9; keep its placeholder in the single-content shell.
 struct PlaceholderPage: View {
   let page: PanelModel.Page
   let scheme: ColorScheme
-  @State private var inputFraction = 0.35
-  @State private var dragStart: Double?
 
   var body: some View {
-    GeometryReader { geometry in
-      let height = max(geometry.size.height - 40, 0)
-      VStack(alignment: .leading, spacing: 12) {
-        block {
-          VStack(alignment: .leading, spacing: 8) {
-            Text(page.title).font(.system(size: 11)).lineLimit(1)
-            Text(Strings.notImplemented).font(.system(size: 13, design: .monospaced))
-              .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-          }
-        }.frame(height: max(90, height * inputFraction))
-        Rectangle().fill(DesignTokens.lineDivider(scheme)).frame(height: 0.7)
-          .padding(.vertical, 2)
-          .contentShape(Rectangle())
-          .gesture(
-            DragGesture(minimumDistance: 0).onChanged { value in
-              if dragStart == nil { dragStart = inputFraction }
-              inputFraction = min(
-                0.65, max(0.2, (dragStart ?? 0.35) + value.translation.height / max(height, 1)))
-            }.onEnded { _ in dragStart = nil })
-        HStack {
-          Text(Strings.result).font(.system(size: 11))
-          Spacer()
-        }.lineLimit(1)
-        block {
-          Text(Strings.pageNotImplemented(page.title))
-            .font(.system(size: 13, design: .monospaced))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .frame(maxHeight: .infinity)
-      }
-      .foregroundStyle(DesignTokens.textSecondary(scheme))
-      .padding(.top, 12)
+    VStack(spacing: 0) {
+      Text(Strings.notImplemented)
+        .font(.system(size: 13, design: .monospaced))
+        .foregroundStyle(DesignTokens.textSecondary(scheme))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+      HStack {
+        Button(Strings.documentPreview) {}
+          .buttonStyle(DevBarCapsuleStyle(scheme: scheme))
+          .disabled(true)
+        Spacer()
+        placeholderAction("viewfinder.rectangular", label: Strings.documentCapture)
+        placeholderAction("eraser", label: Strings.clearContent)
+      }.frame(height: 28)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 12)
     }
+    .background(
+      DesignTokens.panelInset(scheme),
+      in: RoundedRectangle(cornerRadius: DesignTokens.radiusMedium, style: .continuous))
   }
 
-  private func block<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-    content().padding(12)
-      .background(
-        page == .json ? DesignTokens.panelInset(scheme) : DesignTokens.panelCard(scheme),
-        in: RoundedRectangle(cornerRadius: DesignTokens.radiusMedium, style: .continuous))
+  private func placeholderAction(_ symbol: String, label: String) -> some View {
+    Button {
+    } label: {
+      Image(systemName: symbol)
+        .font(.system(size: 16))
+        .frame(width: 28, height: 28)
+        .foregroundStyle(DesignTokens.textSecondary(scheme))
+        .background(DesignTokens.panelControl(scheme), in: RoundedRectangle(cornerRadius: 8))
+    }.buttonStyle(.plain).disabled(true).accessibilityLabel(label).help(label)
   }
+
 }
 
 struct DevBarCapsuleStyle: ButtonStyle {

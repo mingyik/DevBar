@@ -1,5 +1,4 @@
 import type { MermaidConfig } from "mermaid";
-import { mermaidVars, mermaidDiagramConfig } from "../theme/mermaid-vars";
 import type { Theme } from "./highlight";
 export const LAYOUT = "dagre" as const;
 export const SYSTEM_FONT = "-apple-system, BlinkMacSystemFont, sans-serif";
@@ -7,24 +6,18 @@ let library: Promise<(typeof import("mermaid"))["default"]> | undefined;
 let queue: Promise<unknown> = Promise.resolve();
 let nonce = 0;
 const cache = new Map<string, string>();
+const backgrounds: Partial<Record<Theme, string>> = {};
 export function loadMermaid() {
   return (library ??= import("mermaid").then((m) => m.default));
 }
 export function mermaidOptions(theme: Theme): MermaidConfig {
   return {
-    ...mermaidDiagramConfig[theme],
-    journey: {
-      ...mermaidDiagramConfig[theme].journey,
-      textPlacement: "tspan",
-      taskFontFamily: SYSTEM_FONT,
-      titleFontFamily: SYSTEM_FONT,
-    },
+    journey: { textPlacement: "tspan" },
     startOnLoad: false,
     securityLevel: "strict",
-    theme: "base",
-    themeVariables: { ...mermaidVars[theme], fontFamily: SYSTEM_FONT },
+    theme: theme === "dark" ? "dark" : "default",
     fontFamily: SYSTEM_FONT,
-    look: "neo",
+    look: "classic",
     htmlLabels: false,
     layout: LAYOUT,
     flowchart: { htmlLabels: false, useMaxWidth: false },
@@ -79,66 +72,10 @@ async function generate(source: string, theme: Theme): Promise<string> {
   if (existing) return existing;
   const m = await loadMermaid();
   m.initialize(mermaidOptions(theme));
+  backgrounds[theme] = m.mermaidAPI.getConfig().themeVariables?.background;
   await m.parse(source);
-  if (/^\s*sankey(?:-beta)?\s*$/m.test(source)) {
-    const diagram = await m.mermaidAPI.getDiagramFromText(source);
-    const graph = (
-      diagram.db as unknown as { getGraph(): { nodes: { id: string }[] } }
-    ).getGraph();
-    const vars = mermaidVars[theme] as Record<string, unknown>;
-    const nodeColors = Object.fromEntries(
-      graph.nodes.map((node, i) => [
-        node.id,
-        String(vars[`pie${(i % 12) + 1}`]),
-      ]),
-    );
-    m.initialize({ ...mermaidOptions(theme), sankey: { nodeColors } });
-  }
   const { svg } = await m.render("mmd-" + ++nonce, source);
-  let output = svg;
-  if (/^\s*journey\s*$/m.test(source)) {
-    // Mermaid 12.3 concatenates configured palettes after its default palette.
-    // Replace only Journey actor swatches; classDef/style on other diagrams stay intact.
-    const template = document.createElement("template");
-    template.innerHTML = output;
-    const colors = mermaidDiagramConfig[theme].journey.actorColours;
-    for (const actor of Array.from(
-      template.content.querySelectorAll<SVGElement>("circle[class^='actor-']"),
-    )) {
-      const index = Number(actor.getAttribute("class")?.slice(6));
-      actor.setAttribute("fill", colors[index % colors.length]);
-    }
-    for (const text of Array.from(
-      template.content.querySelectorAll<SVGElement>("text, text *"),
-    ))
-      text.style.setProperty("fill", mermaidVars[theme].textColor, "important");
-    output = template.innerHTML;
-  }
-  if (
-    /^\s*C4(?:Context|Container|Component|Dynamic|Deployment)/m.test(source) &&
-    !/(?:Update(?:Element|Rel)Style\s*\(|\$\w*Color\s*=)/i.test(source)
-  ) {
-    // C4 12.3 hardcodes default white node labels and dark relationship labels.
-    // Respect explicit C4 styling; adapt only diagrams using those defaults.
-    const template = document.createElement("template");
-    template.innerHTML = output;
-    for (const node of Array.from(
-      template.content.querySelectorAll<SVGElement>(".c4-shape, .c4-shape *"),
-    ))
-      node.style.color = mermaidVars[theme].textColor;
-    for (const text of Array.from(
-      template.content.querySelectorAll<SVGElement>("text, text *"),
-    )) {
-      text.style.setProperty("fill", mermaidVars[theme].textColor, "important");
-      text.style.fontFamily = SYSTEM_FONT;
-    }
-    for (const line of Array.from(
-      template.content.querySelectorAll("line, path[stroke]"),
-    ))
-      line.setAttribute("stroke", mermaidVars[theme].lineColor);
-    output = template.innerHTML;
-  }
-  const normalized = normalizeSvg(output);
+  const normalized = normalizeSvg(svg);
   if (cache.size >= 64) cache.delete(cache.keys().next().value!);
   cache.set(key, normalized);
   return normalized;
@@ -189,7 +126,11 @@ export async function svgToPngBase64(
   canvas.height = pixels.height;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("无法创建图片");
-  context.fillStyle = mermaidVars[theme].primaryColor;
+  context.fillStyle =
+    backgrounds[theme] ??
+    getComputedStyle(document.documentElement)
+      .getPropertyValue("--snapshot-background")
+      .trim();
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.drawImage(image, 0, 0, canvas.width, canvas.height);
   const blob = await new Promise<Blob>((resolve, reject) =>

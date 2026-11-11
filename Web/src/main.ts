@@ -1,253 +1,199 @@
-import { installReadOnlyScrollbars } from "./styles/readonly-scroll";
 export const entryName = "DevBar";
-import type { EditorView } from "@codemirror/view";
-import {
-  decodeEnvelope,
-  encodeEnvelope,
-  type Envelope,
-  type JSONValue,
-} from "./bridge/envelope.ts";
-import {
-  createEditor,
-  replaceAll,
-  restore,
-  snapshot,
-  type EditorSnapshot,
-} from "./editor/editor.ts";
+import { decodeEnvelope, type JSONValue } from "./bridge/envelope";
+import { refreshTreeTheme } from "./editor/library-theme";
+import { strings } from "./strings";
+import { post } from "./bridge/client";
+import { startTransform } from "./tools/json/client";
+import { routeImport } from "./tools/json/actions";
+import { QRPage } from "./qr/page";
+import { JsonPage } from "./tools/json/page";
+import { PageShell, type PageState } from "./editor/page-shell";
+import { installReadOnlyScrollbars } from "./styles/readonly-scroll";
 import "./styles/app.css";
+import "./styles/pages.css";
 import "./styles/contrast.css";
 import "./theme/tokens.css";
 
-type ScreenName = "tools" | "doc";
-
-type ToolsState = EditorSnapshot & {
-  view: "source" | "preview";
-  lockedType: string | null;
-};
-
-type DocState = EditorSnapshot & {
-  view: "source" | "preview";
-  docMode: "markdown" | "mermaid";
-  modeLocked: boolean;
-  fileName: string | null;
-};
-
-type ReadyReply = {
-  theme?: string;
-  panelSize?: string;
-};
-
-type LoadReply = {
-  state?: JSONValue;
-};
-
-let toolsView: EditorView;
-let docView: EditorView;
-let toolsState = emptyTools();
-let docState = emptyDoc();
+type Page = "json" | "qr" | "doc";
+let current: Page = "json";
+let autoImport = true;
+const pages = new Map<Page, PageShell>();
+const importGenerations = new Map<Page, number>();
+function beginImport(page: Page): number {
+  const generation = (importGenerations.get(page) ?? 0) + 1;
+  importGenerations.set(page, generation);
+  return generation;
+}
+let json: JsonPage;
+let qr: QRPage;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
-
 const bridge = {
   async receive(raw: string): Promise<JSONValue> {
-    return handleNative(decodeEnvelope(raw));
+    const { type, payload } = decodeEnvelope(raw);
+    switch (type) {
+      case "theme.set":
+        document.documentElement.dataset.theme =
+          payload.theme === "dark" ? "dark" : "light";
+        refreshTreeTheme();
+        break;
+      case "panel.size":
+        document.documentElement.dataset.size =
+          payload.size === "large" ? "large" : "normal";
+        break;
+      case "settings.set":
+        autoImport = payload.autoImport !== false;
+        break;
+      case "screen.show": {
+        const value = payload.page ?? payload.screen;
+        await show(value === "qr" ? "qr" : value === "doc" ? "doc" : "json");
+        break;
+      }
+      case "tools.importClipboard": {
+        const generation = beginImport("json");
+        const reply = await post("clipboard.readText");
+        if (generation !== importGenerations.get("json")) break;
+        if (reply.status === "ok" && typeof reply.text === "string")
+          await importText("json", reply.text, false, null);
+        else pages.get("json")?.updateInfo(strings.clipboardUnavailable);
+        break;
+      }
+      case "tools.import": {
+        const page = payload.page === "qr" ? "qr" : "json";
+        await importText(
+          page,
+          typeof payload.text === "string" ? payload.text : "",
+          payload.mode === "ifEmpty",
+          typeof payload.fileName === "string" ? payload.fileName : null,
+        );
+        break;
+      }
+      case "doc.import":
+        await importText(
+          "doc",
+          typeof payload.text === "string" ? payload.text : "",
+          false,
+          typeof payload.fileName === "string" ? payload.fileName : null,
+        );
+        break;
+      case "memory.flush":
+        await save();
+        return { ok: true };
+    }
+    return {};
   },
 };
-
 declare global {
   interface Window {
     __devbar: typeof bridge;
-    webkit?: {
-      messageHandlers: {
-        devbar: { postMessage: (body: string) => Promise<string> };
-      };
-    };
   }
 }
-
-if (typeof document !== "undefined") start();
-
-function start(): void {
+if (typeof document !== "undefined") void start();
+async function start(): Promise<void> {
   installReadOnlyScrollbars(document);
-  toolsView = createEditor(requiredElement("tools"));
-  docView = createEditor(requiredElement("doc"));
+  for (const [page, id] of [
+    ["json", "tools"],
+    ["qr", "qr"],
+    ["doc", "doc"],
+  ] as const) {
+    const root = document.getElementById(id);
+    if (!root) throw new Error(`missing ${id}`);
+    const shell = new PageShell(root, page);
+    shell.onStateChange = scheduleSave;
+    if (page === "json") json = new JsonPage(shell);
+    if (page === "qr") qr = new QRPage(shell);
+    pages.set(page, shell);
+    const reply = await post("state.load", { screen: page });
+    if (reply.state && typeof reply.state === "object")
+      if (page === "json")
+        await json.restore(reply.state as Partial<PageState>);
+      else if (page === "qr")
+        await qr.restore(reply.state as Partial<PageState>);
+      else shell.restore(reply.state as Partial<PageState>);
+  }
   window.__devbar = bridge;
-  for (const view of [toolsView, docView]) {
-    view.contentDOM.addEventListener("keyup", scheduleSave);
-  }
-  void post("app.ready", { version: "1" }).then((reply) => {
-    applyReady(reply);
-    void loadScreen("tools");
-    void loadScreen("doc");
-  });
+  const reply = await post("app.ready", { version: "1" });
+  document.documentElement.dataset.theme =
+    reply.theme === "dark" ? "dark" : "light";
+  if (reply.settings && typeof reply.settings === "object")
+    autoImport =
+      (reply.settings as Record<string, unknown>).autoImport !== false;
 }
-
-function handleNative(envelope: Envelope): JSONValue {
-  const payload = envelope.payload;
-  switch (envelope.type) {
-    case "theme.set":
-      document.documentElement.dataset.theme =
-        stringField(payload, "theme") ?? "light";
-      return {};
-    case "screen.show":
-      showScreen(stringField(payload, "screen") === "doc" ? "doc" : "tools");
-      return {};
-    case "panel.size":
-      document.documentElement.dataset.size =
-        stringField(payload, "size") === "large" ? "large" : "normal";
-      return {};
-    case "settings.set":
-      return {};
-    case "tools.import":
-      importText(
-        toolsView,
-        stringField(payload, "text") ?? "",
-        stringField(payload, "mode") ?? "replace",
-      );
-      scheduleSave();
-      return {};
-    case "doc.import":
-      importText(docView, stringField(payload, "text") ?? "", "replace");
-      if (stringField(payload, "docMode") === "mermaid")
-        docState.docMode = "mermaid";
-      if (typeof payload.fileName === "string")
-        docState.fileName = payload.fileName;
-      scheduleSave();
-      return {};
-    case "memory.flush":
-      void saveNow();
-      return { ok: true };
-    default:
-      return {};
+async function show(page: Page): Promise<void> {
+  current = page;
+  for (const [name, shell] of pages) shell.root.hidden = name !== page;
+  const shell = pages.get(page)!;
+  shell.view.focus();
+  if (autoImport && shell.text === "" && page !== "doc") {
+    const revision = shell.revision;
+    const generation = importGenerations.get(page);
+    const reply = await post("clipboard.readText");
+    if (
+      revision === shell.revision &&
+      generation === importGenerations.get(page) &&
+      current === page &&
+      reply.status === "ok" &&
+      typeof reply.text === "string" &&
+      shell.text === ""
+    )
+      await importText(page, reply.text, true, null);
   }
 }
-
-function showScreen(screen: ScreenName): void {
-  requiredElement("tools").hidden = screen !== "tools";
-  requiredElement("doc").hidden = screen !== "doc";
-  (screen === "doc" ? docView : toolsView).focus();
-}
-
-function importText(view: EditorView, text: string, mode: string): void {
-  if (mode === "ifEmpty" && view.state.doc.length > 0) return;
-  replaceAll(view, text, "devbar.import");
-}
-
-async function loadScreen(screen: ScreenName): Promise<void> {
-  const reply = await post("state.load", { screen });
-  const state = reply.state;
-  if (
-    state === null ||
-    state === undefined ||
-    typeof state !== "object" ||
-    Array.isArray(state)
-  )
-    return;
-  const text = typeof state.text === "string" ? state.text : "";
-  const selection = selectionOf(state.selection);
-  const scrollTop = typeof state.scrollTop === "number" ? state.scrollTop : 0;
-  if (screen === "tools") {
-    toolsState = { ...emptyTools(), text, selection, scrollTop };
-    restore(toolsView, { text, selection, scrollTop });
-    return;
+async function importText(
+  page: Page,
+  text: string,
+  ifEmpty: boolean,
+  fileName: string | null,
+): Promise<void> {
+  const shell = pages.get(page);
+  if (!shell || (ifEmpty && shell.text !== "")) return;
+  const revision = shell.revision;
+  const generation = beginImport(page);
+  let incoming = text;
+  if (page === "json") {
+    const result = await startTransform("format", text).result;
+    if (result.status === "success") incoming = result.text;
+    if (
+      revision !== shell.revision ||
+      generation !== importGenerations.get(page)
+    )
+      return;
+    json.setEncoding(routeImport(text).encoding);
   }
-  docState = {
-    ...emptyDoc(),
-    text,
-    selection,
-    scrollTop,
-    docMode: state.docMode === "mermaid" ? "mermaid" : "markdown",
-    modeLocked: state.modeLocked === true,
-    fileName: typeof state.fileName === "string" ? state.fileName : null,
-  };
-  restore(docView, { text, selection, scrollTop });
+  shell.showPreview(false);
+  shell.replace(incoming, "devbar.import");
+  shell.fileName = fileName;
+  shell.updateInfo();
+  if (page === "json") await json.analyze();
+  scheduleSave();
 }
-
 function scheduleSave(): void {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    void saveNow();
+    void save();
   }, 1000);
 }
-
-async function saveNow(): Promise<void> {
-  toolsState = { ...toolsState, ...snapshot(toolsView), view: "source" };
-  docState = { ...docState, ...snapshot(docView), view: "source" };
-  await post("state.save", { screen: "tools", state: toolsState });
-  await post("state.save", { screen: "doc", state: docState });
+async function save(): Promise<void> {
+  for (const [screen, shell] of pages)
+    await post("state.save", {
+      screen,
+      state: (screen === "json"
+        ? json.state()
+        : shell.state()) as unknown as JSONValue,
+    });
+}
+export function activePage(): string {
+  return current;
 }
 
-async function post(
-  type: string,
-  payload: { [key: string]: JSONValue },
-): Promise<LoadReply & ReadyReply> {
-  const envelope: Envelope = { v: 1, id: crypto.randomUUID(), type, payload };
-  const raw = await window.webkit?.messageHandlers.devbar.postMessage(
-    encodeEnvelope(envelope),
-  );
-  if (!raw) return {};
-  const parsed: unknown = JSON.parse(raw);
-  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
-    return {};
-  return parsed as LoadReply & ReadyReply;
-}
-
-function applyReady(reply: ReadyReply): void {
-  if (typeof reply.theme === "string")
-    document.documentElement.dataset.theme = reply.theme;
-  if (reply.panelSize === "large")
-    document.documentElement.dataset.size = "large";
-}
-
-function selectionOf(value: JSONValue | undefined): {
-  anchor: number;
-  head: number;
-} {
-  if (
-    value === null ||
-    value === undefined ||
-    typeof value !== "object" ||
-    Array.isArray(value)
-  ) {
-    return { anchor: 0, head: 0 };
-  }
-  return {
-    anchor: typeof value.anchor === "number" ? value.anchor : 0,
-    head: typeof value.head === "number" ? value.head : 0,
-  };
-}
-
-function stringField(
-  payload: Envelope["payload"],
-  key: string,
-): string | undefined {
-  const value = payload[key];
-  return typeof value === "string" ? value : undefined;
-}
-
-function requiredElement(id: string): HTMLElement {
-  const element = document.getElementById(id);
-  if (!element) throw new Error(`missing ${id}`);
-  return element;
-}
-
-function emptyTools(): ToolsState {
-  return {
-    text: "",
-    view: "source",
-    lockedType: null,
-    selection: { anchor: 0, head: 0 },
-    scrollTop: 0,
-  };
-}
-
-function emptyDoc(): DocState {
-  return {
-    text: "",
-    view: "source",
-    docMode: "markdown",
-    modeLocked: false,
-    fileName: null,
-    selection: { anchor: 0, head: 0 },
-    scrollTop: 0,
-  };
+if (typeof document !== "undefined") {
+  document.addEventListener("keydown", (event) => {
+    if (
+      event.metaKey &&
+      event.key.toLowerCase() === "e" &&
+      (current === "json" || current === "qr")
+    ) {
+      event.preventDefault();
+      void (current === "json" ? json : qr).togglePreview();
+    }
+  });
 }

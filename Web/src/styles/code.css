@@ -26,7 +26,3 @@
   font-family: ui-monospace, SFMono-Regular, monospace;
   font-variant-numeric: tabular-nums;
 }
-.prose pre.shiki span[style*="font-weight:bold"],
-.prose pre.shiki span[style*="font-weight: bold"] {
-  font-weight: 600 !important;
-}

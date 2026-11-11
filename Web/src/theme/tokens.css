@@ -16,11 +16,12 @@
   --panel-card: rgba(255, 255, 255, 0.38);
   --panel-control: rgba(0, 0, 0, 0.055);
   --panel-raised: rgba(255, 255, 255, 0.88);
-  --panel-glassTint: rgba(255, 255, 255, 0.18);
+  --panel-glassTint: rgba(255, 255, 255, 0.08);
   --line-border: rgba(0, 0, 0, 0.09);
   --line-border-high-contrast: rgba(0, 0, 0, 0.24);
   --line-divider: rgba(0, 0, 0, 0.12);
   --text-primary: rgba(0, 0, 0, 1);
+  --selection-border: rgba(0, 0, 0, 0.6);
   --text-secondary: rgba(0, 0, 0, 0.75);
   --text-tertiary: rgba(0, 0, 0, 0.6);
   --syntax-keyword: rgba(0, 0, 0, 1);
@@ -37,6 +38,8 @@
   --selection-text: rgba(255, 255, 255, 1);
   --scroll-thumb: rgba(0, 0, 0, 0.22);
   --panel-inset: rgba(0, 0, 0, 0.035);
+  --qr-background: rgba(255, 255, 255, 1);
+  --snapshot-background: #fbfbfb;
 }
 
 :root[data-theme="dark"] {
@@ -44,11 +47,12 @@
   --panel-card: rgba(255, 255, 255, 0.075);
   --panel-control: rgba(255, 255, 255, 0.085);
   --panel-raised: rgba(255, 255, 255, 0.14);
-  --panel-glassTint: rgba(0, 0, 0, 0.14);
+  --panel-glassTint: rgba(0, 0, 0, 0.08);
   --line-border: rgba(255, 255, 255, 0.11);
   --line-border-high-contrast: rgba(255, 255, 255, 0.28);
   --line-divider: rgba(255, 255, 255, 0.12);
   --text-primary: rgba(255, 255, 255, 1);
+  --selection-border: rgba(255, 255, 255, 0.6);
   --text-secondary: rgba(255, 255, 255, 0.75);
   --text-tertiary: rgba(255, 255, 255, 0.6);
   --syntax-keyword: rgba(255, 255, 255, 1);
@@ -65,4 +69,6 @@
   --selection-text: rgba(0, 0, 0, 1);
   --scroll-thumb: rgba(255, 255, 255, 0.22);
   --panel-inset: rgba(0, 0, 0, 0.18);
+  --qr-background: rgba(255, 255, 255, 1);
+  --snapshot-background: #101011;
 }

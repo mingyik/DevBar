@@ -14,19 +14,33 @@ struct PanelView: View {
     let scheme = theme.effective
     let _ = theme.increaseContrast
     VStack(spacing: 0) {
-      titleRow(scheme).frame(height: 32).padding(.bottom, 8)
-      content(scheme)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .id(model.page)
-        .transition(.opacity)
-      if !model.toast.isEmpty {
+      if model.dropActive {
+        HStack {
+          Text(Strings.appName).font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(DesignTokens.textPrimary(scheme))
+          Spacer()
+        }.frame(height: 24).padding(.bottom, 8)
+      } else {
+        titleRow(scheme).frame(height: 32).padding(.bottom, 8)
+      }
+      ZStack {
+        content(scheme)
+          .opacity(model.dropActive ? 0 : 1)
+          .allowsHitTesting(!model.dropActive)
+        if model.dropActive { FileDropOverlay(document: model.dropDocument, scheme: scheme) }
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .onDrop(of: [.fileURL], delegate: PanelFileDrop(model: model))
+      .transition(.opacity)
+      if !model.dropActive && !model.toast.isEmpty {
         Text(model.toast).font(.system(size: 11))
           .foregroundStyle(DesignTokens.textSecondary(scheme)).lineLimit(1)
       }
     }
     .animation(.easeInOut(duration: 0.15), value: model.page)
     .padding(.horizontal, 16)
-    .padding(.vertical, 12)
+    .padding(.top, 12)
+    .padding(.bottom, 16)
     .background { chrome(scheme) }
     .clipShape(panelShape)
     .environment(\.colorScheme, scheme)
@@ -67,28 +81,37 @@ struct PanelView: View {
 
   private func titleRow(_ scheme: ColorScheme) -> some View {
     HStack(spacing: 8) {
-      Button {
-        model.cyclePage()
-      } label: {
-        HStack(spacing: 6) {
-          Text(model.page.title)
-            .font(.system(size: 15, weight: .semibold))
+      if model.page == .settings {
+        Button {
+          model.leaveSettings()
+        } label: {
+          Label(Strings.settingsBack, systemImage: "chevron.left").font(.system(size: 13))
             .foregroundStyle(DesignTokens.textPrimary(scheme))
-            .overlay(alignment: .bottom) {
-              if titleHovered {
-                Rectangle().fill(DesignTokens.textPrimary(scheme)).frame(height: 0.7)
+        }.buttonStyle(.plain)
+      } else {
+        Button {
+          model.cyclePage()
+        } label: {
+          HStack(spacing: 6) {
+            Text(model.page.title)
+              .font(.system(size: 15, weight: .semibold))
+              .foregroundStyle(DesignTokens.textPrimary(scheme))
+              .overlay(alignment: .bottom) {
+                if titleHovered {
+                  Rectangle().fill(DesignTokens.textPrimary(scheme)).frame(height: 0.7)
+                }
               }
-            }
-          Text("⌘P").font(.system(size: 11))
-            .foregroundStyle(DesignTokens.textTertiary(scheme))
-        }.lineLimit(1)
-      }.buttonStyle(.plain).onHover { titleHovered = $0 }
+            Text("⌘P").font(.system(size: 11))
+              .foregroundStyle(DesignTokens.textTertiary(scheme))
+          }.lineLimit(1)
+        }.buttonStyle(.plain).onHover { titleHovered = $0 }
+      }
       Spacer(minLength: 8)
-      actionButton(model.pinned ? "pin.fill" : "pin", label: Strings.pin, scheme: scheme) {
+      actionButton(model.pinned ? "pin.fill" : "pin.slash", label: Strings.pin, scheme: scheme) {
         model.pinned.toggle()
       }
-      actionButton("circle.lefthalf.filled", label: Strings.theme, scheme: scheme) {
-        theme.toggleManual()
+      actionButton("devbar.settings", label: Strings.settingsPage, scheme: scheme) {
+        model.enterSettings()
       }
       if model.showsEnlarge {
         actionButton(
@@ -117,10 +140,11 @@ struct PanelView: View {
     switch model.page {
     case .clipboard:
       ClipboardListView(controller: clipboard, scheme: scheme)
-    case .json, .encode, .qr, .doc:
+    case .json, .qr:
+      WebViewBox(host: webHost).id(webHost.generation)
+    case .doc:
       #if DEBUG
         if model.showsWebViewForSelfCheck {
-          // Mount the existing host only in the runtime harness. Product pages remain placeholders.
           WebViewBox(host: webHost).id(webHost.generation)
         } else {
           PlaceholderPage(page: model.page, scheme: scheme)
@@ -142,55 +166,78 @@ struct PanelView: View {
   }
 
   private func settings(_ scheme: ColorScheme) -> some View {
-    ReadOnlyScrollView(scheme: scheme) {
-      VStack(alignment: .leading, spacing: 12) {
-        Picker(Strings.appearance, selection: $theme.mode) {
-          Text(Strings.followSystem).tag(ThemeMode.system)
-          Text(Strings.light).tag(ThemeMode.light)
-          Text(Strings.dark).tag(ThemeMode.dark)
-        }
-        .pickerStyle(.radioGroup)
-        .foregroundStyle(DesignTokens.textPrimary(scheme))
-        Picker(Strings.defaultPage, selection: $model.defaultPage) {
-          Text(Strings.lastPage).tag("last")
-          ForEach(PanelModel.Page.contentPages, id: \.self) { page in
-            Text(page.title).tag(page.rawValue)
+    ScrollViewReader { proxy in
+      ReadOnlyScrollView(scheme: scheme) {
+        VStack(alignment: .leading, spacing: 16) {
+          Text(Strings.generalGroup).font(.system(size: 13, weight: .semibold)).id("general")
+          Picker(Strings.appearance, selection: $theme.mode) {
+            Text(Strings.followSystem).tag(ThemeMode.system)
+            Text(Strings.light).tag(ThemeMode.light)
+            Text(Strings.dark).tag(ThemeMode.dark)
+          }.pickerStyle(.segmented)
+          Picker(Strings.defaultPage, selection: $model.defaultPage) {
+            Text(Strings.lastPage).tag("last")
+            ForEach(PanelModel.Page.contentPages, id: \.self) { page in
+              Text(page.title).tag(page.rawValue)
+            }
           }
-        }.lineLimit(1)
-        Text(Strings.pageShortcuts).font(.system(size: 13, weight: .semibold))
-          .foregroundStyle(DesignTokens.textPrimary(scheme)).lineLimit(1)
-        ForEach(PanelModel.Page.contentPages, id: \.self) { page in
-          shortcut(page.title, page.shortcutName, scheme)
-        }
-        shortcut(Strings.shortcutToggle, .togglePanel, scheme)
-        shortcut(Strings.shortcutOlder, .cycleOlder, scheme)
-        shortcut(Strings.shortcutNewer, .cycleNewer, scheme)
-        shortcut(Strings.shortcutTools, .openTools, scheme)
-        shortcut(Strings.shortcutCapture, .captureRegion, scheme)
-        shortcut(Strings.shortcutLong, .captureScroll, scheme)
-        shortcut(Strings.shortcutRecord, .recordToggle, scheme)
-        Toggle(Strings.recordSystemAudio, isOn: $model.recordSystemAudio)
-        Toggle(Strings.recordMicrophone, isOn: $model.recordMicrophone)
-        Text(Strings.aboutBody)
-          .font(.system(size: 13))
-          .foregroundStyle(DesignTokens.textSecondary(scheme))
-          .lineLimit(1)
+          Toggle(Strings.autoImport, isOn: $model.autoImport)
+          shortcut(Strings.shortcutToggle, .togglePanel, scheme)
+          shortcut(Strings.shortcutTools, .openTools, scheme)
+          Text(Strings.clipboardGroup).font(.system(size: 13, weight: .semibold)).id("clipboard")
+          shortcut(Strings.shortcutOlder, .cycleOlder, scheme)
+          Text(Strings.captureGroup).font(.system(size: 13, weight: .semibold)).id("capture")
+          Toggle(Strings.recordSystemAudio, isOn: $model.recordSystemAudio)
+          Toggle(Strings.recordMicrophone, isOn: $model.recordMicrophone)
+          shortcut(Strings.shortcutCapture, .captureRegion, scheme)
+          shortcut(Strings.shortcutLong, .captureScroll, scheme)
+          shortcut(Strings.shortcutRecord, .recordToggle, scheme)
+          Text(Strings.pageShortcuts).font(.system(size: 13, weight: .semibold)).id("shortcuts")
+          ForEach(PanelModel.Page.contentPages, id: \.self) { page in
+            shortcut(page.title, page.shortcutName, scheme)
+          }
+          Text(Strings.aboutBody).font(.system(size: 11)).foregroundStyle(
+            DesignTokens.textSecondary(scheme))
+        }.foregroundStyle(DesignTokens.textPrimary(scheme))
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }.task(id: model.settingsGroup) {
+        try? await Task.sleep(for: .milliseconds(80))
+        proxy.scrollTo(model.settingsGroup, anchor: .top)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
     }
   }
 
   private func shortcut(_ title: String, _ name: KeyboardShortcuts.Name, _ scheme: ColorScheme)
     -> some View
   {
+    ShortcutRow(title: title, name: name, scheme: scheme)
+  }
+}
+
+private struct ShortcutRow: View {
+  let title: String
+  let name: KeyboardShortcuts.Name
+  let scheme: ColorScheme
+  @State private var shown = ""
+
+  var body: some View {
     HStack {
       Text(title)
         .font(.system(size: 13))
         .foregroundStyle(DesignTokens.textPrimary(scheme))
         .lineLimit(1)
       Spacer(minLength: 8)
-      KeyboardShortcuts.Recorder(for: name) { EmptyView() }
+      Text(shown.isEmpty ? Strings.shortcutUnset : shown)
+        .font(.system(size: 12, design: .monospaced))
+        .foregroundStyle(DesignTokens.textSecondary(scheme))
+        .lineLimit(1)
+      KeyboardShortcuts.Recorder(
+        for: name,
+        onChange: { shortcut in
+          shown = shortcut?.description ?? ""
+        })
     }
+    .onAppear { shown = KeyboardShortcuts.getShortcut(for: name)?.description ?? "" }
   }
 }
 
@@ -201,9 +248,13 @@ private struct ActionIcon: View {
   let action: () -> Void
   @State private var hovered = false
 
+  private var icon: Image {
+    symbol == "devbar.settings" ? Image(nsImage: AppIcons.settings) : Image(systemName: symbol)
+  }
+
   var body: some View {
     Button(action: action) {
-      Image(systemName: symbol)
+      icon
         .font(.system(size: 13, weight: .regular))
         .frame(width: 24, height: 24)
         .foregroundStyle(DesignTokens.textSecondary(scheme))
@@ -256,7 +307,6 @@ extension PanelModel.Page {
     switch self {
     case .clipboard: Strings.tabClipboard
     case .json: Strings.pageJSON
-    case .encode: Strings.pageEncode
     case .qr: Strings.pageQR
     case .doc: Strings.tabDocument
     case .settings: Strings.settingsPage
@@ -267,7 +317,6 @@ extension PanelModel.Page {
     switch self {
     case .clipboard: .pageClipboard
     case .json: .pageJSON
-    case .encode: .pageEncode
     case .qr: .pageQR
     case .doc: .pageDoc
     case .settings: preconditionFailure("Settings has no page shortcut")

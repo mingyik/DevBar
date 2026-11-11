@@ -20,10 +20,14 @@
       CommandLine.arguments.contains("--devbar-selfcheck")
       || CommandLine.arguments.contains("--devbar-manual-editor")
       || CommandLine.arguments.contains("--devbar-uicheck")
+      || CommandLine.arguments.contains("--devbar-r8check")
 
-    @MainActor static let defaults: UserDefaults =
-      isActive
-      ? UserDefaults(suiteName: "local.devbar.debug.\(UUID())")! : .standard
+    @MainActor static let defaults: UserDefaults = {
+      guard isActive else { return .standard }
+      let defaults = UserDefaults(suiteName: "local.devbar.debug.\(UUID())")!
+      defaults.set(false, forKey: "autoImport")
+      return defaults
+    }()
 
     /// 每次启动一个新的临时目录：<系统临时目录>/devbar-selfcheck-<UUID>/state
     static let stateDirectory: URL? = {

@@ -68,6 +68,18 @@ import Testing
   #expect(board.data(forType: .png) == original)
 }
 
+@MainActor @Test func dragCardImageStaysInsideWidthLimits() {
+  let narrow = DragCardImage.make(
+    title: "a", subtitle: "1 字符", fileCount: 1, thumbnail: nil, swatch: nil, scheme: .light)
+  let wide = DragCardImage.make(
+    title: String(repeating: "字", count: 80), subtitle: "x", fileCount: 3, thumbnail: nil,
+    swatch: nil, scheme: .dark)
+  #expect(narrow.image.size.height == DragCard.height + 20)
+  #expect(narrow.image.size.width == DragCard.minWidth + 20)
+  #expect(wide.image.size.width == DragCard.maxWidth + 20)
+  #expect(wide.image.size.height == DragCard.height + 20)
+}
+
 @MainActor @Test func clipboardSelectionNeverReordersAndNewCaptureResetsCursor() async throws {
   _ = NSApplication.shared
   let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)

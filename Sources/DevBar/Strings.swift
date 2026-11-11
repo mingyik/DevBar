@@ -1,4 +1,28 @@
+import DevBarCore
+
 enum Strings {
+  static let appName = "DevBar"
+  static let documentPreview = "预览"
+  static let documentCapture = "截全图"
+  static let clearContent = "清空"
+  static let fileDropJSON = "{ } JSON\n在工具中打开"
+  static let fileDropDoc = "# Markdown / Mermaid\n在文稿中打开"
+  static let fileDropFirst = "已打开第一个文件"
+  static func fileDropError(_ reason: FileDropReason) -> String {
+    switch reason {
+    case .tooLarge: "文件超过 10MB，未打开"
+    case .notUTF8: "只支持 UTF-8 文本文件"
+    case .notRegularFile: "不支持文件夹或应用包"
+    case .unsupportedType: "不支持此文件类型"
+    case .noFile, .unreadable: "无法读取文件"
+    }
+  }
+
+  static let settingsBack = "返回"
+  static let generalGroup = "通用"
+  static let clipboardGroup = "剪贴板"
+  static let captureGroup = "截图录屏"
+  static let autoImport = "内容为空时带入剪贴板"
   static let clipboardTextType = "文本"
   static let clipboardImageType = "图片"
   static let clipboardFileType = "文件"
@@ -7,7 +31,6 @@ enum Strings {
   static let backToList = "返回列表"
   static let copy = "复制"
   static let pageJSON = "JSON"
-  static let pageEncode = "编码"
   static let pageQR = "二维码"
   static let defaultPage = "打开面板时显示"
   static let lastPage = "上次停留的页"
@@ -23,8 +46,7 @@ enum Strings {
   static let clipboardPending = "有新内容，点击记录"
   static let clipboardWaiting = "等待系统授权…"
   static let openSystemSettings = "打开系统设置"
-  static let clearHistory = "清空"
-  static let confirmClear = "确认清空"
+  static let shortcutUnset = "未设置"
   static let deleteItem = "删除"
   static let justNow = "刚刚"
   static let yesterday = "昨天"
@@ -52,12 +74,11 @@ enum Strings {
   static let recordMicrophone = "录屏：麦克风"
   static let startRecording = "开始录屏"
   static let appearance = "外观"
-  static let followSystem = "跟随系统"
-  static let light = "白"
-  static let dark = "黑"
+  static let followSystem = "自动"
+  static let light = "浅色"
+  static let dark = "深色"
   static let shortcutToggle = "打开面板"
-  static let shortcutOlder = "上一条剪贴板"
-  static let shortcutNewer = "下一条剪贴板"
+  static let shortcutOlder = "切换剪贴板"
   static let shortcutTools = "打开工具并带入剪贴板"
   static let shortcutCapture = "区域截图"
   static let shortcutLong = "长图"

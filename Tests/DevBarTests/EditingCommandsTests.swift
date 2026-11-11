@@ -56,3 +56,19 @@ import Testing
   #expect(received == [125, 126, 36])
   #expect(responder.consumed == 0)
 }
+
+@MainActor @Test func escapePrecedesInputResponderAndClosesPanel() {
+  _ = NSApplication.shared
+  let panel = DevBarPanel()
+  let responder = ArrowConsumingResponder()
+  panel.makeFirstResponder(responder)
+  var dismissed = 0
+  panel.onEscape = { dismissed += 1 }
+  let event = NSEvent.keyEvent(
+    with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+    windowNumber: panel.windowNumber, context: nil, characters: "\u{1b}",
+    charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53)!
+  panel.sendEvent(event)
+  #expect(dismissed == 1)
+  #expect(responder.consumed == 0)
+}

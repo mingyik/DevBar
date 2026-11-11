@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-Hans" data-theme="light">
+  <head>
+    <meta charset="utf-8" />
+    <title>DevBar R8 开发验收</title>
+    <style>
+      html {
+        width: 448px;
+        height: 536px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="tools" class="screen"></div>
+    <div id="qr" class="screen" hidden></div>
+    <div id="doc" class="screen" hidden></div>
+    <script type="module">
+      const { EditorView } = await import("@codemirror/view");
+      window.testView = () =>
+        EditorView.findFromDOM(document.querySelector("#tools .cm-content"));
+      const states = new Map();
+      window.testMessages = [];
+      window.testClipboard = "";
+      window.webkit = {
+        messageHandlers: {
+          devbar: {
+            async postMessage(raw) {
+              const { type, payload } = JSON.parse(raw);
+              window.testMessages.push({ type, payload });
+              if (type === "state.load")
+                return JSON.stringify({
+                  state: states.get(payload.screen) ?? null,
+                });
+              if (type === "state.save") {
+                states.set(payload.screen, payload.state);
+                return "{}";
+              }
+              if (type === "clipboard.readText")
+                return JSON.stringify({
+                  status: "ok",
+                  text: window.testClipboard,
+                });
+              if (type === "qr.show")
+                return JSON.stringify({
+                  status: "shown",
+                  pngBase64:
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aU1sAAAAASUVORK5CYII=",
+                });
+              if (type === "app.ready")
+                return JSON.stringify({
+                  theme: "light",
+                  settings: { autoImport: false },
+                });
+              return '{"ok":true}';
+            },
+          },
+        },
+      };
+      await import("/src/main.ts");
+    </script>
+  </body>
+</html>

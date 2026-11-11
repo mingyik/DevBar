@@ -79,7 +79,7 @@
         }
         let noReorder = order == panel.clipboard.items.map(\.id)
         panel.clipboard.select(0, board: board)
-        panel.clipboard.hud.panel.orderOut(nil)
+        panel.clipboard.card.dismiss()
         if args.contains("--empty-error") {
           await panel.clipboard.clear()
           let tooLarge = ClipboardCapture(payloads: [
