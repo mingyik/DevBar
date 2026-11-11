@@ -132,3 +132,13 @@
 .preview.prose.large {
   font-size: var(--font-body-large);
 }
+/* A4 export keeps the same typography and container-relative table widths. */
+.snapshot-root.prose {
+  font:
+    var(--font-body) / var(--font-line-height) -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+}
+.snapshot-root.prose.large {
+  font-size: var(--font-body-large);
+}

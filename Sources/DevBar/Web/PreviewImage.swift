@@ -2,9 +2,8 @@ import AppKit
 import WebKit
 import os
 
-/// Full-page preview PNG. A rect taller than the live WKWebView does not paint
-/// content outside that view, so export loads the measured markup into an
-/// offscreen web view sized to the content. R9's document page uses the same path.
+/// Full-page preview PNG assembled from the isolated export WebView viewport.
+/// The live panel is never resized or scrolled.
 @MainActor final class PreviewImage: NSObject, WKNavigationDelegate {
   private let logger = Logger(subsystem: "local.devbar.app", category: "preview")
   private var savedPaths = Set<String>()
@@ -57,8 +56,8 @@ import os
       <!doctype html><html data-theme="\(safeTheme)"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; script-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'"><style>
       \(safeCSS)
       \(backdrop)
-      html,body{margin:0}
-      html body .snapshot-root{display:block;visibility:visible;position:static;left:auto;top:auto}
+      html,body{margin:0;display:block;height:auto;overflow:visible}
+      html body .snapshot-root{display:block;visibility:visible;position:static;left:auto;top:auto;height:auto;overflow:visible}
       </style></head><body>\(html)</body></html>
       """
   }
@@ -82,7 +81,7 @@ import os
     busy = true
     defer { busy = false }
     guard let host = host ?? NSApp?.keyWindow?.contentView else { return #"{"status":"failed"}"# }
-    let view = ensureCanvas(width: width, height: height, host: host)
+    let view = ensureCanvas(width: width, height: min(height, 512), host: host)
     let loaded = await load(
       Self.snapshotDocument(html: html, css: css, theme: theme, background: background), in: view)
     guard loaded else { return #"{"status":"failed"}"# }
@@ -91,18 +90,12 @@ import os
     guard let pixels = Self.dimensions(width: width, height: height) else {
       return #"{"status":"tooLarge"}"#
     }
-    let config = WKSnapshotConfiguration()
-    config.rect = CGRect(x: 0, y: 0, width: width, height: height)
-    config.snapshotWidth = NSNumber(
-      value: Double(Self.snapshotPointWidth(pixels: pixels.0, scale: scale)))
-    config.afterScreenUpdates = true
     do {
-      let image = try await view.takeSnapshot(configuration: config)
-      guard let tiff = image.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff),
-        bitmap.pixelsWide <= 16384, bitmap.pixelsHigh <= 16384,
-        bitmap.pixelsWide * bitmap.pixelsHigh <= 64_000_000,
-        let data = bitmap.representation(using: .png, properties: [:])
-      else { return #"{"status":"failed"}"# }
+      let bitmap = try await tiledSnapshot(
+        view, width: width, height: height, pixels: pixels, scale: scale)
+      guard let data = bitmap.representation(using: .png, properties: [:]) else {
+        return #"{"status":"failed"}"#
+      }
       let folder =
         directory ?? FileManager.default.urls(for: .desktopDirectory, in: .userDomainMask)[0]
       let file = Self.destination(directory: folder, now: Date()) {
@@ -120,6 +113,54 @@ import os
       logger.error("previewImageFailed")
       return #"{"status":"failed"}"#
     }
+  }
+
+  private enum SnapshotError: Error { case invalidViewport, invalidTile, allocation }
+
+  /// WebKit can omit composited/text content beyond its real viewport even when
+  /// takeSnapshot's rect is taller. Scroll only the isolated export document and
+  /// assemble viewport-sized tiles; never scroll or resize the user's panel.
+  private func tiledSnapshot(
+    _ view: WKWebView, width: Double, height: Double,
+    pixels: (Int, Int), scale: CGFloat
+  ) async throws -> NSBitmapImageRep {
+    guard let viewport = try await view.evaluateJavaScript("window.innerHeight") as? Double,
+      viewport > 0
+    else { throw SnapshotError.invalidViewport }
+    guard
+      let context = CGContext(
+        data: nil, width: pixels.0, height: pixels.1,
+        bitsPerComponent: 8, bytesPerRow: pixels.0 * 4,
+        space: CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+    else { throw SnapshotError.allocation }
+    var top = 0.0
+    while top < height {
+      guard
+        let scroll = try await view.evaluateJavaScript("window.scrollTo(0, \(top)); window.scrollY")
+          as? Double
+      else { throw SnapshotError.invalidTile }
+      let localTop = max(0, top - scroll)
+      let tileHeight = min(viewport - localTop, height - top)
+      guard tileHeight > 0 else { throw SnapshotError.invalidTile }
+      try await Task.sleep(for: .milliseconds(40))
+      let config = WKSnapshotConfiguration()
+      config.rect = CGRect(x: 0, y: localTop, width: width, height: tileHeight)
+      config.snapshotWidth = NSNumber(
+        value: Double(Self.snapshotPointWidth(pixels: pixels.0, scale: scale)))
+      config.afterScreenUpdates = true
+      let image = try await view.takeSnapshot(configuration: config)
+      guard let tiff = image.tiffRepresentation, let tile = NSBitmapImageRep(data: tiff)?.cgImage
+      else { throw SnapshotError.invalidTile }
+      let startPixel = Int(ceil(top * 2))
+      let endPixel = min(pixels.1, Int(ceil((top + tileHeight) * 2)))
+      context.draw(
+        tile,
+        in: CGRect(x: 0, y: pixels.1 - endPixel, width: pixels.0, height: endPixel - startPixel))
+      top += tileHeight
+    }
+    guard let image = context.makeImage() else { throw SnapshotError.allocation }
+    return NSBitmapImageRep(cgImage: image)
   }
 
   func reveal(path: String) {

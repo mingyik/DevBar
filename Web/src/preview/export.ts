@@ -42,7 +42,8 @@ export async function exportPreview(
       document.documentElement.dataset.size === "large",
     );
   }
-  root.style.width = `${shell.content.clientWidth}px`;
+  // A4 width at 96 CSS dpi; PNG is still rendered at 2x.
+  root.style.width = `${shell.kind === "doc" ? 794 : shell.content.clientWidth}px`;
   root.append(
     ...(content
       ? [content.cloneNode(true)]
