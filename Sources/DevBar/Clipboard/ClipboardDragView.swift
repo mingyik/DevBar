@@ -39,6 +39,8 @@ struct ClipboardDragView: NSViewRepresentable {
     var onDragging: ((Bool) -> Void)?
     private var origin: NSPoint?
     private var dragging = false
+    // Keep the provider alive after drag end while Finder receives its promised file.
+    private var promisedFile: ClipboardDragFile?
 
     override func mouseDown(with event: NSEvent) {
       origin = event.locationInWindow
@@ -54,8 +56,11 @@ struct ClipboardDragView: NSViewRepresentable {
       guard !dragging, let origin,
         hypot(event.locationInWindow.x - origin.x, event.locationInWindow.y - origin.y) >= 4
       else { return }
-      let entries = ClipboardController.pasteboardItems(payloads: payloads)
+      let promise = ClipboardDragFile(payloads: payloads)
+      let entries: [any NSPasteboardWriting] =
+        promise.map { [$0] } ?? ClipboardController.pasteboardItems(payloads: payloads)
       guard !entries.isEmpty else { return }
+      promisedFile = promise
       dragging = true
       onDragging?(true)
       let card = DragCardImage.make(
