@@ -1,3 +1,4 @@
+import captureSymbol from "../assets/icons/capture.png";
 import copySymbol from "../assets/icons/copy.png";
 import clearSymbol from "../assets/icons/clear.png";
 import { EditorView } from "@codemirror/view";
@@ -39,10 +40,15 @@ const icons: Record<string, string> = {
 };
 export function setIcon(button: HTMLButtonElement, name: string): void {
   button.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] ?? ""}</svg>`;
-  if (name === "copy" || name === "clear") {
+  const symbols: Record<string, string> = {
+    copy: copySymbol,
+    clear: clearSymbol,
+    exportImage: captureSymbol,
+  };
+  if (symbols[name]) {
     const icon = element("span", "system-icon");
     icon.setAttribute("aria-hidden", "true");
-    icon.style.maskImage = `url("${name === "copy" ? copySymbol : clearSymbol}")`;
+    icon.style.maskImage = `url("${symbols[name]}")`;
     button.replaceChildren(icon);
   }
   button.setAttribute(

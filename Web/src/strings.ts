@@ -7,7 +7,7 @@ export const strings = {
   copy: "复制",
   copied: "已复制",
   clear: "清空",
-  exportImage: "长图",
+  exportImage: "截全图",
   escape: "转义",
   unescape: "反转义",
   encode: "编码",

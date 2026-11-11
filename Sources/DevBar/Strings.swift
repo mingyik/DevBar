@@ -3,6 +3,8 @@ import DevBarCore
 enum Strings {
   static let appName = "DevBar"
   static let documentPreview = "预览"
+  static let documentCapture = "截全图"
+  static let clearContent = "清空"
   static let fileDropJSON = "{ } JSON\n在工具中打开"
   static let fileDropDoc = "# Markdown / Mermaid\n在文稿中打开"
   static let fileDropFirst = "已打开第一个文件"

@@ -16,6 +16,8 @@ struct PlaceholderPage: View {
           .buttonStyle(DevBarCapsuleStyle(scheme: scheme))
           .disabled(true)
         Spacer()
+        placeholderAction("viewfinder.rectangular", label: Strings.documentCapture)
+        placeholderAction("eraser", label: Strings.clearContent)
       }.frame(height: 28)
         .padding(.horizontal, 12)
         .padding(.bottom, 12)
@@ -24,6 +26,18 @@ struct PlaceholderPage: View {
       DesignTokens.panelInset(scheme),
       in: RoundedRectangle(cornerRadius: DesignTokens.radiusMedium, style: .continuous))
   }
+
+  private func placeholderAction(_ symbol: String, label: String) -> some View {
+    Button {
+    } label: {
+      Image(systemName: symbol)
+        .font(.system(size: 16))
+        .frame(width: 28, height: 28)
+        .foregroundStyle(DesignTokens.textSecondary(scheme))
+        .background(DesignTokens.panelControl(scheme), in: RoundedRectangle(cornerRadius: 8))
+    }.buttonStyle(.plain).disabled(true).accessibilityLabel(label).help(label)
+  }
+
 }
 
 struct DevBarCapsuleStyle: ButtonStyle {
