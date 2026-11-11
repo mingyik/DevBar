@@ -1,4 +1,7 @@
 export const strings = {
+  docMode: "文稿模式",
+  copyPNG: "复制为 PNG",
+  previewFailed: "预览失败",
   clipboardUnavailable: "无法带入剪贴板，请检查读取授权",
   json: "JSON",
   qr: "二维码",

@@ -5,6 +5,11 @@ import { strings } from "./strings";
 import { post } from "./bridge/client";
 import { startTransform } from "./tools/json/client";
 import { routeImport } from "./tools/json/actions";
+import { DocPage } from "./doc/page";
+import "./styles/prose.css";
+import "./styles/code.css";
+import "./styles/table.css";
+import "./styles/mermaid.css";
 import { QRPage } from "./qr/page";
 import { JsonPage } from "./tools/json/page";
 import { PageShell, type PageState } from "./editor/page-shell";
@@ -26,6 +31,7 @@ function beginImport(page: Page): number {
 }
 let json: JsonPage;
 let qr: QRPage;
+let doc: DocPage;
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
 const bridge = {
   async receive(raw: string): Promise<JSONValue> {
@@ -35,10 +41,12 @@ const bridge = {
         document.documentElement.dataset.theme =
           payload.theme === "dark" ? "dark" : "light";
         refreshTreeTheme();
+        doc?.refresh();
         break;
       case "panel.size":
         document.documentElement.dataset.size =
           payload.size === "large" ? "large" : "normal";
+        doc?.refresh();
         break;
       case "settings.set":
         autoImport = payload.autoImport !== false;
@@ -68,12 +76,16 @@ const bridge = {
         break;
       }
       case "doc.import":
-        await importText(
-          "doc",
+        doc.import(
           typeof payload.text === "string" ? payload.text : "",
-          false,
           typeof payload.fileName === "string" ? payload.fileName : null,
+          payload.docMode === "mermaid"
+            ? "mermaid"
+            : payload.docMode === "markdown"
+              ? "markdown"
+              : undefined,
         );
+        scheduleSave();
         break;
       case "memory.flush":
         await save();
@@ -101,6 +113,7 @@ async function start(): Promise<void> {
     shell.onStateChange = scheduleSave;
     if (page === "json") json = new JsonPage(shell);
     if (page === "qr") qr = new QRPage(shell);
+    if (page === "doc") doc = new DocPage(shell);
     pages.set(page, shell);
     const reply = await post("state.load", { screen: page });
     if (reply.state && typeof reply.state === "object")
@@ -108,7 +121,7 @@ async function start(): Promise<void> {
         await json.restore(reply.state as Partial<PageState>);
       else if (page === "qr")
         await qr.restore(reply.state as Partial<PageState>);
-      else shell.restore(reply.state as Partial<PageState>);
+      else await doc.restore(reply.state as Partial<PageState>);
   }
   window.__devbar = bridge;
   const reply = await post("app.ready", { version: "1" });
@@ -178,7 +191,9 @@ async function save(): Promise<void> {
       screen,
       state: (screen === "json"
         ? json.state()
-        : shell.state()) as unknown as JSONValue,
+        : screen === "doc"
+          ? doc.state()
+          : shell.state()) as unknown as JSONValue,
     });
 }
 export function activePage(): string {
@@ -190,10 +205,12 @@ if (typeof document !== "undefined") {
     if (
       event.metaKey &&
       event.key.toLowerCase() === "e" &&
-      (current === "json" || current === "qr")
+      (current === "json" || current === "qr" || current === "doc")
     ) {
       event.preventDefault();
-      void (current === "json" ? json : qr).togglePreview();
+      void (
+        current === "json" ? json : current === "qr" ? qr : doc
+      ).togglePreview();
     }
   });
 }

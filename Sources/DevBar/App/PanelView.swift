@@ -140,18 +140,8 @@ struct PanelView: View {
     switch model.page {
     case .clipboard:
       ClipboardListView(controller: clipboard, scheme: scheme)
-    case .json, .qr:
+    case .json, .qr, .doc:
       WebViewBox(host: webHost).id(webHost.generation)
-    case .doc:
-      #if DEBUG
-        if model.showsWebViewForSelfCheck {
-          WebViewBox(host: webHost).id(webHost.generation)
-        } else {
-          PlaceholderPage(page: model.page, scheme: scheme)
-        }
-      #else
-        PlaceholderPage(page: model.page, scheme: scheme)
-      #endif
     case .settings:
       settings(scheme)
     }
