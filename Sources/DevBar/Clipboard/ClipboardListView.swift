@@ -5,9 +5,6 @@ import SwiftUI
 struct ClipboardListView: View {
   @Bindable var controller: ClipboardController
   let scheme: ColorScheme
-  @State private var confirmingClear = false
-  @State private var confirmation: Task<Void, Never>?
-
   var body: some View {
     VStack(spacing: 0) {
       authorization
@@ -47,30 +44,10 @@ struct ClipboardListView: View {
         .clipped()
         .padding(.trailing, -8)
       }
-      if !controller.items.isEmpty || !controller.message.isEmpty {
-        HStack {
-          Text(controller.message).lineLimit(1)
-          Spacer()
-          if !controller.items.isEmpty {
-            Button(confirmingClear ? Strings.confirmClear : Strings.clearHistory) {
-              if confirmingClear {
-                confirmation?.cancel()
-                confirmingClear = false
-                Task { await controller.clear() }
-              } else {
-                confirmingClear = true
-                confirmation = Task {
-                  try? await Task.sleep(for: .seconds(3))
-                  guard !Task.isCancelled else { return }
-                  confirmingClear = false
-                }
-              }
-            }.buttonStyle(.plain).lineLimit(1)
-          }
-        }
-        .font(.system(size: 11)).foregroundStyle(DesignTokens.textTertiary(scheme))
-        .frame(height: 28)
-        .layoutPriority(1)
+      if !controller.message.isEmpty {
+        Text(controller.message).font(.system(size: 11))
+          .foregroundStyle(DesignTokens.textTertiary(scheme)).lineLimit(1)
+          .frame(maxWidth: .infinity, alignment: .leading)
       }
     }
   }
@@ -111,23 +88,27 @@ private struct ClipboardRow: View {
   let index: Int
   let scheme: ColorScheme
   @State private var hovered = false
+  @State private var dragging = false
   private var mono: Bool {
     item.preview.contains("\n") && ["{", ";", "=>", "</"].contains(where: item.preview.contains)
   }
+  private var selected: Bool { controller.focusedIndex == index }
+  private var payloads: [ClipboardPayload] { controller.originals[item.id] ?? [] }
 
   var body: some View {
     HStack(spacing: 8) {
       HStack(spacing: 8) {
         if let color = ClipboardColor.parse(item.preview) {
-          RoundedRectangle(cornerRadius: 3)
+          RoundedRectangle(cornerRadius: 4)
             .fill(
               Color(  // devbar:allow-color
                 .sRGB, red: color.red, green: color.green, blue: color.blue, opacity: color.alpha)
             )
-            .frame(width: 14, height: 14)
+            .frame(width: 16, height: 16)
         }
         if let image = controller.thumbnails[item.id] {
-          Image(nsImage: image).resizable().scaledToFit().frame(width: 32, height: 32)
+          Image(nsImage: image).resizable().scaledToFill().frame(width: 32, height: 32)
+            .clipShape(RoundedRectangle(cornerRadius: 6))
         }
         Text(item.preview)
           .font(.system(size: 13, design: mono ? .monospaced : .default))
@@ -137,9 +118,16 @@ private struct ClipboardRow: View {
       .frame(maxHeight: .infinity)
       .overlay {
         ClipboardDragView(
-          payloads: controller.originals[item.id] ?? [],
-          thumbnail: controller.thumbnails[item.id]
-        ) { controller.showDetail(index) }
+          payloads: payloads,
+          thumbnail: item.kind == .image ? controller.thumbnails[item.id] : nil,
+          title: DragCard.firstLine(dragSource),
+          subtitle: dragSubtitle,
+          fileCount: fileNames.count,
+          swatch: swatch,
+          scheme: scheme,
+          onClick: { controller.showDetail(index) },
+          onDragging: { dragging = $0 }
+        )
       }
       if controller.copiedID == item.id {
         Image(systemName: "checkmark").font(.system(size: 11))
@@ -156,18 +144,46 @@ private struct ClipboardRow: View {
           .foregroundStyle(DesignTokens.textTertiary(scheme)).lineLimit(1)
       }
     }
-    .padding(.horizontal, 8).frame(height: 52)
+    .padding(.horizontal, 12).frame(height: 56)
     .background {
-      if controller.focusedIndex == index {
-        RoundedRectangle(cornerRadius: 7).fill(DesignTokens.panelControl(scheme))
-      }
+      RoundedRectangle(cornerRadius: 10, style: .continuous).fill(
+        selected || hovered ? DesignTokens.panelControl(scheme) : DesignTokens.panelCard(scheme))
     }
     .overlay {
-      RoundedRectangle(cornerRadius: 7).strokeBorder(
-        DesignTokens.lineBorder(scheme), lineWidth: 0.7)
+      if selected {
+        RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(
+          DesignTokens.selectionBorder(scheme), lineWidth: 1.5)
+      }
     }
+    .opacity(dragging ? 0.4 : 1)
     .contentShape(Rectangle()).onTapGesture { controller.showDetail(index) }
     .onHover { hovered = $0 }
+  }
+
+  private var dragSource: String {
+    payloads.first { $0.type == NSPasteboard.PasteboardType.string.rawValue }
+      .flatMap { String(data: $0.data, encoding: .utf8) } ?? item.preview
+  }
+
+  private var fileNames: [String] {
+    payloads.filter { $0.type == NSPasteboard.PasteboardType.fileURL.rawValue }
+      .compactMap { String(data: $0.data, encoding: .utf8) }
+      .compactMap(URL.init(string:))
+      .map(\.lastPathComponent)
+  }
+
+  private var dragSubtitle: String {
+    switch item.kind {
+    case .text: DragCard.textSubtitle(characters: dragSource.count)
+    case .image: item.preview
+    case .files: DragCard.fileSubtitle(names: fileNames)
+    }
+  }
+
+  private var swatch: NSColor? {
+    guard let color = ClipboardColor.parse(item.preview) else { return nil }
+    return NSColor(  // devbar:allow-color
+      srgbRed: color.red, green: color.green, blue: color.blue, alpha: color.alpha)
   }
 
   private var kindLabel: String {
