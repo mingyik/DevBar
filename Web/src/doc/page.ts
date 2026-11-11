@@ -1,9 +1,14 @@
 import { isolateHistory } from "@codemirror/commands";
-import { documentHistory, documentMetadata, metadataField } from "./state";
-import { Compartment } from "@codemirror/state";
+import {
+  documentHistory,
+  documentMetadata,
+  metadataField,
+  sourceText,
+} from "./state";
+import { Compartment, Transaction } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
 import { documentLanguages } from "./languages";
-import { PageShell, iconButton, pill } from "../editor/page-shell";
+import { PageShell, iconButton, pill, setIcon } from "../editor/page-shell";
 import type { PageState } from "../editor/page-shell";
 import { post } from "../bridge/client";
 import { strings } from "../strings";
@@ -20,6 +25,7 @@ export type DocumentState = PageState & {
 export class DocPage {
   private language = new Compartment();
   private mode: DocMode = "markdown";
+  private languageMode: DocMode = "markdown";
   private locked = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private renderKey = "";
@@ -54,6 +60,8 @@ export class DocPage {
       iconButton("clear", () => {
         shell.showPreview(false);
         shell.replace("", "devbar.clear");
+        this.locked = false;
+        this.setMode("markdown");
         this.toggle.textContent = strings.preview;
       }),
     );
@@ -71,7 +79,8 @@ export class DocPage {
       void svgToPngBase64(svg.outerHTML, this.theme())
         .then(async (pngBase64) => {
           await post("clipboard.writeImage", { pngBase64 });
-          button.textContent = strings.copied;
+          setIcon(button, "copied");
+          setTimeout(() => setIcon(button, "copy"), 1000);
         })
         .catch(() => {
           shell.updateInfo(strings.imageFailed);
@@ -84,12 +93,14 @@ export class DocPage {
       const metadata = shell.view.state.field(metadataField);
       this.locked = metadata.locked;
       shell.fileName = metadata.fileName;
-      this.setMode(metadata.mode);
+      shell.updateInfo();
+      this.mode = metadata.mode;
+      queueMicrotask(() => this.setMode(this.mode));
       this.renderKey = "";
       clearTimeout(this.timer);
       if (shell.text === "") {
         this.locked = false;
-        this.setMode("markdown");
+        queueMicrotask(() => this.setMode("markdown"));
       }
       this.timer = setTimeout(() => {
         if (!this.locked) this.setMode(detectDocMode(shell.text));
@@ -106,6 +117,7 @@ export class DocPage {
     this.mode = mode;
     const metadata = this.shell.view.state.field(metadataField);
     this.shell.view.dispatch({
+      annotations: Transaction.addToHistory.of(false),
       effects: documentMetadata.of({
         ...metadata,
         mode,
@@ -115,6 +127,8 @@ export class DocPage {
     });
     this.modeButton.textContent = mode === "mermaid" ? "Mermaid" : "Markdown";
     this.modeButton.setAttribute("aria-label", strings.docMode);
+    if (this.languageMode === mode) return;
+    this.languageMode = mode;
     this.shell.view.dispatch({
       effects: this.language.reconfigure(
         mode === "markdown"
@@ -131,25 +145,22 @@ export class DocPage {
       changes: { from: 0, to: this.shell.view.state.doc.length, insert: text },
       effects: documentMetadata.of({
         mode: mode ?? detectDocMode(text),
-        locked: !!mode,
+        locked: !!mode && text !== "",
         fileName,
         rawText: text,
       }),
       annotations: isolateHistory.of("full"),
       userEvent: "devbar.import",
     });
-    this.locked = !!mode;
-    this.setMode(mode ?? detectDocMode(text));
+    this.locked = !!mode && text !== "";
+    this.setMode(text === "" ? "markdown" : (mode ?? detectDocMode(text)));
     this.shell.fileName = fileName;
     this.shell.updateInfo();
     this.toggle.textContent = strings.preview;
   }
   private text() {
     const raw = this.shell.view.state.field(metadataField).rawText;
-    return raw !== undefined &&
-      raw.replace(/\r\n?|\n/g, "\n") === this.shell.text
-      ? raw
-      : this.shell.text;
+    return sourceText(this.shell.text, raw);
   }
   async togglePreview() {
     const preview = this.shell.mode !== "preview";
@@ -163,6 +174,10 @@ export class DocPage {
     this.shell.preview.classList.toggle(
       "large",
       document.documentElement.dataset.size === "large",
+    );
+    this.shell.preview.classList.toggle(
+      "pure-mermaid",
+      this.mode === "mermaid",
     );
     const key = `${this.theme()}:${this.mode}:${this.shell.text}`;
     if (key === this.renderKey) return this.pending;
@@ -180,9 +195,8 @@ export class DocPage {
             diagram.querySelector(".diagram-copy")
           )
             continue;
-          const button = document.createElement("button");
-          button.className = "diagram-copy";
-          button.textContent = strings.copyPNG;
+          const button = iconButton("copy", () => {});
+          button.classList.add("diagram-copy");
           diagram.append(button);
         }
       })
@@ -193,7 +207,8 @@ export class DocPage {
     return this.pending;
   }
   refresh() {
-    if (this.shell.mode === "preview") void this.render();
+    if (this.shell.mode === "preview" && !this.shell.root.hidden)
+      void this.render();
   }
   async export() {
     if (this.shell.mode !== "preview") await this.togglePreview();
@@ -225,6 +240,9 @@ export class DocPage {
         ? state.docMode
         : detectDocMode(this.shell.text),
     );
-    if (state.view === "preview") await this.togglePreview();
+    if (state.view === "preview") {
+      this.shell.showPreview(true);
+      this.toggle.textContent = strings.edit;
+    }
   }
 }
