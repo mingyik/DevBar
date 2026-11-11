@@ -4,7 +4,7 @@
 
 ## 项目一句话
 
-DevBar 是一个 macOS 菜单栏小工具（内部自用），四个大块：剪贴板、工具（JSON / URL / Base64 / 时间戳）、文稿（Markdown + Mermaid）、截图录屏。方向是**快捷、极致、小而美**。
+DevBar 是一个 macOS 菜单栏小工具（内部自用），四个大块：剪贴板、工具（JSON / URL / Base64 / 二维码，各占一页）、文稿（Markdown + Mermaid）、截图录屏。方向是**快捷、极致、小而美**。
 
 ## 文档
 
