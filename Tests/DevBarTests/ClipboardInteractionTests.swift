@@ -1,5 +1,6 @@
 import AppKit
 import DevBarCore
+import SwiftUI
 import Testing
 
 @testable import DevBar
@@ -260,4 +261,45 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
   let longView = ClipboardHoverPreview(
     item: long, payloads: try #require(controller.originals[long.id]), scheme: .dark, theme: theme)
   #expect(longView.preferredHeight(width: 300, maximum: 800) == 800)
+}
+
+@MainActor @Test func clipboardPreviewPanelMatchesMainPanelActiveGlassLayers() {
+  _ = NSApplication.shared
+  let theme = ThemeManager()
+  func layerSignature(in panel: NSPanel) -> [String] {
+    let host = NSHostingView(
+      rootView: PanelChrome(theme: theme, scheme: .dark).frame(width: 240, height: 160))
+    host.frame = NSRect(x: 0, y: 0, width: 240, height: 160)
+    panel.contentView = host
+    host.layoutSubtreeIfNeeded()
+    host.displayIfNeeded()
+    CATransaction.flush()
+    var lines: [String] = []
+    func walk(_ layer: CALayer, depth: Int) {
+      var line = "\(depth) \(type(of: layer)) \(layer.opacity)"
+      for case let filter as NSObject in layer.filters ?? [] {
+        line += " \(filter.value(forKey: "name") ?? "")"
+        let keys =
+          filter.responds(to: NSSelectorFromString("inputKeys"))
+          ? filter.value(forKey: "inputKeys") as? [String] ?? [] : []
+        for key in keys.sorted() {
+          if let number = filter.value(forKey: key) as? NSNumber {
+            line += " \(key)=\(number)"
+          }
+        }
+      }
+      lines.append(line)
+      for sublayer in layer.sublayers ?? [] { walk(sublayer, depth: depth + 1) }
+    }
+    if let layer = host.layer { walk(layer, depth: 0) }
+    return lines
+  }
+  let mainPanel = DevBarPanel()
+  let previewPanel = ClipboardPreviewPanel(
+    contentRect: NSRect(x: 0, y: 0, width: 240, height: 160))
+  let mainSignature = layerSignature(in: mainPanel)
+  let previewSignature = layerSignature(in: previewPanel)
+  #expect(!previewPanel.isKeyWindow)
+  #expect(!previewSignature.isEmpty)
+  #expect(previewSignature == mainSignature)
 }

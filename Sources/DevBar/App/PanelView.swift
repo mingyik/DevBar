@@ -191,6 +191,8 @@ struct PanelChrome: View {
     } else {
       panelShape.fill(Color.clear)
         .glassEffect(.regular, in: panelShape)
+        .environment(\.appearsActive, true)
+        .materialActiveAppearance(.active)
         .overlay(panelShape.fill(DesignTokens.panelGlassTint(scheme)))
         .overlay(panelOutline(scheme))
     }

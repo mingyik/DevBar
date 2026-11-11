@@ -212,18 +212,7 @@ final class PanelController {
     let x = left >= visible.minX ? left : min(right, visible.maxX - width)
     let y = min(max(panel.frame.maxY - height, visible.minY), visible.maxY - height)
     let frame = NSRect(x: x, y: y, width: width, height: height)
-    let preview =
-      clipboardPreview
-      ?? NSPanel(
-        contentRect: frame, styleMask: [.borderless, .nonactivatingPanel],
-        backing: .buffered, defer: false)
-    preview.level = .popUpMenu
-    preview.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
-    preview.backgroundColor = .clear
-    preview.isOpaque = false
-    preview.hasShadow = true
-    preview.hidesOnDeactivate = false
-    preview.ignoresMouseEvents = false
+    let preview = clipboardPreview ?? ClipboardPreviewPanel(contentRect: frame)
     preview.appearance = theme.appearance()
     preview.contentView = NSHostingView(rootView: previewContent)
     preview.setFrame(frame, display: true)
