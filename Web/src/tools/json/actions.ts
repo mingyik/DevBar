@@ -5,7 +5,7 @@ import { decode } from "../url";
 export type Encoding = "url" | "base64";
 export function actionLabels(text: string, encoding: Encoding) {
   const t = text.trim();
-  let unescape = false;
+  let unescape: boolean;
   try {
     unescape = typeof parse(t) === "string";
   } catch {
