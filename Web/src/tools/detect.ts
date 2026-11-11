@@ -1,9 +1,8 @@
 import { parse } from "lossless-json";
 import { jsonrepair } from "jsonrepair";
 import { decode } from "./base64";
-import { timestamp } from "./timestamp";
 export type Detection = {
-  type: "json" | "url" | "base64" | "timestamp" | "text";
+  type: "json" | "url" | "base64" | "text";
   json?: "valid" | "repairable" | "invalid";
   hint?: "escapedJson";
 };
@@ -42,7 +41,7 @@ export function detect(text: string): Detection {
     }
   }
   if (/^[A-Za-z][A-Za-z0-9+.-]*:\/\/[^\s]+$/.test(t)) return { type: "url" };
-  if (timestamp(t, "UTC")) return { type: "timestamp" };
+  if (/^\d+$/.test(t)) return { type: "text" };
   const compact = t.replace(/\s/g, "");
   if (compact.length >= 8 && !/^[A-Z]?[a-z]+$/.test(compact)) {
     const result = decode(t);

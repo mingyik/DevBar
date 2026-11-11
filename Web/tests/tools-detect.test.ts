@@ -27,11 +27,11 @@ const cases: [string, string][] = [
   ["1abc://host", "text"],
   ["https://", "text"],
   ["http:/a", "text"],
-  ["1700000000", "timestamp"],
-  ["1700000000123", "timestamp"],
-  ["1700000000123456", "timestamp"],
-  ["1000000000", "timestamp"],
-  ["4102444799999999", "timestamp"],
+  ["1700000000", "text"],
+  ["1700000000123", "text"],
+  ["1700000000123456", "text"],
+  ["1000000000", "text"],
+  ["4102444799999999", "text"],
   ["9999999999", "text"],
   ["4102444800", "text"],
   ["0946684799", "text"],
@@ -71,3 +71,15 @@ it.each(["8J-YgA==", "aAkKYg=="])(
 );
 it("unreadable URL-safe payload stays text", () =>
   expect(detect("________").type).toBe("text"));
+
+it.each([
+  "0",
+  "1700000000",
+  "1700000000123",
+  "1700000000123456",
+  "123456789012345678901234567890",
+  "00000000",
+  "55555555",
+])("pure digits stay text: %s", (text) =>
+  expect(detect(text).type).toBe("text"),
+);
