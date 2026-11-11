@@ -64,6 +64,7 @@
           if let result { measurements["preview"] = result }
         }
         if scenario == "drop" { panel.model.dropActive = true }
+        if scenario == "doc" { panel.model.page = .doc }
         if scenario.hasPrefix("settings") {
           panel.model.page = scenario == "settings" ? .clipboard : .json
           panel.model.enterSettings()
