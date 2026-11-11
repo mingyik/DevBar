@@ -7,7 +7,6 @@ enum Strings {
   static let backToList = "返回列表"
   static let copy = "复制"
   static let pageJSON = "JSON"
-  static let pageEncode = "编码"
   static let pageQR = "二维码"
   static let defaultPage = "打开面板时显示"
   static let lastPage = "上次停留的页"

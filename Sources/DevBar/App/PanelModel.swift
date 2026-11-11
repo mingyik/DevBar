@@ -3,8 +3,8 @@ import SwiftUI
 @MainActor @Observable
 final class PanelModel {
   enum Page: String, CaseIterable {
-    case clipboard, json, encode, qr, doc, settings
-    static let contentPages: [Self] = [.clipboard, .json, .encode, .qr, .doc]
+    case clipboard, json, qr, doc, settings
+    static let contentPages: [Self] = [.clipboard, .json, .qr, .doc]
   }
 
   private let defaults: UserDefaults
@@ -33,7 +33,6 @@ final class PanelModel {
     switch page {
     case .clipboard: CGSize(width: 380, height: 520)
     case .json, .doc: enlarged ? CGSize(width: 640, height: 720) : CGSize(width: 480, height: 600)
-    case .encode: CGSize(width: 420, height: 480)
     case .qr: CGSize(width: 360, height: 480)
     case .settings: CGSize(width: 420, height: 560)
     }
@@ -53,9 +52,13 @@ final class PanelModel {
 
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
-    let stored = Page(rawValue: defaults.string(forKey: "lastContentPage") ?? "") ?? .clipboard
+    let raw = defaults.string(forKey: "lastContentPage") ?? ""
+    let stored: Page = raw == "encode" ? .json : Page(rawValue: raw) ?? .clipboard
+    if raw == "encode" { defaults.set("json", forKey: "lastContentPage") }
     page = stored == .settings ? .clipboard : stored
-    let preferred = defaults.string(forKey: "defaultPage") ?? "last"
+    let oldPreferred = defaults.string(forKey: "defaultPage") ?? "last"
+    let preferred = oldPreferred == "encode" ? "json" : oldPreferred
+    if oldPreferred == "encode" { defaults.set("json", forKey: "defaultPage") }
     defaultPage =
       Page.contentPages.contains(where: { $0.rawValue == preferred }) ? preferred : "last"
     jsonEnlarged = defaults.bool(forKey: "enlarged.json")

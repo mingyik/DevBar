@@ -6,7 +6,6 @@ import os
 extension KeyboardShortcuts.Name {
   static let pageClipboard = Self("page.clipboard")
   static let pageJSON = Self("page.json")
-  static let pageEncode = Self("page.encode")
   static let pageQR = Self("page.qr")
   static let pageDoc = Self("page.doc")
   static let togglePanel = Self(
@@ -27,6 +26,7 @@ enum ShortcutActions {
   private static let logger = Logger(subsystem: "local.devbar.app", category: "shortcut")
 
   static func register(panel: PanelController, status: StatusItemController) {
+    KeyboardShortcuts.reset(KeyboardShortcuts.Name("page.encode"))
     for page in PanelModel.Page.contentPages {
       KeyboardShortcuts.onKeyUp(for: page.shortcutName) {
         Task { @MainActor in panel.open(page: page, anchor: status.anchor) }

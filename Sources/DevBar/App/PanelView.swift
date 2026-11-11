@@ -117,7 +117,7 @@ struct PanelView: View {
     switch model.page {
     case .clipboard:
       ClipboardListView(controller: clipboard, scheme: scheme)
-    case .json, .encode, .qr, .doc:
+    case .json, .qr, .doc:
       #if DEBUG
         if model.showsWebViewForSelfCheck {
           // Mount the existing host only in the runtime harness. Product pages remain placeholders.
@@ -256,7 +256,6 @@ extension PanelModel.Page {
     switch self {
     case .clipboard: Strings.tabClipboard
     case .json: Strings.pageJSON
-    case .encode: Strings.pageEncode
     case .qr: Strings.pageQR
     case .doc: Strings.tabDocument
     case .settings: Strings.settingsPage
@@ -267,7 +266,6 @@ extension PanelModel.Page {
     switch self {
     case .clipboard: .pageClipboard
     case .json: .pageJSON
-    case .encode: .pageEncode
     case .qr: .pageQR
     case .doc: .pageDoc
     case .settings: preconditionFailure("Settings has no page shortcut")

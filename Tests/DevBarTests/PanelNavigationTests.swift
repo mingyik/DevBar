@@ -15,14 +15,14 @@ import Testing
   model.page = .settings
   #expect(PanelModel(defaults: defaults).page == .json)
   model.cyclePage()
-  #expect(model.page == .encode)
+  #expect(model.page == .qr)
   #expect(!model.recordSystemAudio && !model.recordMicrophone)
 }
 
-@MainActor @Test func fivePagesCycleInOrderAndDefaultOnlyAppliesToOrdinaryOpen() {
+@MainActor @Test func fourPagesCycleInOrderAndDefaultOnlyAppliesToOrdinaryOpen() {
   let defaults = UserDefaults(suiteName: "local.devbar.test.fivepages.\(UUID())")!
   let model = PanelModel(defaults: defaults)
-  for expected in [PanelModel.Page.json, .encode, .qr, .doc, .clipboard] {
+  for expected in [PanelModel.Page.json, .qr, .doc, .clipboard] {
     model.cyclePage()
     #expect(model.page == expected)
   }
@@ -34,11 +34,11 @@ import Testing
   #expect(model.showsEnlarge)
   model.page = .doc
   #expect(model.showsEnlarge)
-  model.page = .encode
+  model.page = .qr
   #expect(!model.showsEnlarge)
   model.defaultPage = "last"
   model.prepareToOpen()
-  #expect(model.page == .encode)
+  #expect(model.page == .qr)
 }
 
 @MainActor @Test func reopeningAfterSettingsReturnsToRememberedContentPage() {
@@ -60,8 +60,6 @@ import Testing
   #expect(model.panelSize == CGSize(width: 640, height: 720))
   model.page = .doc
   #expect(model.panelSize == CGSize(width: 480, height: 600))
-  model.page = .encode
-  #expect(model.panelSize == CGSize(width: 420, height: 480))
   model.page = .qr
   #expect(model.panelSize == CGSize(width: 360, height: 480))
   let restored = PanelModel(defaults: defaults)
@@ -70,3 +68,16 @@ import Testing
   restored.page = .doc
   #expect(!restored.enlarged)
 }
+
+@MainActor @Test func removedEncodeMemoryMigratesToJSONAndFourPageCycle() {
+  let defaults = UserDefaults(suiteName: "local.devbar.test.r8.\(UUID())")!
+  defaults.set("encode", forKey: "lastContentPage")
+  defaults.set("encode", forKey: "defaultPage")
+  let model = PanelModel(defaults: defaults)
+  #expect(model.page == .json)
+  #expect(model.defaultPage == "json")
+  #expect(PanelModel.Page.contentPages.map(\.rawValue) == ["clipboard", "json", "qr", "doc"])
+  model.cyclePage()
+  #expect(model.page == .qr)
+}
+
