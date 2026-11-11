@@ -58,20 +58,10 @@
           let script =
             scenario == "qr"
             ? "document.querySelector('#qr .pill').click(); while(document.querySelector('#qr .preview').hidden) await new Promise(requestAnimationFrame);return true"
-            : "const t=performance.now();document.querySelector('#tools button[aria-label=\"预览\"]').click();while(document.querySelector('#tools .preview').hidden)await new Promise(requestAnimationFrame);return {milliseconds:performance.now()-t,rows:document.querySelectorAll('#tools .tree-row').length}"
+            : "const t=performance.now();document.dispatchEvent(new KeyboardEvent('keydown',{key:'e',metaKey:true,bubbles:true}));while(document.querySelector('#tools .preview').hidden)await new Promise(requestAnimationFrame);return {milliseconds:performance.now()-t,rows:document.querySelectorAll('#tools .tree-row').length}"
           let result = try? await panel.webHost.webView.callAsyncJavaScript(
             script, arguments: [:], in: nil, contentWorld: .page)
           if let result { measurements["preview"] = result }
-        }
-        if scenario == "performance" {
-          let script =
-            "const t=performance.now();document.querySelector('#tools button[aria-label=\"长图\"]').click();while(!/已保存并复制|无法生成长图|长图生成失败/.test(document.querySelector('#tools .page-info').textContent))await new Promise(r=>setTimeout(r,20));return {milliseconds:performance.now()-t,status:document.querySelector('#tools .page-info').textContent}"
-          if let result = try? await panel.webHost.webView.callAsyncJavaScript(
-            script, arguments: [:], in: nil, contentWorld: .page)
-          {
-            measurements["longImage"] = result
-          }
-          measurements["longImagePath"] = panel.webHost.lastPreviewImagePath
         }
         if scenario == "drop" { panel.model.dropActive = true }
         if scenario.hasPrefix("settings") {

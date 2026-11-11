@@ -5,7 +5,6 @@ import {
   element,
   pill,
   iconButton,
-  setIcon,
   type PageState,
 } from "../../editor/page-shell";
 import { errorMarks, markErrors } from "../../editor/diagnostics";
@@ -15,8 +14,9 @@ import { startTransform } from "./client";
 import type { Operation, Result } from "./protocol";
 import type { Analysis } from "./core";
 import { actionLabels, decodedRanges, type Encoding } from "./actions";
-import { encodeComponent, encodeWhole, preview as urlPreview } from "../url";
-import { encode as encodeBase64, decode as decodeBase64 } from "../base64";
+import { encodeComponent, preview as urlPreview } from "../url";
+import { decode as decodeBase64 } from "../base64";
+import { detect } from "../detect";
 import { renderTree } from "../../tree/render";
 
 export class JsonPage {
@@ -30,11 +30,7 @@ export class JsonPage {
   private readonly jsonButton: HTMLButtonElement;
   private readonly escapeButton: HTMLButtonElement;
   private readonly codecButton: HTMLButtonElement;
-  readonly previewButton: HTMLButtonElement;
   private readonly cancelButton: HTMLButtonElement;
-  private readonly urlButton: HTMLButtonElement;
-  private readonly base64Button: HTMLButtonElement;
-  private readonly wholeSelect: HTMLSelectElement;
   constructor(shell: PageShell) {
     this.shell = shell;
     shell.addExtensions([
@@ -85,24 +81,6 @@ export class JsonPage {
     this.escapeButton.style.minWidth = "72px";
     this.codecButton = pill(strings.encode, () => this.codec());
     this.codecButton.style.minWidth = "60px";
-    this.urlButton = pill("URL", () => this.setEncoding("url"));
-    this.base64Button = pill("Base64", () => this.setEncoding("base64"));
-    const segment = element("span", "codec-segment");
-    segment.append(this.urlButton, this.base64Button);
-    this.wholeSelect = element("select");
-    this.wholeSelect.setAttribute("aria-label", strings.urlComponent);
-    for (const [value, label] of [
-      ["component", strings.urlComponent],
-      ["whole", strings.urlWhole],
-    ]) {
-      const option = element("option", "", label);
-      option.value = value;
-      this.wholeSelect.append(option);
-    }
-    this.wholeSelect.onchange = () => {
-      this.wholeURL = this.wholeSelect.value === "whole";
-      shell.onStateChange();
-    };
     this.cancelButton = pill(strings.cancel, () => {
       this.cancel();
       this.cancelButton.hidden = true;
@@ -113,27 +91,13 @@ export class JsonPage {
       this.jsonButton,
       this.escapeButton,
       this.codecButton,
-      segment,
-      this.wholeSelect,
       this.cancelButton,
     );
-    this.previewButton = iconButton("preview", () => {
-      void this.togglePreview();
-    });
-    const copy = iconButton("copy", () => {
-      void this.copy().then(() => {
-        setIcon(copy, "copied");
-        setTimeout(() => setIcon(copy, "copy"), 1000);
-      });
-    });
-    const image = iconButton("exportImage", () => {
-      void this.exportImage();
-    });
     const clear = iconButton("clear", () => {
       shell.showPreview(false);
       shell.replace("");
     });
-    shell.fixed.append(this.previewButton, copy, image, clear);
+    shell.fixed.append(clear);
     shell.onChange = () => this.changed();
     this.changed();
   }
@@ -169,21 +133,12 @@ export class JsonPage {
     }, 400);
   }
   private labels(): void {
+    this.encoding =
+      detect(this.shell.text).type === "base64" ? "base64" : "url";
     const labels = actionLabels(this.shell.text, this.encoding);
     this.escapeButton.textContent = strings[labels.escape];
     this.codecButton.textContent = strings[labels.codec];
-    this.urlButton.classList.toggle("selected", this.encoding === "url");
-    this.base64Button.classList.toggle("selected", this.encoding === "base64");
-    this.wholeSelect.hidden = this.encoding !== "url";
-    this.wholeSelect.value = this.wholeURL ? "whole" : "component";
     this.jsonButton.disabled = this.analysis?.state !== "valid";
-    this.previewButton.disabled =
-      this.encoding === "base64" ||
-      (this.analysis?.state !== "valid" && !urlPreview(this.shell.text.trim()));
-    setIcon(
-      this.previewButton,
-      this.shell.mode === "preview" ? "edit" : "preview",
-    );
   }
   private async request(operation: Operation): Promise<Result> {
     const job = startTransform(operation, this.shell.text, {
@@ -272,7 +227,7 @@ export class JsonPage {
     let text: string;
     let errors: { start: number; end: number }[] = [];
     if (this.encoding === "base64") {
-      if (action === "encode") text = encodeBase64(this.shell.text);
+      if (action === "encode") text = encodeComponent(this.shell.text);
       else {
         const result = decodeBase64(this.shell.text);
         if (result.kind !== "text") {
@@ -285,8 +240,7 @@ export class JsonPage {
         }
         text = result.text;
       }
-    } else if (action === "encode")
-      text = (this.wholeURL ? encodeWhole : encodeComponent)(this.shell.text);
+    } else if (action === "encode") text = encodeComponent(this.shell.text);
     else {
       const result = decodedRanges(this.shell.text);
       text = result.text;
@@ -359,21 +313,5 @@ export class JsonPage {
       if (result.status === "success")
         await post("clipboard.writeText", { text: result.text });
     } else await post("clipboard.writeText", { text: this.shell.text });
-  }
-  async exportImage(): Promise<void> {
-    let content: HTMLElement | undefined;
-    if (
-      this.shell.mode !== "preview" ||
-      this.shell.preview.querySelector(".tree-more")
-    ) {
-      if (this.analysis?.state !== "valid") await this.analyze();
-      if (this.analysis?.state !== "valid") return;
-      const result = await this.request("format");
-      if (result.status !== "success") return;
-      content = element("pre", "export-text", result.text);
-    }
-    // Snapshot preparation is shared with the document page in R9.
-    const { exportPreview } = await import("../../preview/export");
-    await exportPreview(this.shell, content);
   }
 }

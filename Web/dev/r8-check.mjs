@@ -1,4 +1,4 @@
-/* global window, document, performance, requestAnimationFrame */
+/* global window, document, performance, requestAnimationFrame, KeyboardEvent */
 import process from "node:process";
 import { writeFileSync } from "node:fs";
 import assert from "node:assert/strict";
@@ -42,7 +42,7 @@ try {
   assert((await text()).includes("\n"));
   await page.getByRole("button", { name: "JSON", exact: true }).click();
   assert.equal(await text(), original);
-  await page.getByRole("button", { name: "预览", exact: true }).click();
+  await page.keyboard.press("Meta+e");
   await page.locator(".tree-row").first().waitFor();
   const rows = await page.locator(".tree-row").count();
   assert.equal(rows, 4);
@@ -75,9 +75,6 @@ try {
   assert(
     await page.getByRole("button", { name: "JSON", exact: true }).isDisabled(),
   );
-  assert(
-    await page.getByRole("button", { name: "预览", exact: true }).isDisabled(),
-  );
   await page.keyboard.press("Meta+e");
   assert.equal(await text(), '{"a":1,}');
   assert(await page.locator("#tools .preview").isHidden());
@@ -86,27 +83,33 @@ try {
     mode: "replace",
   });
   await page.getByRole("button", { name: "解码", exact: true }).waitFor();
-  await page.getByRole("button", { name: "预览", exact: true }).click();
+  await page.keyboard.press("Meta+e");
   assert.equal(await page.locator(".url-table").count(), 1);
   await send("tools.import", { text: "%41%FF%42", mode: "replace" });
   await page.getByRole("button", { name: "解码", exact: true }).click();
   assert.equal(await text(), "A%FFB");
   await page.waitForTimeout(500);
   assert((await page.locator(".page-error").count()) > 0);
+  await send("tools.import", { text: "SGVsbG8gd29ybGQ=", mode: "replace" });
+  await page.getByRole("button", { name: "解码", exact: true }).click();
+  assert.equal(await text(), "Hello world");
+  await page.getByRole("button", { name: "编码", exact: true }).click();
+  assert.equal(await text(), "Hello%20world");
   const many = "[" + Array.from({ length: 600 }, (_, i) => i).join(",") + "]";
   await send("tools.import", { text: many, mode: "replace" });
-  await page.getByRole("button", { name: "预览", exact: true }).click();
+  await page.keyboard.press("Meta+e");
   assert.equal(await page.locator(".tree-row").count(), 201);
   await page.locator(".tree-more").click();
   assert.equal(await page.locator(".tree-row").count(), 401);
-  await page.getByRole("button", { name: "长图", exact: true }).click();
-  await page.waitForFunction(() =>
-    document
-      .querySelector("#tools .page-info")
-      .textContent.includes("无法生成长图"),
+  assert.equal(await page.locator("#tools .page-fixed button").count(), 1);
+  assert.equal(
+    await page.getByRole("button", { name: "长图", exact: true }).count(),
+    0,
   );
-  assert.equal(await page.locator(".tree-row").count(), 401);
-  assert.equal(await page.locator("#tools .preview pre").count(), 0);
+  assert.equal(
+    await page.locator("#tools select, #tools .codec-segment").count(),
+    0,
+  );
   // The 2 MiB fixture has 200 large leaves, so the DOM bound is independent of bytes.
   const large =
     "{" +
@@ -118,7 +121,9 @@ try {
   await send("tools.import", { text: large, mode: "replace" });
   const timing = await page.evaluate(async () => {
     const start = performance.now();
-    document.querySelector('#tools button[aria-label="预览"]').click();
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "e", metaKey: true, bubbles: true }),
+    );
     while (document.querySelector("#tools .preview").hidden)
       await new Promise(requestAnimationFrame);
     return performance.now() - start;
