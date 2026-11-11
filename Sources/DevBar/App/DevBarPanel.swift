@@ -26,6 +26,11 @@ final class DevBarPanel: NSPanel {
   override var canBecomeMain: Bool { false }
 
   override func sendEvent(_ event: NSEvent) {
+    // Explicit dismissal takes precedence over text/preview responders.
+    if event.type == .keyDown, event.keyCode == 53 {
+      onEscape?()
+      return
+    }
     // Scroll views can consume arrows before keyDown reaches the window.
     // Clipboard navigation owns unmodified arrows/return on that page only.
     let modifiers = event.modifierFlags.intersection([.command, .shift, .control, .option])

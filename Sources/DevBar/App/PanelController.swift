@@ -56,7 +56,12 @@ final class PanelController {
     }
     installChrome()
     panel.onEscape = { [weak self] in
-      if self?.model.dropActive == true { self?.model.fileDrop?.cancel() } else { self?.dismiss() }
+      guard let self else { return }
+      if model.dropActive {
+        model.fileDrop?.cancel()
+        model.dropActive = false
+      }
+      dismiss()
     }
     panel.onCyclePage = { [weak self] backwards in
       self?.model.cyclePage(backwards: backwards)

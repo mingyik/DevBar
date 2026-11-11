@@ -37,3 +37,15 @@ import Testing
   #expect(dismissed == 1)
   #expect(!card.temporaryKeys.isRegistered)
 }
+
+@Test @MainActor func clipboardCardEscapeHidesWithoutActivatingAndReleasesKeys() {
+  _ = NSApplication.shared
+  let card = ClipboardCard(theme: ThemeManager())
+  card.show(
+    index: 0, count: 2, title: "合成测试", subtitle: "文本", thumbnail: nil, swatch: nil,
+    fileCount: 0, boundary: false)
+  #expect(card.panel.isVisible)
+  card.temporaryKeys.onKey?(53)
+  #expect(!card.panel.isVisible)
+  #expect(!card.temporaryKeys.isRegistered)
+}
