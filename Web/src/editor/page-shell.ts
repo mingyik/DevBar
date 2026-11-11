@@ -31,7 +31,8 @@ const icons: Record<string, string> = {
   copy: '<rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 5V3H3v13h2"/>',
   exportImage:
     '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="m8 16 4-4 4 4M12 6v6"/>',
-  clear: '<path d="m6 6 12 12M18 6 6 18"/>',
+  clear:
+    '<path d="m13 10 6.5-6.5a1.4 1.4 0 0 1 2 2L15 12"/><path d="m10 9 5 5-4 4-5-5 4-4Z"/><path d="M6 13c-3 0-4 2-4 5v3h3c3 0 5-1 5-4M5 18l2-2"/>',
   copied: '<path d="m5 12 4 4L19 6"/>',
 };
 export function setIcon(button: HTMLButtonElement, name: string): void {
