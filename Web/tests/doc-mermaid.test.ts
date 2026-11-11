@@ -41,3 +41,20 @@ it("PNG checks the actual 2x allocation and finite edges", () => {
   ])
     expect(() => pngDimensions(w, h)).toThrow();
 });
+it("only known unreadable library labels get a local text contrast correction", async () => {
+  const { textContrastKind } = await import("../src/doc/mermaid");
+  expect(textContrastKind("journey\n title Reading", "light")).toBe("journey");
+  expect(textContrastKind("journey\n title Reading", "dark")).toBeNull();
+  expect(textContrastKind('C4Context\nPerson(a, "A")', "dark")).toBe("c4");
+  expect(
+    textContrastKind('C4Context\nPerson(a, "A", $fontColor="red")', "dark"),
+  ).toBeNull();
+  expect(
+    textContrastKind(
+      'C4Context\nUpdateElementStyle(a, $bgColor="blue")',
+      "dark",
+    ),
+  ).toBeNull();
+  expect(textContrastKind("sankey-beta\n A,B,5", "dark")).toBe("sankey");
+  expect(textContrastKind("flowchart LR\n A --> B", "dark")).toBeNull();
+});

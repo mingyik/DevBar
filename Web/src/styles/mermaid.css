@@ -26,21 +26,22 @@
   overflow-wrap: anywhere;
   color: var(--text-secondary);
 }
-/* Diagrams have an opaque substrate, separate from the glass panel. */
+/* Preview follows the panel glass; exported images use an opaque substrate. */
 .prose .mmd {
-  background: var(--snapshot-background);
+  background: var(--panel-card);
   position: relative;
 }
 .diagram-copy {
   position: absolute;
-  right: 8px;
-  top: 8px;
+  right: 6px;
+  top: 6px;
   z-index: 1;
-  width: 28px;
-  height: 28px;
+  width: 24px;
+  height: 24px;
   color: var(--text-primary);
-  background: var(--panel-control);
-  border: var(--stroke-hairline) solid var(--line-border);
+  background: transparent;
+  border: none;
+  opacity: 0.75;
   border-radius: var(--radius-small);
   padding: 0;
 }
@@ -48,6 +49,30 @@
   max-height: 240px;
 }
 .snapshot-root.prose .mmd {
+  background: var(--snapshot-background);
   max-height: none;
   overflow: visible;
+}
+
+.diagram-copy.icon-button .system-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+}
+.diagram-copy.icon-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.diagram-copy.icon-button:hover,
+.diagram-copy.icon-button:focus-visible {
+  background: var(--panel-control);
+  opacity: 1;
+}
+/* Dense date axes retain readable labels in the diagram's horizontal scroller. */
+.prose .mmd svg[aria-roledescription="gantt"] {
+  min-width: 800px;
+}
+.snapshot-root.prose .mmd svg[aria-roledescription="gantt"] {
+  min-width: 0;
 }
