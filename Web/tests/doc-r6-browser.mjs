@@ -141,7 +141,7 @@ try {
     return output;
   });
   for (const type of ["flowchart", "state"])
-    for (const layout of ["dagre", "elk"]) {
+    for (const layout of ["dagre"]) {
       const box = await page.evaluate(
         async ({ type, layout }) => {
           const { renderMermaid } = await import("/src/doc/mermaid.ts");

@@ -51,7 +51,6 @@
       await renderDocument(root, mode === "mermaid" ? pure : markdown, {
         theme,
         mode,
-        layout: p.get("layout") === "elk" ? "elk" : "dagre",
       });
       window.metrics = { highlightMs, mermaidLoadMs };
       window.ready = true;

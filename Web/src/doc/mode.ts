@@ -17,10 +17,29 @@ export function detectDocMode(text: string): DocMode {
   )
     i++;
   const first = lines[i]?.trimStart() ?? "";
-  return mermaidKeywords.some(
-    (key) =>
-      first.startsWith(key) && /^(?:$|\s|[-:])/.test(first.slice(key.length)),
+  const key = [...mermaidKeywords]
+    .sort((a, b) => b.length - a.length)
+    .find(
+      (key) =>
+        first.startsWith(key) && /^(?:$|\s|[-:])/.test(first.slice(key.length)),
+    );
+  if (!key) return "markdown";
+  const tail = first.slice(key.length);
+  if (
+    !/^(?:-(?:v\d+|beta))?(?:\s+(?:TB|TD|BT|RL|LR|showData))*(?:\s+(?:title|accTitle|accDescr)\b.*|\s*:.*)?\s*$/.test(
+      tail,
+    )
   )
-    ? "mermaid"
-    : "markdown";
+    return "markdown";
+  const next = lines
+    .slice(i + 1)
+    .map((line) => line.trim())
+    .find((line) => line && !line.startsWith("%%"));
+  if (
+    next &&
+    (/^(?:[#>]|[-*]\s|\d+\.\s|\|)/.test(next) ||
+      (next.length >= 20 && /[.?!。？！]$/.test(next)))
+  )
+    return "markdown";
+  return "mermaid";
 }

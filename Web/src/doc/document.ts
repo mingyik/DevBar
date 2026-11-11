@@ -1,6 +1,5 @@
 import { createMarkdownPreview } from "./preview";
 import { renderMermaidElements } from "./mermaid";
-import type { Layout } from "./mermaid";
 import type { Theme } from "./highlight";
 import type { DocMode } from "./mode";
 const revisions = new WeakMap<HTMLElement, number>();
@@ -12,7 +11,7 @@ const previews = new WeakMap<
 export async function renderDocument(
   root: HTMLElement,
   text: string,
-  options: { theme: Theme; mode: DocMode; layout?: Layout },
+  options: { theme: Theme; mode: DocMode },
 ): Promise<void> {
   const revision = (revisions.get(root) ?? 0) + 1;
   revisions.set(root, revision);
@@ -31,7 +30,7 @@ export async function renderDocument(
     staged.innerHTML = await preview.renderAsync(text, options.theme);
   }
   if (revisions.get(root) !== revision) return;
-  await renderMermaidElements(staged, options.theme, options.layout);
+  await renderMermaidElements(staged, options.theme);
   if (revisions.get(root) === revision)
     root.replaceChildren(...Array.from(staged.childNodes));
 }

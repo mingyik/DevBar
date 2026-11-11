@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { mermaidOptions } from "../src/doc/mermaid";
+import { mermaidOptions, pngDimensions } from "../src/doc/mermaid";
 import { mermaidVars, mermaidDiagramConfig } from "../src/theme/mermaid-vars";
 it.each(["light", "dark"] as const)(
   "%s keeps strict security and generated roles",
@@ -32,8 +32,8 @@ it.each(["light", "dark"] as const)(
   },
 );
 it("layout is selected by the supported root layout option", () => {
-  expect(mermaidOptions("light", "dagre").layout).toBe("dagre");
-  expect(mermaidOptions("dark", "elk").layout).toBe("elk");
+  expect(mermaidOptions("light").layout).toBe("dagre");
+  expect(mermaidOptions("dark").layout).toBe("dagre");
 });
 it.each(["light", "dark"] as const)(
   "%s generated palettes contain only neutral colors",
@@ -55,3 +55,14 @@ it.each(["light", "dark"] as const)(
     walk(mermaidDiagramConfig[theme]);
   },
 );
+
+it("PNG checks the actual 2x allocation and finite edges", () => {
+  expect(pngDimensions(370, 58)).toEqual({ width: 740, height: 116 });
+  for (const [w, h] of [
+    [5000, 1],
+    [2500, 2500],
+    [Infinity, 1],
+    [0, 2],
+  ])
+    expect(() => pngDimensions(w, h)).toThrow();
+});
