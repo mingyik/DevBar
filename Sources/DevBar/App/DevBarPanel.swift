@@ -25,6 +25,18 @@ final class DevBarPanel: NSPanel {
   override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { false }
 
+  override func sendEvent(_ event: NSEvent) {
+    // Scroll views can consume arrows before keyDown reaches the window.
+    // Clipboard navigation owns unmodified arrows/return on that page only.
+    let modifiers = event.modifierFlags.intersection([.command, .shift, .control, .option])
+    if event.type == .keyDown, modifiers.isEmpty,
+      [UInt16(125), 126, 36].contains(event.keyCode), onClipboardKey?(event.keyCode) == true
+    {
+      return
+    }
+    super.sendEvent(event)
+  }
+
   override func performKeyEquivalent(with event: NSEvent) -> Bool {
     if handle(event) {
       return true
@@ -44,7 +56,7 @@ final class DevBarPanel: NSPanel {
       onEscape?()
       return true
     }
-    let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+    let flags = event.modifierFlags.intersection([.command, .shift, .control, .option])
     if flags == .command || flags == [.command, .shift],
       event.charactersIgnoringModifiers?.lowercased() == "p"
     {
@@ -52,7 +64,7 @@ final class DevBarPanel: NSPanel {
       return true
     }
     if flags.isEmpty, onClipboardKey?(event.keyCode) == true { return true }
-    guard flags == .command, let characters = event.charactersIgnoringModifiers else {
+    guard flags == .command, let characters = event.charactersIgnoringModifiers?.lowercased() else {
       return false
     }
     // Menu-less agent apps have no Edit menu to dispatch these AppKit actions.
