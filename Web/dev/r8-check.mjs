@@ -1,4 +1,4 @@
-/* global window, document, performance, requestAnimationFrame, KeyboardEvent */
+/* global window, document, performance, requestAnimationFrame, KeyboardEvent, getComputedStyle */
 import process from "node:process";
 import { writeFileSync } from "node:fs";
 import assert from "node:assert/strict";
@@ -49,6 +49,26 @@ try {
     );
   });
   assert(toolbarInside);
+  await send("theme.set", { theme: "dark" });
+  const insetStyle = await page.evaluate(() => {
+    const content = document
+      .querySelector("#tools .page-content")
+      .getBoundingClientRect();
+    const toolbar = document
+      .querySelector("#tools .page-toolbar")
+      .getBoundingClientRect();
+    const editor = document.querySelector("#tools .cm-editor");
+    return {
+      left: toolbar.left - content.left,
+      right: content.right - toolbar.right,
+      bottom: content.bottom - toolbar.bottom,
+      background: getComputedStyle(editor).backgroundColor,
+    };
+  });
+  assert.equal(insetStyle.left, 12);
+  assert.equal(insetStyle.right, 12);
+  assert.equal(insetStyle.bottom, 12);
+  assert.equal(insetStyle.background, "rgba(0, 0, 0, 0)");
   const original = '{"id":1234567890123456789,"decimal":1.0,"text":"中文"}';
   await paste(original);
   await page.waitForFunction(() => window.testView().state.doc.lines > 1);

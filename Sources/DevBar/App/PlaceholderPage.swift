@@ -16,9 +16,9 @@ struct PlaceholderPage: View {
           .buttonStyle(DevBarCapsuleStyle(scheme: scheme))
           .disabled(true)
         Spacer()
-      }.frame(height: 36)
-        .padding(.horizontal, 8)
-        .padding(.bottom, 6)
+      }.frame(height: 28)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 12)
     }
     .background(
       DesignTokens.panelInset(scheme),
