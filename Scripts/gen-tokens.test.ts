@@ -63,15 +63,6 @@ test("JSON 键映射到 CodeMirror propertyName 和 Shiki property-name", () => 
   assert.match(shiki, /meta\.object-literal\.key/);
 });
 
-test("Mermaid 结构线使用 text.tertiary 叠色", () => {
-  const tokens = loadTokens();
-  const expected = compositeOpaque(
-    resolveColor(tokens, "light", "text.tertiary").color,
-    resolveColor(tokens, "light", "text.tertiary").alpha,
-    tokens.opaqueBackdrop.light,
-  );
-  const source = renderTokens(tokens)["Web/src/theme/mermaid-vars.ts"] ?? "";
-  assert.match(source, new RegExp(`lineColor: "${expected}"`));
-  assert.match(source, new RegExp(`nodeBorder: "${expected}"`));
-  assert.equal(expected, "#616161");
+test("Mermaid 使用库主题，不生成灰阶覆盖", () => {
+  assert.equal(renderTokens(loadTokens())["Web/src/theme/mermaid-vars.ts"], undefined);
 });

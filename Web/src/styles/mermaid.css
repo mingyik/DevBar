@@ -25,3 +25,28 @@
   overflow-wrap: anywhere;
   color: var(--text-secondary);
 }
+/* Diagrams have an opaque substrate, separate from the glass panel. */
+.prose .mmd {
+  background: var(--snapshot-background);
+  position: relative;
+}
+.diagram-copy {
+  position: sticky;
+  left: 0;
+  bottom: 0;
+  opacity: 0;
+  pointer-events: none;
+  color: var(--text-primary);
+  background: var(--panel-control);
+  border: var(--stroke-hairline) solid var(--line-border);
+  border-radius: var(--radius-small);
+  padding: 4px 8px;
+}
+.mmd:hover .diagram-copy,
+.mmd:focus-within .diagram-copy {
+  opacity: 1;
+  pointer-events: auto;
+}
+.diagram-copy:focus-visible {
+  opacity: 1;
+}
