@@ -5,6 +5,7 @@ import SwiftUI
 struct ReadOnlyScrollView<Content: View>: View {
   let scheme: ColorScheme
   var contentTrailingInset: CGFloat = 10
+  var indicatorTrailingInset: CGFloat = 2
   @ViewBuilder let content: () -> Content
   @State private var metrics = Metrics()
   @State private var visible = false
@@ -42,7 +43,7 @@ struct ReadOnlyScrollView<Content: View>: View {
         {
           Capsule().fill(DesignTokens.scrollThumb(scheme))
             .frame(width: 3, height: thumb.length)
-            .offset(x: -2, y: thumb.position)
+            .offset(x: -indicatorTrailingInset, y: thumb.position)
             .opacity(visible ? 1 : 0)
             .animation(.easeOut(duration: 0.25), value: visible)
             .allowsHitTesting(false)
