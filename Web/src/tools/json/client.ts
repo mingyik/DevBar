@@ -1,3 +1,4 @@
+import { unpackResult } from "./transfer";
 import { execute } from "./protocol.ts";
 import type { Operation, Request, Result } from "./protocol.ts";
 export interface WorkerPort {
@@ -21,7 +22,7 @@ function browserWorker(): WorkerPort {
     terminate: () => worker.terminate(),
   };
   worker.onmessage = (event) =>
-    port.onmessage?.({ data: event.data as Result });
+    port.onmessage?.({ data: unpackResult(event.data as Result) });
   worker.onerror = () => port.onerror?.();
   return port;
 }

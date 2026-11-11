@@ -1,4 +1,5 @@
 export const strings = {
+  clipboardUnavailable: "无法带入剪贴板，请检查读取授权",
   json: "JSON",
   qr: "二维码",
   edit: "编辑",
@@ -11,7 +12,6 @@ export const strings = {
   unescape: "反转义",
   encode: "编码",
   decode: "解码",
-  repair: "修复",
   cancel: "取消",
   working: "正在处理…",
   binary: (n: number) => `解码结果是二进制内容（${n} 字节），无法以文本显示`,

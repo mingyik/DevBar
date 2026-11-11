@@ -4,7 +4,6 @@ import {
   historyKeymap,
   isolateHistory,
 } from "@codemirror/commands";
-import { syntaxHighlighting } from "@codemirror/language";
 import { searchKeymap } from "@codemirror/search";
 import {
   EditorSelection,
@@ -17,7 +16,7 @@ import {
   highlightSpecialChars,
   keymap,
 } from "@codemirror/view";
-import { devbarHighlightStyle } from "../theme/cm-highlight.ts";
+import { libraryTheme } from "./library-theme";
 
 export type EditorSnapshot = {
   text: string;
@@ -45,11 +44,9 @@ export function editorExtensions() {
     highlightSpecialChars(),
     EditorView.lineWrapping,
     keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap]),
-    syntaxHighlighting(devbarHighlightStyle),
+    libraryTheme(),
     EditorView.theme({
-      "&": { backgroundColor: "transparent", color: "var(--text-primary)" },
       ".cm-scroller": { fontFamily: "ui-monospace, monospace" },
-      ".cm-content": { caretColor: "var(--text-primary)" },
       "&.cm-focused": { outline: "none" },
     }),
   ];

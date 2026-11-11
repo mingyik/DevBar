@@ -1,3 +1,4 @@
+import { parse } from "lossless-json";
 import {
   analyze,
   compact,
@@ -9,15 +10,17 @@ import {
 } from "./core.ts";
 import type { Analysis, Diagnostic } from "./core.ts";
 export type Operation =
-  "format" | "compact" | "repair" | "analyze" | "escape" | "unescape";
+  "format" | "compact" | "repair" | "analyze" | "escape" | "unescape" | "parse";
 export type Request = { operation: Operation; text: string };
 export type Result =
-  | { status: "success"; text: string; analysis?: Analysis }
+  | { status: "success"; text: string; analysis?: Analysis; value?: unknown }
   | { status: "error"; text: string; error: Diagnostic }
   | { status: "cancelled"; text: string };
 export function execute(request: Request): Result {
   const { operation, text } = request;
   try {
+    if (operation === "parse")
+      return { status: "success", text, value: parse(text) };
     if (operation === "analyze")
       return { status: "success", text, analysis: analyze(text) };
     const operations = {

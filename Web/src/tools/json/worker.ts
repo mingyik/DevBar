@@ -1,7 +1,8 @@
+import { packResult } from "./transfer.ts";
 import { execute } from "./protocol.ts";
 import type { Request } from "./protocol.ts";
-// No parsed objects cross the boundary: numeric lexemes remain in text throughout.
+// Numeric lexemes cross only inside tagged transfer nodes.
 if (typeof self !== "undefined" && typeof document === "undefined") {
   self.onmessage = (event: MessageEvent<Request>) =>
-    self.postMessage(execute(event.data));
+    self.postMessage(packResult(execute(event.data)));
 }
