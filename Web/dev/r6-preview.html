@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' 'nonce-devbar-preview'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'"
+    />
+    <meta charset="utf-8" />
+    <title>DevBar R6</title>
+    <link rel="stylesheet" href="/src/theme/tokens.css" />
+    <link rel="stylesheet" href="/src/styles/prose.css" />
+    <link rel="stylesheet" href="/src/styles/table.css" />
+    <link rel="stylesheet" href="/src/styles/code.css" />
+    <link rel="stylesheet" href="/src/styles/mermaid.css" />
+    <style>
+      body {
+        margin: 0;
+        padding: 14px;
+        background: var(--selection-text);
+      }
+      article {
+        padding: 10px;
+        border: var(--stroke-hairline) solid var(--line-border);
+        border-radius: var(--radius-medium);
+        background: var(--panel-card);
+      }
+    </style>
+  </head>
+  <body>
+    <article id="preview" class="prose"></article>
+    <script type="module" nonce="devbar-preview">
+      import markdown from "../../Samples/样张.md?raw";
+      import pure from "../../Samples/样张.mmd?raw";
+      import { renderDocument } from "/src/doc/document.ts";
+      import { bindPreviewLinks } from "/src/doc/preview.ts";
+      import { highlightCode } from "/src/doc/highlight.ts";
+      import { loadMermaid } from "/src/doc/mermaid.ts";
+      const p = new URLSearchParams(location.search),
+        theme = p.get("theme") === "dark" ? "dark" : "light",
+        mode = p.get("mode") === "mermaid" ? "mermaid" : "markdown";
+      document.documentElement.dataset.theme = theme;
+      const root = document.querySelector("#preview");
+      bindPreviewLinks(root);
+      root.classList.toggle("large", p.get("size") === "large");
+      let start = performance.now();
+      await highlightCode("const n = 1;", "js", theme);
+      const highlightMs = performance.now() - start;
+      start = performance.now();
+      await loadMermaid();
+      const mermaidLoadMs = performance.now() - start;
+      await renderDocument(root, mode === "mermaid" ? pure : markdown, {
+        theme,
+        mode,
+        layout: p.get("layout") === "elk" ? "elk" : "dagre",
+      });
+      window.metrics = { highlightMs, mermaidLoadMs };
+      window.ready = true;
+    </script>
+  </body>
+</html>

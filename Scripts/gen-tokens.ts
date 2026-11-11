@@ -30,6 +30,7 @@ export type Tokens = {
   stroke: { hairline: number; strong: number };
   font: { body: number; bodyLarge: number; lineHeight: number };
   opaqueBackdrop: { light: string; dark: string };
+  mermaid?: { roles: Record<string, string | { gray: number }>; configRoles?: Record<string, string | string[]> };
 };
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -444,13 +445,14 @@ function grayStep(tokens: Tokens, scheme: Scheme, alpha: number): string {
 }
 
 function renderMermaid(tokens: Tokens): string {
+  const configs: string[] = [];
   const schemes = (["light", "dark"] as const).map((scheme) => {
     const paint = (key: string) => compositeOpaque(
       resolveColor(tokens, scheme, key).color,
       resolveColor(tokens, scheme, key).alpha,
       tokens.opaqueBackdrop[scheme],
     );
-    const vars: Record<string, string> = {
+    const vars: Record<string, unknown> = {
       background: paint("panel.base"),
       primaryColor: paint("panel.card"),
       primaryTextColor: paint("text.primary"),
@@ -501,10 +503,29 @@ function renderMermaid(tokens: Tokens): string {
     for (let index = 0; index <= 7; index += 1) {
       vars[`git${index}`] = grayStep(tokens, scheme, (index + 1) / 9);
     }
-    const fields = Object.entries(vars).map(([key, value]) => `      ${key}: "${value}",`);
-    return `    ${scheme}: {\n${fields.join("\n")}\n    },`;
+    for (const [path, role] of Object.entries(tokens.mermaid?.roles ?? {})) {
+      const parts = path.split(".");
+      let parent = vars;
+      for (const part of parts.slice(0, -1)) {
+        parent[part] ??= {};
+        parent = parent[part] as Record<string, unknown>;
+      }
+      parent[parts.at(-1)!] = typeof role === "string" ? paint(role) : grayStep(tokens, scheme, role.gray);
+    }
+    // Distinct neutral palettes, including diagrams whose defaults derive hue rotations.
+    for (let index = 1; index <= 12; index++) vars[`pie${index}`] = grayStep(tokens, scheme, index / 13);
+    for (let index = 0; index <= 7; index++) vars[`git${index}`] = grayStep(tokens, scheme, (index + 1) / 9);
+    ((vars.xyChart ??= {}) as Record<string, unknown>).plotColorPalette = Array.from({length: 8}, (_, i) => grayStep(tokens, scheme, (i + 1) / 9)).join(",");
+    vars.useGradient = false;
+    const config: Record<string, Record<string, unknown>> = {};
+    for (const [path, role] of Object.entries(tokens.mermaid?.configRoles ?? {})) {
+      const [section, name] = path.split(".");
+      (config[section] ??= {})[name] = Array.isArray(role) ? role.map(paint) : paint(role);
+    }
+    configs.push(`  ${scheme}: ${JSON.stringify(config, null, 2)},`);
+    return `    ${scheme}: ${JSON.stringify(vars, null, 2)},`;
   });
-  return ["// " + header, "export const mermaidVars = {", ...schemes, "};", ""].join("\n");
+  return ["// " + header, "export const mermaidVars = {", ...schemes, "};", "export const mermaidDiagramConfig = {", ...configs, "};", ""].join("\n");
 }
 
 export function renderTokens(tokens: Tokens): Record<string, string> {

@@ -1,6 +1,8 @@
 import MarkdownIt from "markdown-it";
 import taskLists from "markdown-it-task-lists";
 import createDOMPurify from "dompurify";
+import { highlightCode } from "./highlight";
+import type { Theme } from "./highlight";
 import { prepareTables } from "./tables";
 
 export function createMarkdownPreview(doc: Document = document) {
@@ -22,7 +24,7 @@ export function createMarkdownPreview(doc: Document = document) {
       sources.push(token.content);
     return token.info.trim().split(/\s/, 1)[0] === "mermaid"
       ? `<div class="mmd" data-src="${escaped}" data-idx="${diagram++}"></div>\n`
-      : `<pre class="code plain"><code>${escaped}</code></pre>\n`;
+      : `<pre class="code plain" data-lang="${md.utils.escapeHtml(token.info.trim().split(/\s/, 1)[0])}"><code>${escaped}</code></pre>\n`;
   };
   function render(text: string): string {
     if (text === lastText) return lastHTML;
@@ -59,7 +61,7 @@ export function createMarkdownPreview(doc: Document = document) {
     const html = purifier.sanitize(template.innerHTML, {
       USE_PROFILES: { html: true },
       ALLOW_DATA_ATTR: false,
-      ADD_ATTR: ["class", "data-src", "data-idx", "data-line"],
+      ADD_ATTR: ["class", "data-src", "data-idx", "data-line", "data-lang"],
       FORBID_ATTR: [
         "style",
         "srcset",
@@ -101,7 +103,24 @@ export function createMarkdownPreview(doc: Document = document) {
     lastHTML = clean.innerHTML;
     return lastHTML;
   }
-  return { render };
+  async function renderAsync(text: string, theme: Theme): Promise<string> {
+    const fragment = doc.createElement("template");
+    fragment.innerHTML = render(text);
+    for (const pre of Array.from(
+      fragment.content.querySelectorAll("pre.code.plain[data-lang]"),
+    )) {
+      const html = await highlightCode(
+        pre.querySelector("code")?.textContent ?? "",
+        pre.getAttribute("data-lang") ?? "",
+        theme,
+      );
+      const highlighted = doc.createElement("template");
+      highlighted.innerHTML = html;
+      pre.replaceWith(highlighted.content);
+    }
+    return fragment.innerHTML;
+  }
+  return { render, renderAsync };
 }
 /** Ordinary clicks never navigate; only an explicit command-click requests the host. */
 export function bindPreviewLinks(
