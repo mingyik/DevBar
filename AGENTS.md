@@ -35,7 +35,7 @@ DevBar 是一个 macOS 菜单栏小工具（内部自用），四个大块：剪
 
 1. **不加功能。** （例外：方案第 12 版补充的「JSON / 文稿预览长图」是需求方要求的，按方案做。）不加回已删的功能：树编辑、JSON 查询 / 排序 / 表格视图、文件打开保存、导出、独立编辑窗口、搜索剪贴板、置顶、窗口截图、全屏截图、标注、录屏剪辑、GIF、自动滚动长图、直接粘贴（模拟按键）。
 2. **不联网。** Swift 不发外部请求；Web 不用 `fetch` / `XMLHttpRequest` / `WebSocket` / `EventSource`。
-3. **只有黑白。** 业务代码不写字面颜色值，只用 `design/tokens.json` 生成的变量。彩色例外：剪贴板里颜色值的色块；**Mermaid 图用官方主题（`default` / `dark`）的配色**（方案第 12 版补充，颜色由 Mermaid 自己生成，业务代码仍不得写字面颜色）。识别颜色文本、必须写颜色字面量或颜色正则时，同一行加上 `// devbar:allow-color`，字面颜色检查会跳过该行。
+3. **只有黑白。** 业务代码不写字面颜色值，只用 `design/tokens.json` 生成的变量。彩色例外：剪贴板里颜色值的色块；**代码高亮、JSON 树、Mermaid 图用库自带的彩色主题**（R8 需求方决定：CodeMirror defaultHighlightStyle / One Dark，Shiki github-light / github-dark，Mermaid default / dark；颜色来自库主题，业务代码仍不得写字面颜色）。面板本身、按钮、排版仍只有黑白。识别颜色文本、必须写颜色字面量或颜色正则时，同一行加上 `// devbar:allow-color`，字面颜色检查会跳过该行。
 4. **不猜改内容。** 自动行为不覆盖、不改写用户内容：不合法的 JSON 不自动修复；编辑区有内容时不自动导入；数字识别只用于排版。
 5. **JSON 数字无损。** `Web/src/tools/`、`Web/src/tree/` 禁止原生 `JSON.parse` / `JSON.stringify`，只用 lossless-json。JSON 正文跨桥只作为字符串，Swift 不解析。
 6. **安全设置不放宽。** CSP 不加 `unsafe-eval` / `wasm-unsafe-eval`；不用 `eval` / `new Function`；Mermaid 保持 `securityLevel: "strict"`。
