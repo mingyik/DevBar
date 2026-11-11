@@ -1,11 +1,24 @@
 // T1.4 运行时安全自检（R6 验证用）。只在 Debug 构建编译，Release 里不存在。
 // 触发：DevBar.app/Contents/MacOS/DevBar --devbar-selfcheck <结果 JSON 路径>
-// 自检前备份、结束后恢复 ~/Library/Application Support/DevBar/state，不改动用户已保存的内容。
+// 自检期间状态改存到独立的临时测试目录（SelfCheckEnvironment.stateDirectory），
+// 不读写用户的 ~/Library/Application Support/DevBar/state；结束后只删除这个测试目录。
 // 结果只记录检查项、状态和长度，不记录编辑器内容（自检只写入自己的标记文本）。
 #if DEBUG
   import AppKit
   import Network
   import WebKit
+
+  /// 自检环境。只在带 --devbar-selfcheck 启动时生效；ScreenStateStore 据此改用测试目录。
+  enum SelfCheckEnvironment {
+    static let isActive = CommandLine.arguments.contains("--devbar-selfcheck")
+
+    /// 每次启动一个新的临时目录：<系统临时目录>/devbar-selfcheck-<UUID>/state
+    static let stateDirectory: URL? = {
+      guard isActive else { return nil }
+      return FileManager.default.temporaryDirectory
+        .appending(path: "devbar-selfcheck-\(UUID().uuidString)/state")
+    }()
+  }
 
   @MainActor
   enum WebSelfCheck {
@@ -30,37 +43,114 @@
   private final class Runner {
     let panel: PanelController
     var results: [[String: Any]] = []
-    let stateDir = FileManager.default.urls(
-      for: .applicationSupportDirectory, in: .userDomainMask)[0]
-      .appending(path: "DevBar/state")
-    var backup: [String: Data] = [:]
-
     init(panel: PanelController) { self.panel = panel }
 
     func run() async -> [String: Any] {
-      backupState()
-      defer { restoreState() }
       let started = Date()
-      panel.model.page = .tools
-      panel.show(anchor: nil)
-      _ = await waitFor("页面就绪", seconds: 15) {
+      let testDirectory = SelfCheckEnvironment.stateDirectory
+      defer {
+        if let root = testDirectory?.deletingLastPathComponent() {
+          try? FileManager.default.removeItem(at: root)
+        }
+      }
+      // 先等宿主重建完成、页面就绪，再切到「工具」并打开面板。
+      // 原因：WebHost 初始化时先建一个占位 WebView，随后异步重建；若在重建前就渲染「工具」页，
+      // 面板会挂上占位 WebView 且不再更换（与崩溃后不换新视图同一根因，见验证记录）。
+      // 前提 1：页面就绪
+      let ready = await waitFor("页面就绪", seconds: 15) {
         await self.js("return !!window.__devbar") as? Bool == true
       }
+      panel.model.page = .tools
+      panel.show(anchor: nil)
+      // 前提 2：被测的 WebView（宿主当前的 webView）确实挂在面板上
+      var mountedAtStart = false
+      var mountedAfterReopen = false
+      if ready {
+        mountedAtStart = await waitFor("挂载", seconds: 3) {
+          self.isMounted(self.panel.webHost.webView)
+        }
+        if !mountedAtStart {
+          panel.dismiss()
+          try? await Task.sleep(for: .milliseconds(300))
+          panel.show(anchor: nil)
+          mountedAfterReopen = await waitFor("重开后挂载", seconds: 3) {
+            self.isMounted(self.panel.webHost.webView)
+          }
+        }
+      }
+      let mounted = mountedAtStart || mountedAfterReopen
+      record(
+        "前提：页面就绪且被测 WebView 已挂上面板",
+        status: ready && mounted ? "pass" : "unable",
+        [
+          "ready": ready, "mountedAtStart": mountedAtStart,
+          "mountedAfterReopen": mountedAfterReopen,
+          "generation": panel.webHost.generation,
+        ])
 
-      await checkCSPHeader()
-      await checkFetchBlocked()
-      await checkEvalBlocked()
-      await checkInlineScriptBlocked()
-      await checkRuleListEffective()
-      await checkTabSwitchKeepsContentAndUndo()
-      await checkWebContentCrashRecovery()
+      if ready {
+        await checkCSPHeader()
+        await checkFetchBlocked()
+        await checkEvalBlocked()
+        await checkInlineScriptBlocked()
+        await checkRuleListEffective()
+        await checkTabSwitchKeepsContentAndUndo()
+        await checkWebContentCrashRecovery()
+        await observeActivation()
+      } else {
+        for name in [
+          "CSP 响应头", "fetch https 被拒", "eval 与 new Function 被拒", "内联脚本被拒",
+          "内容拦截规则生效", "切换页签后内容与撤销历史保留", "WebContent 崩溃后重建并恢复",
+        ] {
+          record(name, status: "unable", ["reason": "页面未就绪"])
+        }
+      }
 
+      let written = testDirectory.map(listFiles) ?? []
       return [
         "system": ProcessInfo.processInfo.operatingSystemVersionString,
         "seconds": Int(Date().timeIntervalSince(started)),
-        "passed": results.allSatisfy { $0["pass"] as? Bool == true },
+        "passed": results.allSatisfy {
+          ["pass", "observe"].contains($0["status"] as? String ?? "")
+        },
+        "testStateDirectory": testDirectory?.path ?? "nil",
+        "filesWrittenToTestDirectory": written,
         "checks": results,
       ]
+    }
+
+    /// 观察项（V1）：其他应用在前台时打开面板，DevBar 是否被激活。不判通过与否，只记录事实。
+    func observeActivation() async {
+      panel.dismiss()
+      let finder = NSRunningApplication.runningApplications(
+        withBundleIdentifier: "com.apple.finder"
+      )
+      .first
+      _ = finder?.activate()
+      try? await Task.sleep(for: .milliseconds(800))
+      let frontBefore = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil"
+      let activeBefore = NSApp.isActive
+      panel.show(anchor: nil)
+      try? await Task.sleep(for: .milliseconds(500))
+      let frontAfter = NSWorkspace.shared.frontmostApplication?.bundleIdentifier ?? "nil"
+      record(
+        "观察：其他应用在前台时打开面板后的激活状态", status: "observe",
+        [
+          "frontmostBeforeShow": frontBefore, "devbarActiveBeforeShow": activeBefore,
+          "devbarActiveAfterShow": NSApp.isActive, "frontmostAfterShow": frontAfter,
+          "panelIsKeyWindow": panel.panel.isKeyWindow,
+        ])
+    }
+
+    /// 测试目录里写了哪些文件（只记文件名和字节数）。
+    func listFiles(_ directory: URL) -> [String] {
+      let names = (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? []
+      return names.sorted().map { name in
+        let size =
+          (try? FileManager.default.attributesOfItem(atPath: directory.appending(path: name).path)[
+            .size] as? Int) ?? -1
+        return "\(name) \(size)B"
+      }
     }
 
     // MARK: - 检查项
@@ -135,7 +225,7 @@
     func checkRuleListEffective() async {
       let server = LocalImageServer()
       guard let port = await server.start() else {
-        record("内容拦截规则生效", pass: false, ["error": "本机服务启动失败"])
+        record("内容拦截规则生效", status: "unable", ["reason": "本机测试服务启动失败"])
         return
       }
       defer { server.stop() }
@@ -209,10 +299,16 @@
       try? await Task.sleep(for: .milliseconds(1600))  // 前端停止输入 1 秒后保存
       let oldView = panel.webHost.webView
       let mountedBefore = isMounted(oldView)
+      guard mountedBefore else {
+        record(
+          "WebContent 崩溃后重建并恢复", status: "unable",
+          ["reason": "崩溃前被测 WebView 没有挂在面板上，无法判断界面是否换上新 WebView"])
+        return
+      }
       let oldGeneration = panel.webHost.generation
       let pid = (oldView.value(forKey: "_webProcessIdentifier") as? NSNumber)?.int32Value ?? 0
       guard pid > 0 else {
-        record("WebContent 崩溃后重建并恢复", pass: false, ["error": "取不到 WebContent 进程号"])
+        record("WebContent 崩溃后重建并恢复", status: "unable", ["reason": "取不到 WebContent 进程号"])
         return
       }
       kill(pid, SIGKILL)
@@ -297,25 +393,15 @@
       view.superview != nil && view.window === panel.panel
     }
 
+    /// status：pass 通过 / fail 不通过 / unable 前提不满足、无法完成检查（不等于不通过）/ observe 只记录事实。
+    func record(_ name: String, status: String, _ detail: [String: Any]) {
+      results.append(["name": name, "status": status, "detail": detail])
+    }
+
     func record(_ name: String, pass: Bool, _ detail: [String: Any]) {
-      results.append(["name": name, "pass": pass, "detail": detail])
+      record(name, status: pass ? "pass" : "fail", detail)
     }
 
-    func backupState() {
-      for file in (try? FileManager.default.contentsOfDirectory(atPath: stateDir.path)) ?? [] {
-        backup[file] = try? Data(contentsOf: stateDir.appending(path: file))
-      }
-    }
-
-    func restoreState() {
-      let existing = (try? FileManager.default.contentsOfDirectory(atPath: stateDir.path)) ?? []
-      for file in existing where backup[file] == nil {
-        try? FileManager.default.removeItem(at: stateDir.appending(path: file))
-      }
-      for (file, data) in backup {
-        try? data.write(to: stateDir.appending(path: file), options: .atomic)
-      }
-    }
   }
 
   /// 只监听 127.0.0.1 的最小 HTTP 服务，回一张 1×1 PNG，并计数收到的请求。

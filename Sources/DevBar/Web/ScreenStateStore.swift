@@ -6,6 +6,13 @@ actor ScreenStateStore {
   private let logger = Logger(subsystem: "local.devbar.app", category: "web")
 
   init() {
+    #if DEBUG
+      // 自检时改用独立的测试目录，不读写用户的状态目录（见 Debug/WebSelfCheck.swift）。
+      if let testDirectory = SelfCheckEnvironment.stateDirectory {
+        directory = testDirectory
+        return
+      }
+    #endif
     let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
     directory = base.appending(path: "DevBar/state")
   }
