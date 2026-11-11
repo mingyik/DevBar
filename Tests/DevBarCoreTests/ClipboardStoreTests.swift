@@ -316,3 +316,23 @@ private func addText(_ text: String, to store: ClipboardStore, date: Date = Date
       == Set(["broken first", "broken second"]))
   #expect(calls.withLock { $0 } == 2)
 }
+
+@Test func clipboardDeleteAndClearPersistAndRemoveOriginals() async throws {
+  let root = try temporaryClipboardDirectory()
+  defer { try? FileManager.default.removeItem(at: root) }
+  let store = try ClipboardStore(directory: root)
+  let first = try await addText("first", to: store)
+  _ = try await addText("second", to: store)
+  try await store.remove(first.id)
+  #expect(await store.items.count == 1)
+  #expect(
+    try FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("blobs").path)
+      .count == 1)
+  try await store.clear()
+  #expect(await store.items.isEmpty)
+  let restored = try ClipboardStore(directory: root)
+  #expect(await restored.items.isEmpty)
+  #expect(
+    try FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("blobs").path)
+      .isEmpty)
+}

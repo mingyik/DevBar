@@ -6,6 +6,26 @@ enum Strings {
   static let lastPage = "上次停留的页"
   static let pageShortcuts = "页面快捷键"
   static func pageNotImplemented(_ page: String) -> String { "\(page) · 尚未实现" }
+  static func minutesAgo(_ minutes: Int) -> String { "\(minutes) 分钟前" }
+  static func hoursAgo(_ hours: Int) -> String { "\(hours) 小时前" }
+  static let clipboardImage = "图片"
+  static let clipboardRichText = "富文本"
+  static let clipboardEmpty = "复制点什么，这里会出现"
+  static let clipboardAsk = "允许读取后才能记录剪贴板"
+  static let clipboardDenied = "未获准读取剪贴板"
+  static let clipboardPending = "有新内容，点击记录"
+  static let clipboardWaiting = "等待系统授权…"
+  static let openSystemSettings = "打开系统设置"
+  static let clearHistory = "清空"
+  static let confirmClear = "确认清空"
+  static let deleteItem = "删除"
+  static let justNow = "刚刚"
+  static let yesterday = "昨天"
+  static let historyReadFailed = "无法读取剪贴板历史"
+  static let historyWriteFailed = "无法写入剪贴板历史"
+  static let historyRestarted = "剪贴板历史损坏，已重新开始"
+  static let imageTooLarge = "图片超过 20MB，未记录"
+
   static let statusItemAccessibilityLabel = "DevBar 菜单栏"
   static let statusItemTitle = "DevBar"
   static let tabClipboard = "剪贴板"

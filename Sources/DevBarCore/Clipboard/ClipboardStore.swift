@@ -132,6 +132,19 @@ public actor ClipboardStore {
     }
   }
 
+  public func remove(_ id: UUID) throws {
+    let next = items.filter { $0.id != id }
+    try Self.persist(next, directory: directory)
+    items = next
+    Self.cleanup(next, directory: directory)
+  }
+
+  public func clear() throws {
+    try Self.persist([], directory: directory)
+    items = []
+    Self.cleanup([], directory: directory)
+  }
+
   private static func safeBlob(_ name: String) -> Bool {
     !name.isEmpty && name != "." && name != ".." && !name.contains("/") && !name.contains("\\")
   }
