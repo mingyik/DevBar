@@ -19,7 +19,7 @@ struct ClipboardListView: View {
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else {
         ScrollViewReader { proxy in
-          ReadOnlyScrollView(scheme: scheme) {
+          ReadOnlyScrollView(scheme: scheme, contentTrailingInset: 18) {
             LazyVStack(spacing: 8) {
               ForEach(Array(controller.items.enumerated()), id: \.element.id) { index, item in
                 ClipboardRow(controller: controller, item: item, index: index, scheme: scheme)
@@ -43,6 +43,7 @@ struct ClipboardListView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
+        .padding(.trailing, -8)
       }
       if !controller.items.isEmpty || !controller.message.isEmpty {
         HStack {

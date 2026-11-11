@@ -4,6 +4,7 @@ import SwiftUI
 /// The indicator is a passive overlay; wheel, trackpad and keyboard own scrolling.
 struct ReadOnlyScrollView<Content: View>: View {
   let scheme: ColorScheme
+  var contentTrailingInset: CGFloat = 10
   @ViewBuilder let content: () -> Content
   @State private var metrics = Metrics()
   @State private var visible = false
@@ -16,7 +17,7 @@ struct ReadOnlyScrollView<Content: View>: View {
   }
 
   var body: some View {
-    ScrollView { content().padding(.trailing, 10) }
+    ScrollView { content().padding(.trailing, contentTrailingInset) }
       .scrollIndicators(.never)
       .onScrollGeometryChange(for: Metrics.self) { geometry in
         Metrics(
