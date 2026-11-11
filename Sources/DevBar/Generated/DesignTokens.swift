@@ -66,11 +66,11 @@ enum DesignTokens {
   static func panelGlassTint(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 1, green: 1, blue: 1, opacity: 0.18)
+      return Color(red: 1, green: 1, blue: 1, opacity: 0.08)
     case .dark:
-      return Color(red: 0, green: 0, blue: 0, opacity: 0.14)
+      return Color(red: 0, green: 0, blue: 0, opacity: 0.08)
     @unknown default:
-      return Color(red: 1, green: 1, blue: 1, opacity: 0.18)
+      return Color(red: 1, green: 1, blue: 1, opacity: 0.08)
     }
   }
 
