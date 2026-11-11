@@ -4,18 +4,20 @@ import Testing
 
 @testable import DevBar
 
-@Test func clipboardCyclerClampsAtBothEndsAndResets() {
+@Test func clipboardCyclerWrapsAtBothEndsAndResets() {
   var cycler = ClipboardCycler()
   let newestBoundary = cycler.move(older: false, count: 10)
-  #expect(newestBoundary)
+  #expect(!newestBoundary)
+  #expect(cycler.currentIndex == 9)
+  cycler.reset()
   for index in 1...9 {
     let boundary = cycler.move(older: true, count: 10)
     #expect(!boundary)
     #expect(cycler.currentIndex == index)
   }
   let oldestBoundary = cycler.move(older: true, count: 10)
-  #expect(oldestBoundary)
-  #expect(cycler.currentIndex == 9)
+  #expect(!oldestBoundary)
+  #expect(cycler.currentIndex == 0)
   cycler.reset()
   #expect(cycler.currentIndex == 0)
   let emptyBoundary = cycler.move(older: true, count: 0)
@@ -100,10 +102,18 @@ import Testing
   controller.select(5, board: board)
   #expect(controller.currentIndex == 5)
   #expect(controller.items.map(\.id) == order)
-  #expect(controller.handleKey(125))
+  controller.focusedIndex = 9
+  #expect(controller.handleKey(125, board: board))
+  #expect(controller.focusedIndex == 0)
+  #expect(controller.handleKey(126, board: board))
+  #expect(controller.focusedIndex == 9)
+  controller.focusedIndex = 5
+  #expect(controller.handleKey(125, board: board))
   #expect(controller.focusedIndex == 6)
-  #expect(controller.handleKey(126))
+  #expect(board.string(forType: .string) == "item 3")
+  #expect(controller.handleKey(126, board: board))
   #expect(controller.focusedIndex == 5)
+  #expect(board.string(forType: .string) == "item 4")
   #expect(!controller.handleKey(0))
   let payloads = [
     ClipboardPayload(type: NSPasteboard.PasteboardType.string.rawValue, data: Data("new".utf8))
@@ -172,4 +182,82 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
   controller.showDetail(0, board: board)
   await controller.remove(id)
   #expect(controller.detailID == nil)
+}
+
+@Test func fileURLsConvertToDecodedPathsInOrder() {
+  let files = ["file:///tmp/first%20name.txt", "file:///tmp/%E4%B8%AD%E6%96%87.txt"].map {
+    ClipboardPayload(type: NSPasteboard.PasteboardType.fileURL.rawValue, data: Data($0.utf8))
+  }
+  #expect(ClipboardController.filePaths(payloads: files) == "/tmp/first name.txt\n/tmp/中文.txt")
+  let bad = ClipboardPayload(
+    type: NSPasteboard.PasteboardType.fileURL.rawValue, data: Data("https://example.com".utf8))
+  #expect(ClipboardController.filePaths(payloads: files + [bad]) == nil)
+}
+
+@MainActor @Test func clipboardDeletePreviewAddsRedWithoutChangingCardSize() throws {
+  let ordinary = DragCardImage.make(
+    title: "测试", subtitle: "2 字符", fileCount: 0, thumbnail: nil, swatch: nil,
+    scheme: .light)
+  let deleting = DragCardImage.make(
+    title: "测试", subtitle: "2 字符", fileCount: 0, thumbnail: nil, swatch: nil,
+    scheme: .light, deleteHover: true)
+  #expect(ordinary.image.size == deleting.image.size)
+  let data = try #require(deleting.image.tiffRepresentation)
+  let bitmap = try #require(NSBitmapImageRep(data: data))
+  var redPixels = 0
+  for y in 0..<bitmap.pixelsHigh {
+    for x in 0..<bitmap.pixelsWide {
+      guard let c = bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB) else { continue }
+      if c.alphaComponent > 0.1 && c.redComponent > c.greenComponent + 0.2
+        && c.redComponent > c.blueComponent + 0.2
+      {
+        redPixels += 1
+      }
+    }
+  }
+  #expect(redPixels > 0)
+}
+
+@MainActor @Test func clipboardHoverPreviewTracksOnlyCurrentRow() {
+  let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: directory) }
+  let controller = ClipboardController(
+    theme: ThemeManager(), directory: directory, startMonitoring: false)
+  let first = UUID()
+  let second = UUID()
+  var observed: [UUID?] = []
+  controller.onHoverPreview = { observed.append($0) }
+  controller.setHovered(first, inside: true)
+  controller.setHovered(second, inside: true)
+  controller.setHovered(first, inside: false)
+  #expect(controller.hoverID == second)
+  #expect(observed.count == 2)
+  controller.setHovered(second, inside: false)
+  #expect(controller.hoverID == nil)
+  #expect(observed.count == 3)
+  #expect(observed.last! == nil)
+}
+
+@MainActor @Test func clipboardHoverPreviewFitsContentWithSquareMinimum() async throws {
+  _ = NSApplication.shared
+  let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: directory) }
+  let theme = ThemeManager()
+  let controller = ClipboardController(theme: theme, directory: directory, startMonitoring: false)
+  func capture(_ text: String) -> ClipboardCapture {
+    ClipboardCapture(payloads: [
+      ClipboardPayload(type: NSPasteboard.PasteboardType.string.rawValue, data: Data(text.utf8))
+    ])!
+  }
+  await controller.record(capture("短内容"), source: nil)
+  let short = try #require(controller.items.first)
+  let shortView = ClipboardHoverPreview(
+    item: short, payloads: try #require(controller.originals[short.id]), scheme: .light,
+    theme: theme)
+  #expect(shortView.preferredHeight(width: 300, maximum: 800) == 300)
+  await controller.record(capture(String(repeating: "内容\n", count: 500)), source: nil)
+  let long = try #require(controller.items.first)
+  let longView = ClipboardHoverPreview(
+    item: long, payloads: try #require(controller.originals[long.id]), scheme: .dark, theme: theme)
+  #expect(longView.preferredHeight(width: 300, maximum: 800) == 800)
 }

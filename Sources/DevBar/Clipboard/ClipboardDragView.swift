@@ -12,6 +12,7 @@ struct ClipboardDragView: NSViewRepresentable {
   let swatch: NSColor?
   let scheme: ColorScheme
   let onClick: () -> Void
+  let onDelete: () -> Void
   let onDragging: (Bool) -> Void
 
   func makeNSView(context: Context) -> DragSource { DragSource() }
@@ -24,6 +25,7 @@ struct ClipboardDragView: NSViewRepresentable {
     view.swatch = swatch
     view.scheme = scheme
     view.onClick = onClick
+    view.onDelete = onDelete
     view.onDragging = onDragging
   }
 
@@ -36,11 +38,17 @@ struct ClipboardDragView: NSViewRepresentable {
     var swatch: NSColor?
     var scheme: ColorScheme = .light
     var onClick: (() -> Void)?
+    var onDelete: (() -> Void)?
     var onDragging: ((Bool) -> Void)?
     private var origin: NSPoint?
     private var dragging = false
+    private var deleteZones: [NSPanel] = []
+    private var menuFrames: [NSRect] = []
+    private var deleteHover = false
+    private var returnTask: Task<Void, Never>?
 
     override func mouseDown(with event: NSEvent) {
+      returnTask?.cancel()
       origin = event.locationInWindow
       dragging = false
     }
@@ -76,7 +84,54 @@ struct ClipboardDragView: NSViewRepresentable {
         }
         return item
       }
+      showDeleteZones()
       beginDraggingSession(with: items, event: event, source: self)
+    }
+
+    private func showDeleteZones() {
+      let thickness = NSStatusBar.system.thickness
+      menuFrames = NSScreen.screens.map { screen in
+        NSRect(
+          x: screen.frame.minX, y: screen.frame.maxY - thickness,
+          width: screen.frame.width, height: thickness)
+      }
+      deleteZones = menuFrames.map { menuFrame in
+        let frame = NSRect(
+          x: menuFrame.minX, y: menuFrame.minY - DragCard.height,
+          width: menuFrame.width, height: menuFrame.height + DragCard.height)
+        let panel = NSPanel(
+          contentRect: frame, styleMask: [.borderless, .nonactivatingPanel],
+          backing: .buffered, defer: false)
+        panel.level = .popUpMenu
+        panel.backgroundColor = .clear
+        panel.isOpaque = false
+        panel.hasShadow = false
+        panel.hidesOnDeactivate = false
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+        let view = ClipboardDeleteDropView(frame: NSRect(origin: .zero, size: frame.size))
+        view.canDelete = { [weak self] in self?.deleteHover ?? false }
+        view.onDelete = { [weak self] in self?.onDelete?() }
+        panel.contentView = view
+        panel.orderFrontRegardless()
+        return panel
+      }
+    }
+
+    func draggingSession(_ session: NSDraggingSession, movedTo screenPoint: NSPoint) {
+      session.enumerateDraggingItems(
+        options: [], for: nil, classes: [NSPasteboardItem.self], searchOptions: [:]
+      ) { item, index, _ in
+        guard index == 0 else { return }
+        let cardBounds = item.draggingFrame.insetBy(dx: 10, dy: 10)
+        let hovered = self.menuFrames.contains { $0.intersects(cardBounds) }
+        guard hovered != self.deleteHover else { return }
+        self.deleteHover = hovered
+        let card = DragCardImage.make(
+          title: self.title, subtitle: self.subtitle, fileCount: self.fileCount,
+          thumbnail: self.thumbnail, swatch: self.swatch, scheme: self.scheme,
+          deleteHover: hovered)
+        item.setDraggingFrame(item.draggingFrame, contents: card.image)
+      }
     }
 
     func draggingSession(
@@ -86,16 +141,52 @@ struct ClipboardDragView: NSViewRepresentable {
     func draggingSession(
       _ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation
     ) {
+      for panel in deleteZones { panel.orderOut(nil) }
+      deleteZones.removeAll()
+      menuFrames.removeAll()
+      deleteHover = false
       dragging = false
-      onDragging?(false)
+      if operation.isEmpty {
+        returnTask = Task { @MainActor [weak self] in
+          try? await Task.sleep(for: .milliseconds(220))
+          guard !Task.isCancelled else { return }
+          self?.onDragging?(false)
+        }
+      } else {
+        onDragging?(false)
+      }
     }
+  }
+}
+
+/// Exists only during a clipboard drag, so dropping in the menu bar is explicit and cancellable.
+@MainActor final class ClipboardDeleteDropView: NSView {
+  var onDelete: (() -> Void)?
+  var canDelete: (() -> Bool)?
+  override init(frame: NSRect) {
+    super.init(frame: frame)
+    registerForDraggedTypes([
+      .fileURL, .string, .png, .tiff, .rtf, .html,
+      NSPasteboard.PasteboardType("public.jpeg"), NSPasteboard.PasteboardType("public.heic"),
+    ])
+  }
+  required init?(coder: NSCoder) { nil }
+  override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation { .copy }
+  override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation { .copy }
+  override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+    canDelete?() == true
+  }
+  override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+    guard canDelete?() == true else { return false }
+    onDelete?()
+    return true
   }
 }
 
 enum DragCardImage {
   static func make(
     title: String, subtitle: String, fileCount: Int, thumbnail: NSImage?, swatch: NSColor?,
-    scheme: ColorScheme, counter: String? = nil, glass: Bool = false
+    scheme: ColorScheme, counter: String? = nil, glass: Bool = false, deleteHover: Bool = false
   ) -> (image: NSImage, hotspot: NSPoint) {
     let displayTitle = DragCard.firstLine(title)
     let hasThumb = thumbnail != nil || swatch != nil
@@ -109,7 +200,11 @@ enum DragCardImage {
     let shadow = NSShadow()
     shadow.shadowOffset = NSSize(width: 0, height: -1)
     shadow.shadowBlurRadius = 6
-    shadow.shadowColor = NSColor(DesignTokens.textPrimary(scheme)).withAlphaComponent(0.18)
+    shadow.shadowColor =
+      deleteHover
+      ? NSColor.systemRed.withAlphaComponent(0.65)  // devbar:allow-color
+      : NSColor(DesignTokens.textPrimary(scheme)).withAlphaComponent(0.18)
+    if deleteHover { shadow.shadowBlurRadius = 12 }
     shadow.set()
     if !glass {
       NSColor(DesignTokens.opaqueBackdrop(scheme)).setFill()
@@ -119,9 +214,25 @@ enum DragCardImage {
     }
     NSShadow().set()
     path.lineWidth = 1.5
-    NSColor(DesignTokens.textPrimary(scheme)).setStroke()
+    if glass {
+      NSColor(DesignTokens.textPrimary(scheme)).setStroke()
+    } else if deleteHover {
+      NSColor.systemRed.setStroke()  // devbar:allow-color
+    } else {
+      NSColor(Color.blue).setStroke()  // devbar:allow-color
+    }
     path.stroke()
-    var textX = bounds.minX + 12
+    if !glass {
+      if deleteHover {
+        NSColor.systemRed.setFill()  // devbar:allow-color
+      } else {
+        NSColor(Color.blue).setFill()  // devbar:allow-color
+      }
+      let indicator = NSRect(
+        x: bounds.minX + 4, y: bounds.minY + 8, width: 2.5, height: bounds.height - 16)
+      NSBezierPath(roundedRect: indicator, xRadius: 1.25, yRadius: 1.25).fill()
+    }
+    var textX = bounds.minX + 14
     if let swatch {
       let chip = NSRect(x: textX, y: bounds.midY - 8, width: 16, height: 16)
       swatch.setFill()
@@ -137,18 +248,26 @@ enum DragCardImage {
     }
     let primary = NSColor(DesignTokens.textPrimary(scheme))
     let tertiary = NSColor(DesignTokens.textTertiary(scheme))
-    let counterWidth: CGFloat = counter == nil ? 0 : 50
+    let counterWidth: CGFloat = counter != nil ? 50 : (deleteHover ? 28 : 0)
     let titleRect = NSRect(
       x: textX, y: bounds.midY + 1, width: bounds.maxX - textX - 12 - counterWidth, height: 16)
     draw(
       displayTitle, in: titleRect, font: .systemFont(ofSize: 12), color: primary,
       lineBreak: .byTruncatingTail)
     let subtitleRect = NSRect(
-      x: textX, y: bounds.midY - 16, width: bounds.maxX - textX - 12, height: 14)
+      x: textX, y: bounds.midY - 16, width: bounds.maxX - textX - 12 - counterWidth, height: 14)
     draw(
       subtitle, in: subtitleRect, font: .systemFont(ofSize: 11), color: tertiary,
       lineBreak: .byTruncatingTail)
-    if let counter {
+    if deleteHover {
+      let iconRect = NSRect(x: bounds.maxX - 25, y: bounds.midY - 7, width: 14, height: 14)
+      if let trash = NSImage(systemSymbolName: "trash", accessibilityDescription: nil) {
+        let config = NSImage.SymbolConfiguration(paletteColors: [.systemRed])  // devbar:allow-color
+        let redTrash = trash.withSymbolConfiguration(config) ?? trash
+        redTrash.isTemplate = false
+        redTrash.draw(in: iconRect)
+      }
+    } else if let counter {
       draw(
         counter, in: NSRect(x: bounds.maxX - 58, y: bounds.maxY - 21, width: 48, height: 14),
         font: .monospacedDigitSystemFont(ofSize: 11, weight: .regular), color: tertiary,

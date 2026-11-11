@@ -8,7 +8,6 @@ struct PanelView: View {
   var webHost: WebHost
   var clipboard: ClipboardController
   @State private var titleHovered = false
-  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
   var body: some View {
     let scheme = theme.effective
@@ -41,42 +40,13 @@ struct PanelView: View {
     .padding(.horizontal, 16)
     .padding(.top, 12)
     .padding(.bottom, 16)
-    .background { chrome(scheme) }
+    .background { PanelChrome(theme: theme, scheme: scheme) }
     .clipShape(panelShape)
     .environment(\.colorScheme, scheme)
   }
 
   private var panelShape: RoundedRectangle {
     RoundedRectangle(cornerRadius: DesignTokens.radiusLarge, style: .continuous)
-  }
-
-  @ViewBuilder
-  private func chrome(_ scheme: ColorScheme) -> some View {
-    if reduceTransparency || theme.reduceTransparency {
-      panelShape.fill(DesignTokens.opaqueBackdrop(scheme))
-        .overlay(panelShape.fill(DesignTokens.panelBase(scheme)))
-        .overlay(panelOutline(scheme))
-    } else {
-      panelShape.fill(Color.clear)
-        .glassEffect(.regular, in: panelShape)
-        .overlay(panelShape.fill(DesignTokens.panelGlassTint(scheme)))
-        .overlay(panelOutline(scheme))
-    }
-  }
-
-  private func panelOutline(_ scheme: ColorScheme) -> some View {
-    panelShape
-      .strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline)
-      .overlay(
-        panelShape.strokeBorder(
-          LinearGradient(
-            colors: [DesignTokens.panelRaised(scheme), DesignTokens.lineBorder(scheme).opacity(0)],
-            startPoint: .top,
-            endPoint: .bottom
-          ),
-          lineWidth: DesignTokens.strokeHairline
-        )
-      )
   }
 
   private func titleRow(_ scheme: ColorScheme) -> some View {
@@ -202,6 +172,45 @@ struct PanelView: View {
   {
     ShortcutRow(title: title, name: name, scheme: scheme)
   }
+}
+
+struct PanelChrome: View {
+  @Bindable var theme: ThemeManager
+  let scheme: ColorScheme
+  @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+  private var panelShape: RoundedRectangle {
+    RoundedRectangle(cornerRadius: DesignTokens.radiusLarge, style: .continuous)
+  }
+  var body: some View { chrome(scheme) }
+  @ViewBuilder
+  private func chrome(_ scheme: ColorScheme) -> some View {
+    if reduceTransparency || theme.reduceTransparency {
+      panelShape.fill(DesignTokens.opaqueBackdrop(scheme))
+        .overlay(panelShape.fill(DesignTokens.panelBase(scheme)))
+        .overlay(panelOutline(scheme))
+    } else {
+      panelShape.fill(Color.clear)
+        .glassEffect(.regular, in: panelShape)
+        .overlay(panelShape.fill(DesignTokens.panelGlassTint(scheme)))
+        .overlay(panelOutline(scheme))
+    }
+  }
+
+  private func panelOutline(_ scheme: ColorScheme) -> some View {
+    panelShape
+      .strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline)
+      .overlay(
+        panelShape.strokeBorder(
+          LinearGradient(
+            colors: [DesignTokens.panelRaised(scheme), DesignTokens.lineBorder(scheme).opacity(0)],
+            startPoint: .top,
+            endPoint: .bottom
+          ),
+          lineWidth: DesignTokens.strokeHairline
+        )
+      )
+  }
+
 }
 
 private struct ShortcutRow: View {

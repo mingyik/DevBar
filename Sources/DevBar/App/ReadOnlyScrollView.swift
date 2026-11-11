@@ -6,6 +6,9 @@ struct ReadOnlyScrollView<Content: View>: View {
   let scheme: ColorScheme
   var contentTrailingInset: CGFloat = 10
   var indicatorTrailingInset: CGFloat = 2
+  var indicatorWidth: CGFloat = 3
+  var indicatorOpacity: Double = 1
+  var alwaysVisible = false
   @ViewBuilder let content: () -> Content
   @State private var metrics = Metrics()
   @State private var visible = false
@@ -42,9 +45,9 @@ struct ReadOnlyScrollView<Content: View>: View {
           content: metrics.content, offset: metrics.offset)
         {
           Capsule().fill(DesignTokens.scrollThumb(scheme))
-            .frame(width: 3, height: thumb.length)
+            .frame(width: indicatorWidth, height: thumb.length)
             .offset(x: -indicatorTrailingInset, y: thumb.position)
-            .opacity(visible ? 1 : 0)
+            .opacity((alwaysVisible || visible) ? indicatorOpacity : 0)
             .animation(.easeOut(duration: 0.25), value: visible)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
