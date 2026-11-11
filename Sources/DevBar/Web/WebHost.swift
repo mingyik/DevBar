@@ -1,8 +1,10 @@
 import AppKit
+import Observation
 import WebKit
 import os
 
 @MainActor
+@Observable
 final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDelegate, WKUIDelegate {
   private(set) var webView: WKWebView
   private(set) var generation = 0

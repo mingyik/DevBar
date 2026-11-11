@@ -47,6 +47,10 @@
 
     func run() async -> [String: Any] {
       let started = Date()
+      if CommandLine.arguments.contains("--immediate-open") {
+        panel.model.page = .tools
+        panel.show(anchor: nil)
+      }
       let testDirectory = SelfCheckEnvironment.stateDirectory
       defer {
         if let root = testDirectory?.deletingLastPathComponent() {
@@ -79,6 +83,11 @@
         }
       }
       let mounted = mountedAtStart || mountedAfterReopen
+      if CommandLine.arguments.contains("--immediate-open") {
+        record(
+          "启动立即打开面板挂载真实 WebView", status: ready && mountedAtStart ? "pass" : "fail",
+          ["mountedWithoutReopen": mountedAtStart, "generation": panel.webHost.generation])
+      }
       record(
         "前提：页面就绪且被测 WebView 已挂上面板",
         status: ready && mounted ? "pass" : "unable",
