@@ -1,5 +1,6 @@
 .prose .mmd {
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: hidden;
   border: none;
   border-radius: var(--radius-small);
   padding: 8px;
@@ -12,7 +13,7 @@
   font-size: 0.92em;
 }
 .prose .mmd > svg {
-  max-width: 100%;
+  max-width: none;
   height: auto;
   display: block;
   margin-inline: auto;
@@ -45,13 +46,12 @@
   border-radius: var(--radius-small);
   padding: 0;
 }
-.prose:not(.pure-mermaid) .mmd {
-  max-height: 240px;
-}
 .snapshot-root.prose .mmd {
   background: var(--snapshot-background);
-  max-height: none;
   overflow: visible;
+}
+.snapshot-root.prose .mmd > svg {
+  max-width: 100%;
 }
 
 .diagram-copy.icon-button .system-icon {
