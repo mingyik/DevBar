@@ -13,6 +13,8 @@ final class ClipboardController {
   private(set) var thumbnails: [UUID: NSImage] = [:]
   private(set) var cycler = ClipboardCycler()
   var detailID: UUID?
+  private(set) var hoverID: UUID?
+  var onHoverPreview: ((UUID?) -> Void)?
   var focusedIndex = 0
   var copiedID: UUID?
   var message = ""
@@ -78,6 +80,10 @@ final class ClipboardController {
     }
     guard generation == reloadGeneration else { return }
     if !updated.contains(where: { $0.id == detailID }) { detailID = nil }
+    if let hoverID, !updated.contains(where: { $0.id == hoverID }) {
+      self.hoverID = nil
+      onHoverPreview?(nil)
+    }
     items = updated
     originals = payloads
     thumbnails = images
@@ -153,6 +159,34 @@ final class ClipboardController {
     lastCycleMilliseconds = Double(elapsed.seconds) * 1000 + Double(elapsed.attoseconds) / 1e15
   }
 
+  nonisolated static func filePaths(payloads: [ClipboardPayload]) -> String? {
+    let files = payloads.filter { $0.type == NSPasteboard.PasteboardType.fileURL.rawValue }
+    guard !files.isEmpty else { return nil }
+    var paths: [String] = []
+    for file in files {
+      guard let raw = String(data: file.data, encoding: .utf8),
+        let url = URL(string: raw), url.isFileURL
+      else { return nil }
+      paths.append(url.path(percentEncoded: false))
+    }
+    return paths.joined(separator: "\n")
+  }
+
+  private func focusedRole(of target: pid_t) -> String? {
+    let app = AXUIElementCreateApplication(target)
+    AXUIElementSetMessagingTimeout(app, 0.3)
+    var value: CFTypeRef?
+    guard
+      AXUIElementCopyAttributeValue(app, kAXFocusedUIElementAttribute as CFString, &value)
+        == .success, let value, CFGetTypeID(value) == AXUIElementGetTypeID()
+    else { return nil }
+    let element = value as! AXUIElement
+    var role: CFTypeRef?
+    guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role) == .success
+    else { return nil }
+    return role as? String
+  }
+
   private func pasteSelection() {
     guard let target = pasteTarget,
       target != ProcessInfo.processInfo.processIdentifier,
@@ -164,10 +198,39 @@ final class ClipboardController {
     guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 9, keyDown: true),
       let up = CGEvent(keyboardEventSource: nil, virtualKey: 9, keyDown: false)
     else { return }
+    if items.indices.contains(cycler.currentIndex),
+      let payloads = originals[items[cycler.currentIndex].id],
+      payloads.contains(where: { $0.type == NSPasteboard.PasteboardType.fileURL.rawValue })
+    {
+      guard let role = focusedRole(of: target),
+        NSWorkspace.shared.frontmostApplication?.processIdentifier == target
+      else { return }
+      if ["AXTextField", "AXTextArea", "AXSearchField"].contains(role) {
+        guard let paths = Self.filePaths(payloads: payloads) else { return }
+        let board = NSPasteboard.general
+        board.clearContents()
+        guard board.setString(paths, forType: .string) else { return }
+        monitor.markSelfWrite(board.changeCount)
+      } else if NSRunningApplication(processIdentifier: target)?.bundleIdentifier
+        != "com.apple.finder"
+      {
+        return
+      }
+    }
     down.flags = .maskCommand
     up.flags = .maskCommand
     down.postToPid(target)
     up.postToPid(target)
+  }
+
+  func setHovered(_ id: UUID, inside: Bool) {
+    if inside {
+      hoverID = id
+      onHoverPreview?(id)
+    } else if hoverID == id {
+      hoverID = nil
+      onHoverPreview?(nil)
+    }
   }
 
   func showDetail(_ index: Int, board: NSPasteboard = .general) {
@@ -176,12 +239,16 @@ final class ClipboardController {
     detailID = items[index].id
   }
 
-  func handleKey(_ code: UInt16) -> Bool {
+  func handleKey(_ code: UInt16, board: NSPasteboard = .general) -> Bool {
     guard detailID == nil else { return false }
     switch code {
-    case 125: focusedIndex = min(focusedIndex + 1, max(items.count - 1, 0))
-    case 126: focusedIndex = max(focusedIndex - 1, 0)
-    case 36: showDetail(focusedIndex)
+    case 125:
+      guard !items.isEmpty else { return false }
+      select((focusedIndex + 1) % items.count, board: board)
+    case 126:
+      guard !items.isEmpty else { return false }
+      select((focusedIndex + items.count - 1) % items.count, board: board)
+    case 36: select(focusedIndex, board: board)
     case 51:
       guard items.indices.contains(focusedIndex) else { return false }
       let id = items[focusedIndex].id

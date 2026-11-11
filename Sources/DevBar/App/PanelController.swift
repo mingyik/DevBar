@@ -16,6 +16,9 @@ final class PanelController {
   private var resignObserver: NSObjectProtocol?
   private var dismissing = false
   private var lastAnchor: CGRect?
+  private var clipboardPreview: NSPanel?
+  private var previewPointerInside = false
+  private var previewHideTask: Task<Void, Never>?
   private let logger = Logger(subsystem: "local.devbar.app", category: "panel")
   private let signposter = OSSignposter(subsystem: "local.devbar.app", category: "panel")
 
@@ -41,6 +44,9 @@ final class PanelController {
     panel = DevBarPanel()
     host = NSHostingView(
       rootView: PanelView(model: model, theme: theme, webHost: webHost, clipboard: clipboard))
+    clipboard.onHoverPreview = { [weak self] id in
+      self?.showClipboardPreview(id)
+    }
     webHost.onToast = { text in
       model.toast = text
     }
@@ -128,6 +134,9 @@ final class PanelController {
     guard panel.isVisible, !dismissing else { return }
     dismissing = true
     panel.orderOut(nil)
+    previewHideTask?.cancel()
+    previewPointerInside = false
+    clipboardPreview?.orderOut(nil)
     webHost.panelVisible = false
     dismissing = false
   }
@@ -142,6 +151,73 @@ final class PanelController {
     } else {
       show(anchor: anchor)
     }
+  }
+
+  private var isMouseInPreview: Bool {
+    guard let preview = clipboardPreview, preview.isVisible else { return false }
+    return preview.frame.insetBy(dx: -16, dy: -8).contains(NSEvent.mouseLocation)
+  }
+
+  private func schedulePreviewHide() {
+    previewHideTask?.cancel()
+    previewHideTask = Task { @MainActor [weak self] in
+      try? await Task.sleep(for: .milliseconds(250))
+      while !Task.isCancelled {
+        guard let self else { return }
+        if self.clipboard.hoverID != nil { return }
+        if !self.previewPointerInside && !self.isMouseInPreview {
+          self.clipboardPreview?.orderOut(nil)
+          return
+        }
+        try? await Task.sleep(for: .milliseconds(120))
+      }
+    }
+  }
+
+  private func showClipboardPreview(_ id: UUID?) {
+    guard panel.isVisible, model.page == .clipboard else {
+      previewHideTask?.cancel()
+      previewPointerInside = false
+      clipboardPreview?.orderOut(nil)
+      return
+    }
+    guard let id else {
+      schedulePreviewHide()
+      return
+    }
+    guard let item = clipboard.items.first(where: { $0.id == id }),
+      let screen = panel.screen ?? NSScreen.main
+    else {
+      clipboardPreview?.orderOut(nil)
+      return
+    }
+    previewHideTask?.cancel()
+    previewPointerInside = false
+    let visible = screen.visibleFrame
+    let width = min(300, panel.frame.width - 20, visible.width)
+    let previewContent = ClipboardHoverPreview(
+      item: item, payloads: clipboard.originals[id] ?? [], scheme: theme.effective, theme: theme,
+      onHoverChange: { [weak self] inside in
+        guard let self else { return }
+        self.previewPointerInside = inside
+        if inside {
+          self.previewHideTask?.cancel()
+        } else {
+          self.schedulePreviewHide()
+        }
+      })
+    let height = previewContent.preferredHeight(width: width, maximum: visible.height * 2 / 3)
+    let left = panel.frame.minX - width - 6
+    let right = panel.frame.maxX + 6
+    let x = left >= visible.minX ? left : min(right, visible.maxX - width)
+    let y = min(max(panel.frame.maxY - height, visible.minY), visible.maxY - height)
+    let frame = NSRect(x: x, y: y, width: width, height: height)
+    let preview = clipboardPreview ?? ClipboardPreviewPanel(contentRect: frame)
+    preview.appearance = theme.appearance()
+    preview.contentView = NSHostingView(rootView: previewContent)
+    preview.setFrame(frame, display: true)
+    clipboardPreview = preview
+    preview.orderFrontRegardless()
   }
 
   private func installChrome() {
@@ -159,6 +235,11 @@ final class PanelController {
   }
 
   private func updateMaterial() {
+    if model.page != .clipboard {
+      previewHideTask?.cancel()
+      previewPointerInside = false
+      clipboardPreview?.orderOut(nil)
+    }
     panel.appearance = theme.appearance()
     webHost.panelVisible = panel.isVisible
     webHost.syncAppearance(
@@ -211,7 +292,10 @@ final class PanelController {
 
   private func handleOutsideClick() {
     guard panel.isVisible, !model.pinned else { return }
-    if panel.frame.contains(NSEvent.mouseLocation) {
+    let location = NSEvent.mouseLocation
+    if panel.frame.contains(location)
+      || (clipboardPreview?.isVisible == true && clipboardPreview?.frame.contains(location) == true)
+    {
       return
     }
     dismiss()

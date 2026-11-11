@@ -8,9 +8,7 @@ struct ClipboardListView: View {
   var body: some View {
     VStack(spacing: 0) {
       authorization
-      if let id = controller.detailID, let item = controller.items.first(where: { $0.id == id }) {
-        ClipboardDetailView(controller: controller, item: item, scheme: scheme)
-      } else if controller.items.isEmpty {
+      if controller.items.isEmpty {
         Text(Strings.clipboardEmpty).font(.system(size: 13))
           .foregroundStyle(DesignTokens.textSecondary(scheme)).lineLimit(1)
           .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -25,6 +23,8 @@ struct ClipboardListView: View {
                   .id(item.id)
               }
             }
+            .padding(.horizontal, 7)
+            .padding(.vertical, 7)
           }
           .onAppear {
             if controller.items.indices.contains(controller.focusedIndex) {
@@ -49,6 +49,9 @@ struct ClipboardListView: View {
           .foregroundStyle(DesignTokens.textTertiary(scheme)).lineLimit(1)
           .frame(maxWidth: .infinity, alignment: .leading)
       }
+    }
+    .onDisappear {
+      if let id = controller.hoverID { controller.setHovered(id, inside: false) }
     }
   }
 
@@ -97,6 +100,7 @@ private struct ClipboardRow: View {
   private var payloads: [ClipboardPayload] { controller.originals[item.id] ?? [] }
 
   var body: some View {
+    let glow = Color.blue.opacity(0.45)  // devbar:allow-color
     HStack(spacing: 8) {
       HStack(spacing: 8) {
         if let color = ClipboardColor.parse(item.preview) {
@@ -126,40 +130,49 @@ private struct ClipboardRow: View {
           fileCount: fileNames.count,
           swatch: swatch,
           scheme: scheme,
-          onClick: { controller.showDetail(index) },
-          onDragging: { dragging = $0 }
+          onClick: { controller.select(index) },
+          onDelete: { Task { await controller.remove(item.id) } },
+          onDragging: { isDragging in
+            dragging = isDragging
+            if isDragging { controller.setHovered(item.id, inside: false) }
+          }
         )
       }
       if controller.copiedID == item.id {
         Image(systemName: "checkmark").font(.system(size: 11))
           .foregroundStyle(DesignTokens.textPrimary(scheme))
       }
-      if hovered {
-        Button {
-          Task { await controller.remove(item.id) }
-        } label: {
-          Image(systemName: "eraser").font(.system(size: 11)).frame(width: 20, height: 24)
-        }.buttonStyle(.plain).help(Strings.deleteItem)
-      } else {
-        Text(kindLabel).font(.system(size: 11))
-          .foregroundStyle(DesignTokens.textTertiary(scheme)).lineLimit(1)
-      }
+      Text(kindLabel).font(.system(size: 11))
+        .foregroundStyle(DesignTokens.textTertiary(scheme)).lineLimit(1)
     }
     .padding(.horizontal, 12).frame(height: 56)
     .background {
       RoundedRectangle(cornerRadius: 10, style: .continuous).fill(
-        selected || hovered ? DesignTokens.panelControl(scheme) : DesignTokens.panelCard(scheme))
+        selected ? DesignTokens.panelControl(scheme) : DesignTokens.panelCard(scheme)
+      )
+      .shadow(color: hovered && !dragging ? glow : .clear, radius: 7)
     }
-    .overlay {
+    .overlay(alignment: .leading) {
       if selected {
-        RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(
-          DesignTokens.selectionBorder(scheme), lineWidth: 1.5)
+        GeometryReader { geometry in
+          HStack(spacing: 0) {
+            Rectangle().fill(Color.blue).frame(width: 4)  // devbar:allow-color
+            Spacer(minLength: 0)
+          }
+          .frame(width: geometry.size.width, height: geometry.size.height)
+          .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .allowsHitTesting(false)
       }
     }
     .opacity(dragging ? 0.4 : 1)
     .animation(reduceMotion || dragging ? nil : .easeOut(duration: 0.16), value: dragging)
-    .contentShape(Rectangle()).onTapGesture { controller.showDetail(index) }
-    .onHover { hovered = $0 }
+    .contentShape(Rectangle()).onTapGesture { controller.select(index) }
+    .onHover { inside in
+      hovered = inside
+      controller.setHovered(item.id, inside: inside && !dragging)
+    }
+    .onDisappear { controller.setHovered(item.id, inside: false) }
   }
 
   private var dragSource: String {

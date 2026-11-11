@@ -24,6 +24,9 @@ final class DevBarPanel: NSPanel {
 
   override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { false }
+  @objc func _hasActiveAppearance() -> Bool { true }
+  @objc func _hasActiveAppearanceIgnoringKeyFocus() -> Bool { true }
+  @objc func hasKeyAppearance() -> Bool { true }
 
   override func sendEvent(_ event: NSEvent) {
     // Explicit dismissal takes precedence over text/preview responders.
@@ -80,4 +83,31 @@ final class DevBarPanel: NSPanel {
     }
     return false
   }
+}
+
+/// Keeps Liquid Glass in its active appearance without stealing key focus from the main panel.
+@MainActor
+final class ClipboardPreviewPanel: NSPanel {
+  init(contentRect: NSRect) {
+    super.init(
+      contentRect: contentRect,
+      styleMask: [.nonactivatingPanel, .borderless, .fullSizeContentView],
+      backing: .buffered,
+      defer: false
+    )
+    level = .popUpMenu
+    collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+    backgroundColor = .clear
+    isOpaque = false
+    hasShadow = true
+    hidesOnDeactivate = false
+    ignoresMouseEvents = false
+    animationBehavior = .none
+  }
+
+  override var canBecomeKey: Bool { false }
+  override var canBecomeMain: Bool { false }
+  @objc func _hasActiveAppearance() -> Bool { true }
+  @objc func _hasActiveAppearanceIgnoringKeyFocus() -> Bool { true }
+  @objc func hasKeyAppearance() -> Bool { true }
 }
