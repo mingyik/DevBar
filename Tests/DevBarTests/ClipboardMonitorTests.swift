@@ -12,20 +12,25 @@ private final class FakePasteboardReader: PasteboardReading, Sendable {
     var access: PasteboardMetadata.Access = .allow
     var reads = 0
     var delay = false
+    var readFinished = false
+    var readOnMain = false
     var changeDuringRead = false
     var payloads = [ClipboardPayload(type: "public.utf8-plain-text", data: Data("test".utf8))]
   }
   let state = Mutex(State())
+  let readGate = DispatchSemaphore(value: 0)
   func metadata() -> PasteboardMetadata {
     state.withLock { PasteboardMetadata(count: $0.count, types: $0.types, access: $0.access) }
   }
   func read() -> [ClipboardPayload] {
     let delay = state.withLock {
       $0.reads += 1
+      $0.readOnMain = Thread.isMainThread
       return $0.delay
     }
-    if delay { Thread.sleep(forTimeInterval: 0.1) }
+    if delay { _ = readGate.wait(timeout: .now() + 2) }
     return state.withLock {
+      $0.readFinished = true
       if $0.changeDuringRead { $0.count += 1 }
       return $0.payloads
     }
@@ -112,9 +117,10 @@ func clipboardMonitorNeverReadsWithoutAutomaticPermission(access: PasteboardMeta
     try? await Task.sleep(for: .milliseconds(1))
   }
   #expect(monitor.waiting)
-  let start = ContinuousClock.now
-  await Task.yield()
-  #expect(start.duration(to: .now) < .milliseconds(50))
+  // This MainActor code must execute before the worker can return.
+  #expect(!reader.state.withLock { $0.readOnMain })
+  #expect(!reader.state.withLock { $0.readFinished })
+  reader.readGate.signal()
   await task.value
   #expect(!monitor.waiting)
 }

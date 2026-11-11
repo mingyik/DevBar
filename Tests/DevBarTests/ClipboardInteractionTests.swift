@@ -99,3 +99,39 @@ import Testing
   #expect(controller.currentIndex == 0)
   #expect(controller.items.count == 10)
 }
+
+@MainActor @Test(arguments: ["public.jpeg", "public.heic", "public.png", "public.tiff"])
+func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
+  let board = NSPasteboard.withUniqueName()
+  defer { board.releaseGlobally() }
+  let original = Data([1, 2, 3, 4])
+  board.setData(original, forType: .init(type))
+  let reader = SystemPasteboardReader(name: board.name)
+  let payloads = reader.read()
+  #expect(payloads == [ClipboardPayload(type: type, data: original)])
+  #expect(ClipboardCapture(payloads: payloads)?.kind == .image)
+}
+
+@MainActor @Test func clipboardPreservesMixedImageRepresentations() {
+  let board = NSPasteboard.withUniqueName()
+  defer { board.releaseGlobally() }
+  let payloads = ["public.png", "public.tiff", "public.jpeg", "public.heic"].enumerated().map {
+    ClipboardPayload(type: $0.element, data: Data(repeating: UInt8($0.offset), count: 64))
+  }
+  #expect(board.writeObjects(ClipboardController.pasteboardItems(payloads: payloads)))
+  #expect(SystemPasteboardReader(name: board.name).read() == payloads)
+}
+
+@MainActor @Test func clipboardOversizedFirstImageLeavesVisibleFeedbackAndNoHistory() async throws {
+  let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: root) }
+  let controller = ClipboardController(
+    theme: ThemeManager(), directory: root, startMonitoring: false)
+  let payloads = [
+    ClipboardPayload(
+      type: "public.jpeg", data: Data(repeating: 1, count: ClipboardStore.imageByteLimit + 1))
+  ]
+  await controller.record(ClipboardCapture(payloads: payloads)!, source: nil)
+  #expect(controller.items.isEmpty)
+  #expect(controller.message == Strings.imageTooLarge)
+}

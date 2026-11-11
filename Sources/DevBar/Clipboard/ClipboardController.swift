@@ -65,10 +65,8 @@ final class ClipboardController {
     var images: [UUID: NSImage] = [:]
     for item in updated {
       payloads[item.id] = try? await store.payloads(for: item.id)
-      if item.kind == .image,
-        let capture = ClipboardCapture(payloads: payloads[item.id] ?? []),
-        let data = capture.thumbnail
-      {
+      if payloads[item.id] == nil { message = Strings.historyReadFailed }
+      if item.kind == .image, let data = try? await store.thumbnail(for: item.id) {
         images[item.id] = NSImage(data: data)
       }
     }

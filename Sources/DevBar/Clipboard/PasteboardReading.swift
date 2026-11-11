@@ -42,20 +42,26 @@ struct SystemPasteboardReader: PasteboardReading {
       types: (board.types ?? []).map(\.rawValue), access: access)
   }
 
+  static let imageTypes: [NSPasteboard.PasteboardType] = [
+    .png, .tiff, .init(UTType.jpeg.identifier), .init(UTType.heic.identifier),
+  ]
+
   func read() -> [ClipboardPayload] {
     let board = NSPasteboard(name: name)
     let items = board.pasteboardItems ?? []
     let files = items.compactMap { item -> ClipboardPayload? in
-      guard let data = item.data(forType: .fileURL) else { return nil }
+      guard item.types.contains(.fileURL), let data = item.data(forType: .fileURL), !data.isEmpty
+      else { return nil }
       return ClipboardPayload(type: NSPasteboard.PasteboardType.fileURL.rawValue, data: data)
     }
     if !files.isEmpty { return files }
-    let imageTypes: [NSPasteboard.PasteboardType] = [.png, .tiff]
+    let imageTypes = Self.imageTypes
     let types: [NSPasteboard.PasteboardType] =
       imageTypes.contains(where: { board.types?.contains($0) == true })
       ? imageTypes : [.string, .rtf, .html]
     return types.compactMap { type in
-      guard let data = board.data(forType: type) else { return nil }
+      guard board.types?.contains(type) == true, let data = board.data(forType: type), !data.isEmpty
+      else { return nil }
       return ClipboardPayload(type: type.rawValue, data: data)
     }
   }
@@ -76,8 +82,7 @@ struct ClipboardCapture: Sendable {
         .compactMap(URL.init(string:)).map(\.lastPathComponent).joined(separator: ", ")
       thumbnail = nil
     } else if let image = payloads.first(where: {
-      [NSPasteboard.PasteboardType.png.rawValue, NSPasteboard.PasteboardType.tiff.rawValue]
-        .contains($0.type)
+      SystemPasteboardReader.imageTypes.map(\.rawValue).contains($0.type)
     }) {
       kind = .image
       if let source = CGImageSourceCreateWithData(image.data as CFData, nil) {

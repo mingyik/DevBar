@@ -132,6 +132,13 @@ public actor ClipboardStore {
     }
   }
 
+  public func thumbnail(for id: UUID) throws -> Data? {
+    guard items.contains(where: { $0.id == id }) else { throw StoreError.unknownItem }
+    let path = directory.appendingPathComponent("thumbs/\(id).png")
+    guard FileManager.default.fileExists(atPath: path.path) else { return nil }
+    return try Data(contentsOf: path)
+  }
+
   public func remove(_ id: UUID) throws {
     let next = items.filter { $0.id != id }
     try Self.persist(next, directory: directory)

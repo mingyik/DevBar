@@ -80,6 +80,15 @@
         let noReorder = order == panel.clipboard.items.map(\.id)
         panel.clipboard.select(0, board: board)
         panel.clipboard.hud.panel.orderOut(nil)
+        if args.contains("--empty-error") {
+          await panel.clipboard.clear()
+          let tooLarge = ClipboardCapture(payloads: [
+            ClipboardPayload(
+              type: "public.jpeg",
+              data: Data(repeating: 1, count: ClipboardStore.imageByteLimit + 1))
+          ])!
+          await panel.clipboard.record(tooLarge, source: nil)
+        }
         panel.model.page = size == "large" ? .json : .clipboard
         panel.model.enlarged = size == "large"
         panel.show(anchor: nil)

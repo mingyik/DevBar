@@ -45,23 +45,27 @@ struct ClipboardListView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
+      }
+      if !controller.items.isEmpty || !controller.message.isEmpty {
         HStack {
           Text(controller.message).lineLimit(1)
           Spacer()
-          Button(confirmingClear ? Strings.confirmClear : Strings.clearHistory) {
-            if confirmingClear {
-              confirmation?.cancel()
-              confirmingClear = false
-              Task { await controller.clear() }
-            } else {
-              confirmingClear = true
-              confirmation = Task {
-                try? await Task.sleep(for: .seconds(3))
-                guard !Task.isCancelled else { return }
+          if !controller.items.isEmpty {
+            Button(confirmingClear ? Strings.confirmClear : Strings.clearHistory) {
+              if confirmingClear {
+                confirmation?.cancel()
                 confirmingClear = false
+                Task { await controller.clear() }
+              } else {
+                confirmingClear = true
+                confirmation = Task {
+                  try? await Task.sleep(for: .seconds(3))
+                  guard !Task.isCancelled else { return }
+                  confirmingClear = false
+                }
               }
-            }
-          }.buttonStyle(.plain).lineLimit(1)
+            }.buttonStyle(.plain).lineLimit(1)
+          }
         }
         .font(.system(size: 11)).foregroundStyle(DesignTokens.textTertiary(scheme))
         .frame(height: 28)
