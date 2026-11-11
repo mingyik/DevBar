@@ -1,6 +1,8 @@
+import { isolateHistory } from "@codemirror/commands";
+import { documentHistory, documentMetadata, metadataField } from "./state";
 import { Compartment } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
-import { languages } from "@codemirror/language-data";
+import { documentLanguages } from "./languages";
 import { PageShell, iconButton, pill } from "../editor/page-shell";
 import type { PageState } from "../editor/page-shell";
 import { post } from "../bridge/client";
@@ -15,23 +17,6 @@ export type DocumentState = PageState & {
   docMode?: DocMode;
   modeLocked?: boolean;
 };
-const supported = new Set([
-  "JSON",
-  "JavaScript",
-  "TypeScript",
-  "Swift",
-  "Python",
-  "Go",
-  "Java",
-  "Kotlin",
-  "SQL",
-  "Shell",
-  "YAML",
-  "HTML",
-  "CSS",
-  "Diff",
-  "Markdown",
-]);
 export class DocPage {
   private language = new Compartment();
   private mode: DocMode = "markdown";
@@ -44,12 +29,11 @@ export class DocPage {
   readonly shell: PageShell;
   constructor(shell: PageShell) {
     this.shell = shell;
+    shell.addExtensions(documentHistory);
     shell.addExtensions(
       this.language.of(
         markdown({
-          codeLanguages: languages.filter((language) =>
-            supported.has(language.name),
-          ),
+          codeLanguages: documentLanguages,
         }),
       ),
     );
@@ -97,6 +81,10 @@ export class DocPage {
         });
     });
     shell.onChange = () => {
+      const metadata = shell.view.state.field(metadataField);
+      this.locked = metadata.locked;
+      shell.fileName = metadata.fileName;
+      this.setMode(metadata.mode);
       this.renderKey = "";
       clearTimeout(this.timer);
       if (shell.text === "") {
@@ -116,15 +104,22 @@ export class DocPage {
   }
   private setMode(mode: DocMode) {
     this.mode = mode;
+    const metadata = this.shell.view.state.field(metadataField);
+    this.shell.view.dispatch({
+      effects: documentMetadata.of({
+        ...metadata,
+        mode,
+        locked: this.locked,
+        fileName: this.shell.fileName,
+      }),
+    });
     this.modeButton.textContent = mode === "mermaid" ? "Mermaid" : "Markdown";
     this.modeButton.setAttribute("aria-label", strings.docMode);
     this.shell.view.dispatch({
       effects: this.language.reconfigure(
         mode === "markdown"
           ? markdown({
-              codeLanguages: languages.filter((language) =>
-                supported.has(language.name),
-              ),
+              codeLanguages: documentLanguages,
             })
           : [],
       ),
@@ -132,12 +127,29 @@ export class DocPage {
   }
   import(text: string, fileName: string | null, mode?: DocMode) {
     this.shell.showPreview(false);
-    this.shell.replace(text, "devbar.import");
+    this.shell.view.dispatch({
+      changes: { from: 0, to: this.shell.view.state.doc.length, insert: text },
+      effects: documentMetadata.of({
+        mode: mode ?? detectDocMode(text),
+        locked: !!mode,
+        fileName,
+        rawText: text,
+      }),
+      annotations: isolateHistory.of("full"),
+      userEvent: "devbar.import",
+    });
     this.locked = !!mode;
     this.setMode(mode ?? detectDocMode(text));
     this.shell.fileName = fileName;
     this.shell.updateInfo();
     this.toggle.textContent = strings.preview;
+  }
+  private text() {
+    const raw = this.shell.view.state.field(metadataField).rawText;
+    return raw !== undefined &&
+      raw.replace(/\r\n?|\n/g, "\n") === this.shell.text
+      ? raw
+      : this.shell.text;
   }
   async togglePreview() {
     const preview = this.shell.mode !== "preview";
@@ -155,7 +167,7 @@ export class DocPage {
     const key = `${this.theme()}:${this.mode}:${this.shell.text}`;
     if (key === this.renderKey) return this.pending;
     this.renderKey = key;
-    this.pending = renderDocument(this.shell.preview, this.shell.text, {
+    this.pending = renderDocument(this.shell.preview, this.text(), {
       theme: this.theme(),
       mode: this.mode,
     })
@@ -192,12 +204,21 @@ export class DocPage {
   state(): DocumentState {
     return {
       ...this.shell.state(),
+      text: this.text(),
       docMode: this.mode,
       modeLocked: this.locked,
     };
   }
   async restore(state: Partial<DocumentState>) {
     this.shell.restore(state);
+    this.shell.view.dispatch({
+      effects: documentMetadata.of({
+        mode: state.docMode ?? "markdown",
+        locked: state.modeLocked === true && this.shell.text !== "",
+        fileName: state.fileName ?? null,
+        rawText: state.text,
+      }),
+    });
     this.locked = state.modeLocked === true && this.shell.text !== "";
     this.setMode(
       this.locked && state.docMode
