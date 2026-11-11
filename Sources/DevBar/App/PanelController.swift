@@ -102,7 +102,7 @@ final class PanelController {
     show(anchor: anchor)
   }
 
-  func show(anchor: CGRect?) {
+  func show(anchor: CGRect?, activateApplication: Bool = true) {
     let interval = signposter.beginInterval("openPanel")
     let started = ContinuousClock.now
     if let anchor {
@@ -110,9 +110,13 @@ final class PanelController {
     }
     updateMaterial()
     reposition()
-    panel.makeKeyAndOrderFront(nil)
+    if activateApplication {
+      panel.makeKeyAndOrderFront(nil)
+      NSApp.activate()
+    } else {
+      panel.orderFrontRegardless()
+    }
     webHost.panelVisible = true
-    NSApp.activate()
     Task { await clipboard.monitor.poll() }
     let elapsed = started.duration(to: .now)
     let milliseconds = milliseconds(elapsed)

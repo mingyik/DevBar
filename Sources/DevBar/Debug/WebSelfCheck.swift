@@ -21,6 +21,7 @@
       || CommandLine.arguments.contains("--devbar-manual-editor")
       || CommandLine.arguments.contains("--devbar-uicheck")
       || CommandLine.arguments.contains("--devbar-r8check")
+      || CommandLine.arguments.contains("--devbar-r9check")
 
     @MainActor static let defaults: UserDefaults = {
       guard isActive else { return .standard }
