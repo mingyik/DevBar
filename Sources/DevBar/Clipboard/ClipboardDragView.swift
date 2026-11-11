@@ -46,6 +46,7 @@ struct ClipboardDragView: NSViewRepresentable {
     private var menuFrames: [NSRect] = []
     private var deleteHover = false
     private var returnTask: Task<Void, Never>?
+    private var promisedFile: ClipboardDragFile?
 
     override func mouseDown(with event: NSEvent) {
       returnTask?.cancel()
@@ -62,8 +63,11 @@ struct ClipboardDragView: NSViewRepresentable {
       guard !dragging, let origin,
         hypot(event.locationInWindow.x - origin.x, event.locationInWindow.y - origin.y) >= 4
       else { return }
-      let entries = ClipboardController.pasteboardItems(payloads: payloads)
+      let promise = ClipboardDragFile(payloads: payloads)
+      let entries: [any NSPasteboardWriting] =
+        promise.map { [$0] } ?? ClipboardController.pasteboardItems(payloads: payloads)
       guard !entries.isEmpty else { return }
+      promisedFile = promise
       dragging = true
       onDragging?(true)
       let card = DragCardImage.make(
@@ -146,6 +150,7 @@ struct ClipboardDragView: NSViewRepresentable {
       menuFrames.removeAll()
       deleteHover = false
       dragging = false
+      // Finder can request the promised file after the drag session has ended.
       if operation.isEmpty {
         returnTask = Task { @MainActor [weak self] in
           try? await Task.sleep(for: .milliseconds(220))

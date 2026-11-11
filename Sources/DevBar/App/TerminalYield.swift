@@ -25,8 +25,14 @@ final class TerminalYield {
     update(NSWorkspace.shared.frontmostApplication?.bundleIdentifier)
   }
 
+  static func shouldYield(_ bundleID: String?, shortcut: KeyboardShortcuts.Shortcut?) -> Bool {
+    guard TerminalApps.shouldYield(bundleID), let shortcut else { return false }
+    return shortcut == .init(.v, modifiers: [.control])
+      || shortcut == .init(.v, modifiers: [.control, .shift])
+  }
+
   private func update(_ bundleID: String?) {
-    let next = TerminalApps.shouldYield(bundleID)
+    let next = Self.shouldYield(bundleID, shortcut: KeyboardShortcuts.getShortcut(for: .cycleOlder))
     guard next != yielding else { return }
     yielding = next
     if next {
