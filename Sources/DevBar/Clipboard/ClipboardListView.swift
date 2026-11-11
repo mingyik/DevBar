@@ -17,14 +17,14 @@ struct ClipboardListView: View {
           ReadOnlyScrollView(
             scheme: scheme, contentTrailingInset: 12, indicatorTrailingInset: 0.5
           ) {
-            LazyVStack(spacing: 8) {
+            LazyVStack(spacing: 10) {
               ForEach(Array(controller.items.enumerated()), id: \.element.id) { index, item in
                 ClipboardRow(controller: controller, item: item, index: index, scheme: scheme)
                   .id(item.id)
               }
             }
-            .padding(.horizontal, 7)
-            .padding(.vertical, 7)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 10)
           }
           .onAppear {
             if controller.items.indices.contains(controller.focusedIndex) {
@@ -100,7 +100,7 @@ private struct ClipboardRow: View {
   private var payloads: [ClipboardPayload] { controller.originals[item.id] ?? [] }
 
   var body: some View {
-    let glow = Color.blue.opacity(0.45)  // devbar:allow-color
+    let rowShape = RoundedRectangle(cornerRadius: 10, style: .continuous)
     HStack(spacing: 8) {
       HStack(spacing: 8) {
         if let color = ClipboardColor.parse(item.preview) {
@@ -134,7 +134,7 @@ private struct ClipboardRow: View {
           onDelete: { Task { await controller.remove(item.id) } },
           onDragging: { isDragging in
             dragging = isDragging
-            if isDragging { controller.setHovered(item.id, inside: false) }
+            controller.setDragging(isDragging)
           }
         )
       }
@@ -147,20 +147,34 @@ private struct ClipboardRow: View {
     }
     .padding(.horizontal, 12).frame(height: 56)
     .background {
-      RoundedRectangle(cornerRadius: 10, style: .continuous).fill(
-        selected ? DesignTokens.panelControl(scheme) : DesignTokens.panelCard(scheme)
-      )
-      .shadow(color: hovered && !dragging ? glow : .clear, radius: 7)
+      ZStack {
+        if hovered && !dragging {
+          ClipboardOuterGlow(cornerRadius: 10)
+        }
+        rowShape.fill(
+          selected ? DesignTokens.panelControl(scheme) : DesignTokens.panelCard(scheme)
+        )
+      }
+    }
+    .overlay {
+      if hovered && !dragging {
+        rowShape
+          .strokeBorder(
+            Color(red: 0.22, green: 0.58, blue: 1.0, opacity: 0.72),  // devbar:allow-color
+            lineWidth: 1
+          )
+          .allowsHitTesting(false)
+      }
     }
     .overlay(alignment: .leading) {
-      if selected {
+      if selected && !dragging {
         GeometryReader { geometry in
           HStack(spacing: 0) {
             Rectangle().fill(Color.blue).frame(width: 4)  // devbar:allow-color
             Spacer(minLength: 0)
           }
           .frame(width: geometry.size.width, height: geometry.size.height)
-          .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+          .clipShape(rowShape)
         }
         .allowsHitTesting(false)
       }
@@ -207,5 +221,33 @@ private struct ClipboardRow: View {
     case .image: Strings.clipboardImageType
     case .files: Strings.clipboardFileType
     }
+  }
+}
+
+private struct ClipboardOuterGlow: View {
+  let cornerRadius: CGFloat
+
+  var body: some View {
+    let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    let primaryGlow = Color(  // devbar:allow-color
+      red: 0.15, green: 0.55, blue: 1.0, opacity: 0.75)
+    let secondaryGlow = Color(  // devbar:allow-color
+      red: 0.25, green: 0.65, blue: 1.0, opacity: 0.45)
+    shape
+      .fill(Color.black)  // devbar:allow-color
+      .shadow(color: primaryGlow, radius: 7, x: 0, y: 0)
+      .shadow(color: secondaryGlow, radius: 12, x: 0, y: 0)
+      .padding(-20)
+      .compositingGroup()
+      .mask {
+        ZStack {
+          Rectangle().fill(Color.white)  // devbar:allow-color
+          shape.fill(Color.black).padding(20)  // devbar:allow-color
+        }
+        .compositingGroup()
+        .luminanceToAlpha()
+      }
+      .padding(20)
+      .allowsHitTesting(false)
   }
 }

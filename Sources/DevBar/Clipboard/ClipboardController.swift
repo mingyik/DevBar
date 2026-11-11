@@ -14,6 +14,7 @@ final class ClipboardController {
   private(set) var cycler = ClipboardCycler()
   var detailID: UUID?
   private(set) var hoverID: UUID?
+  private(set) var isDragging = false
   var onHoverPreview: ((UUID?) -> Void)?
   var focusedIndex = 0
   var copiedID: UUID?
@@ -223,8 +224,17 @@ final class ClipboardController {
     up.postToPid(target)
   }
 
+  func setDragging(_ active: Bool) {
+    isDragging = active
+    if active {
+      hoverID = nil
+      onHoverPreview?(nil)
+    }
+  }
+
   func setHovered(_ id: UUID, inside: Bool) {
     if inside {
+      guard !isDragging else { return }
       hoverID = id
       onHoverPreview?(id)
     } else if hoverID == id {

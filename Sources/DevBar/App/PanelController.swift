@@ -175,7 +175,7 @@ final class PanelController {
   }
 
   private func showClipboardPreview(_ id: UUID?) {
-    guard panel.isVisible, model.page == .clipboard else {
+    guard panel.isVisible, model.page == .clipboard, !clipboard.isDragging else {
       previewHideTask?.cancel()
       previewPointerInside = false
       clipboardPreview?.orderOut(nil)

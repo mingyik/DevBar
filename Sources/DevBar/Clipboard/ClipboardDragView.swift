@@ -220,17 +220,7 @@ enum DragCardImage {
       NSColor(Color.blue).setStroke()  // devbar:allow-color
     }
     path.stroke()
-    if !glass {
-      if deleteHover {
-        NSColor.systemRed.setFill()  // devbar:allow-color
-      } else {
-        NSColor(Color.blue).setFill()  // devbar:allow-color
-      }
-      let indicator = NSRect(
-        x: bounds.minX + 4, y: bounds.minY + 8, width: 2.5, height: bounds.height - 16)
-      NSBezierPath(roundedRect: indicator, xRadius: 1.25, yRadius: 1.25).fill()
-    }
-    var textX = bounds.minX + 14
+    var textX = bounds.minX + 12
     if let swatch {
       let chip = NSRect(x: textX, y: bounds.midY - 8, width: 16, height: 16)
       swatch.setFill()
