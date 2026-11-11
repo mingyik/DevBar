@@ -59,7 +59,8 @@ struct ClipboardDragView: NSViewRepresentable {
       dragging = true
       onDragging?(true)
       let card = DragCardImage.make(
-        title: title, subtitle: subtitle, fileCount: fileCount, thumbnail: thumbnail, swatch: swatch,
+        title: title, subtitle: subtitle, fileCount: fileCount, thumbnail: thumbnail,
+        swatch: swatch,
         scheme: scheme)
       let local = convert(event.locationInWindow, from: nil)
       let hotspot = NSPoint(x: card.hotspot.x, y: card.hotspot.y)
@@ -133,9 +134,11 @@ enum DragCardImage {
     }
     let primary = NSColor(DesignTokens.textPrimary(scheme))
     let tertiary = NSColor(DesignTokens.textTertiary(scheme))
-    let titleRect = NSRect(x: textX, y: bounds.midY + 1, width: bounds.maxX - textX - 12, height: 16)
+    let titleRect = NSRect(
+      x: textX, y: bounds.midY + 1, width: bounds.maxX - textX - 12, height: 16)
     draw(
-      title, in: titleRect, font: .systemFont(ofSize: 12), color: primary, lineBreak: .byTruncatingTail)
+      title, in: titleRect, font: .systemFont(ofSize: 12), color: primary,
+      lineBreak: .byTruncatingTail)
     let subtitleRect = NSRect(
       x: textX, y: bounds.midY - 16, width: bounds.maxX - textX - 12, height: 14)
     draw(
@@ -166,4 +169,3 @@ enum DragCardImage {
       withAttributes: [.font: font, .foregroundColor: color, .paragraphStyle: style])
   }
 }
-
