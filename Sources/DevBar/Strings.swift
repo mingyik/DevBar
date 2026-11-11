@@ -1,4 +1,11 @@
 enum Strings {
+  static let pageJSON = "JSON"
+  static let pageEncode = "编码"
+  static let pageQR = "二维码"
+  static let defaultPage = "打开面板时显示"
+  static let lastPage = "上次停留的页"
+  static let pageShortcuts = "页面快捷键"
+  static func pageNotImplemented(_ page: String) -> String { "\(page) · 尚未实现" }
   static let statusItemAccessibilityLabel = "DevBar 菜单栏"
   static let statusItemTitle = "DevBar"
   static let tabClipboard = "剪贴板"

@@ -117,9 +117,17 @@ struct PanelView: View {
     switch model.page {
     case .clipboard:
       placeholder(Strings.clipboardPlaceholder, scheme)
-    case .tools, .document:
-      WebViewBox(host: webHost)
-        .id(webHost.generation)
+    case .json, .encode, .qr, .doc:
+      #if DEBUG
+        if model.showsWebViewForSelfCheck {
+          // Mount the existing host only in the runtime harness. Product pages remain placeholders.
+          WebViewBox(host: webHost).id(webHost.generation)
+        } else {
+          placeholder(Strings.pageNotImplemented(model.page.title), scheme)
+        }
+      #else
+        placeholder(Strings.pageNotImplemented(model.page.title), scheme)
+      #endif
     case .settings:
       settings(scheme)
     }
@@ -143,6 +151,17 @@ struct PanelView: View {
         }
         .pickerStyle(.radioGroup)
         .foregroundStyle(DesignTokens.textPrimary(scheme))
+        Picker(Strings.defaultPage, selection: $model.defaultPage) {
+          Text(Strings.lastPage).tag("last")
+          ForEach(PanelModel.Page.contentPages, id: \.self) { page in
+            Text(page.title).tag(page.rawValue)
+          }
+        }.lineLimit(1)
+        Text(Strings.pageShortcuts).font(.system(size: 13, weight: .semibold))
+          .foregroundStyle(DesignTokens.textPrimary(scheme)).lineLimit(1)
+        ForEach(PanelModel.Page.contentPages, id: \.self) { page in
+          shortcut(page.title, page.shortcutName, scheme)
+        }
         shortcut(Strings.shortcutToggle, .togglePanel, scheme)
         shortcut(Strings.shortcutOlder, .cycleOlder, scheme)
         shortcut(Strings.shortcutNewer, .cycleNewer, scheme)
@@ -236,18 +255,22 @@ extension PanelModel.Page {
   var title: String {
     switch self {
     case .clipboard: Strings.tabClipboard
-    case .tools: Strings.tabTools
-    case .document: Strings.tabDocument
+    case .json: Strings.pageJSON
+    case .encode: Strings.pageEncode
+    case .qr: Strings.pageQR
+    case .doc: Strings.tabDocument
     case .settings: Strings.settingsPage
     }
   }
 
-  var symbol: String {
+  @MainActor var shortcutName: KeyboardShortcuts.Name {
     switch self {
-    case .clipboard: "clipboard"
-    case .tools: "wrench.and.screwdriver"
-    case .document: "doc.text"
-    case .settings: "gearshape"
+    case .clipboard: .pageClipboard
+    case .json: .pageJSON
+    case .encode: .pageEncode
+    case .qr: .pageQR
+    case .doc: .pageDoc
+    case .settings: preconditionFailure("Settings has no page shortcut")
     }
   }
 }

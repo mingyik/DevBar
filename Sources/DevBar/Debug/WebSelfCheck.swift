@@ -13,6 +13,11 @@
     static let isActive =
       CommandLine.arguments.contains("--devbar-selfcheck")
       || CommandLine.arguments.contains("--devbar-manual-editor")
+      || CommandLine.arguments.contains("--devbar-uicheck")
+
+    @MainActor static let defaults: UserDefaults =
+      isActive
+      ? UserDefaults(suiteName: "local.devbar.debug.\(UUID())")! : .standard
 
     /// 每次启动一个新的临时目录：<系统临时目录>/devbar-selfcheck-<UUID>/state
     static let stateDirectory: URL? = {
@@ -50,7 +55,7 @@
     func run() async -> [String: Any] {
       let started = Date()
       if CommandLine.arguments.contains("--immediate-open") {
-        panel.model.page = .tools
+        panel.model.page = .json
         panel.show(anchor: nil)
       }
       let testDirectory = SelfCheckEnvironment.stateDirectory
@@ -66,7 +71,7 @@
       let ready = await waitFor("页面就绪", seconds: 15) {
         await self.js("return !!window.__devbar") as? Bool == true
       }
-      panel.model.page = .tools
+      panel.model.page = .json
       panel.show(anchor: nil)
       // 前提 2：被测的 WebView（宿主当前的 webView）确实挂在面板上
       var mountedAtStart = false

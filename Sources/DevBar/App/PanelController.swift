@@ -57,8 +57,18 @@ final class PanelController {
     if panel.isVisible {
       dismiss()
     } else {
+      model.prepareToOpen()
       show(anchor: anchor)
     }
+  }
+
+  func open(page: PanelModel.Page, anchor: CGRect?) {
+    if panel.isVisible, model.page == page {
+      dismiss()
+      return
+    }
+    model.page = page
+    show(anchor: anchor)
   }
 
   func show(anchor: CGRect?) {
@@ -116,9 +126,9 @@ final class PanelController {
     panel.appearance = theme.appearance()
     webHost.panelVisible = panel.isVisible
     webHost.syncAppearance(panelSize: model.enlarged && model.showsEnlarge ? "large" : "normal")
-    if model.page == .tools {
+    if model.page == .json {
       webHost.showScreen("tools")
-    } else if model.page == .document {
+    } else if model.page == .doc {
       webHost.showScreen("doc")
     }
   }

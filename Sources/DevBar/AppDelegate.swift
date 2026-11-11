@@ -3,7 +3,11 @@ import AppKit
 @main
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-  private let theme = ThemeManager()
+  #if DEBUG
+    private let theme = ThemeManager(defaults: SelfCheckEnvironment.defaults)
+  #else
+    private let theme = ThemeManager()
+  #endif
   private let statusItem = StatusItemController()
   private let panel: PanelController
   private let terminalYield = TerminalYield()
@@ -39,7 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     #if DEBUG
       WebSelfCheck.runIfRequested(panel: panel)
       if CommandLine.arguments.contains("--devbar-manual-editor") {
-        panel.model.page = .tools
+        panel.model.page = .json
         panel.show(anchor: statusItem.anchor)
       }
     #endif
