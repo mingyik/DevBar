@@ -80,8 +80,14 @@ export class PageShell {
     const toolbar = element("div", "page-toolbar");
     toolbar.append(this.actions, this.fixed);
     this.preview.hidden = true;
-    this.content.append(this.source, this.preview, this.file, this.info);
-    root.replaceChildren(this.content, toolbar);
+    this.content.append(
+      this.source,
+      this.preview,
+      this.file,
+      this.info,
+      toolbar,
+    );
+    root.replaceChildren(this.content);
     this.extensions = [
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
@@ -113,17 +119,9 @@ export class PageShell {
     if (!show) this.view.focus();
   }
   updateInfo(message?: string): void {
-    this.info.textContent =
-      message ??
-      strings.info(
-        this.text.split("\n").length,
-        this.text.length,
-        this.kind === "json"
-          ? strings.json
-          : this.kind === "qr"
-            ? strings.qr
-            : "",
-      );
+    this.info.textContent = message ?? "";
+    this.info.hidden = !message;
+    this.content.classList.toggle("has-info", !!message);
     this.file.textContent = this.fileName
       ? strings.fileHint(this.fileName)
       : "";

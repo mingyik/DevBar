@@ -11,16 +11,18 @@ struct PlaceholderPage: View {
         .font(.system(size: 13, design: .monospaced))
         .foregroundStyle(DesignTokens.textSecondary(scheme))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(
-          DesignTokens.panelInset(scheme),
-          in: RoundedRectangle(cornerRadius: DesignTokens.radiusMedium, style: .continuous))
       HStack {
         Button(Strings.documentPreview) {}
           .buttonStyle(DevBarCapsuleStyle(scheme: scheme))
           .disabled(true)
         Spacer()
       }.frame(height: 36)
+        .padding(.horizontal, 8)
+        .padding(.bottom, 6)
     }
+    .background(
+      DesignTokens.panelInset(scheme),
+      in: RoundedRectangle(cornerRadius: DesignTokens.radiusMedium, style: .continuous))
   }
 }
 

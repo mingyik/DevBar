@@ -30,6 +30,25 @@ try {
       });
     }, value);
   await send("settings.set", { autoImport: false });
+  assert.equal(
+    await page.locator("#tools .page-content > .page-toolbar").count(),
+    1,
+  );
+  assert(await page.locator("#tools .page-info").isHidden());
+  const toolbarInside = await page.evaluate(() => {
+    const content = document
+      .querySelector("#tools .page-content")
+      .getBoundingClientRect();
+    const toolbar = document
+      .querySelector("#tools .page-toolbar")
+      .getBoundingClientRect();
+    return (
+      toolbar.bottom <= content.bottom &&
+      toolbar.left >= content.left &&
+      toolbar.right <= content.right
+    );
+  });
+  assert(toolbarInside);
   const original = '{"id":1234567890123456789,"decimal":1.0,"text":"中文"}';
   await paste(original);
   await page.waitForFunction(() => window.testView().state.doc.lines > 1);
