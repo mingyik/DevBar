@@ -52,9 +52,9 @@ enum ShortcutActions {
     KeyboardShortcuts.onKeyUp(for: .openTools) {
       Task { @MainActor in
         log("openTools")
-        // Import/routing belongs to R8; R7 exposes the JSON placeholder.
         panel.model.page = .json
         panel.show(anchor: status.anchor)
+        panel.webHost.importClipboard()
       }
     }
     KeyboardShortcuts.onKeyUp(for: .captureRegion) {

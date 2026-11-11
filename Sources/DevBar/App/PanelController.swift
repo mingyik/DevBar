@@ -152,7 +152,9 @@ final class PanelController {
   private func updateMaterial() {
     panel.appearance = theme.appearance()
     webHost.panelVisible = panel.isVisible
-    webHost.syncAppearance(panelSize: model.enlarged && model.showsEnlarge ? "large" : "normal")
+    webHost.syncAppearance(
+      panelSize: model.enlarged && model.showsEnlarge ? "large" : "normal",
+      autoImport: model.autoImport)
     if model.page == .json || model.page == .qr {
       webHost.showScreen(model.page.rawValue)
     } else if model.page == .doc {
@@ -162,6 +164,7 @@ final class PanelController {
 
   private func watchSize() {
     withObservationTracking {
+      _ = model.autoImport
       _ = model.enlarged
       _ = model.page
       _ = theme.mode

@@ -9,11 +9,12 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   private(set) var webView: WKWebView
   private(set) var generation = 0
   var panelVisible = false
+  var autoImport = true
   var onClipboardWrite: ((Int) -> Void)?
   var onToast: ((String) -> Void)?
+  var lastPreviewImagePath: String? { previewImage.lastSavedPath }
 
   private let previewImage = PreviewImage()
-  var lastPreviewImagePath: String? { previewImage.lastSavedPath }
   private let theme: ThemeManager
   private let store = ScreenStateStore()
   private let handler: DevBarSchemeHandler
@@ -26,6 +27,9 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
 
   init(theme: ThemeManager, webRoot: URL? = nil) {
     self.theme = theme
+    #if DEBUG
+      autoImport = !SelfCheckEnvironment.isActive
+    #endif
     let root =
       webRoot ?? Bundle.main.resourceURL?.appending(path: "Web") ?? URL(fileURLWithPath: "/")
     handler = DevBarSchemeHandler(root: root)
@@ -35,18 +39,21 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     Task { await start() }
   }
 
+  func importClipboard() { send(type: "tools.importClipboard", payload: [:]) }
+
   func showScreen(_ screen: String) {
     send(type: "screen.show", payload: ["page": .string(screen)])
   }
 
-  func syncAppearance(panelSize: String) {
+  func syncAppearance(panelSize: String, autoImport: Bool = true) {
+    self.autoImport = autoImport
     send(
       type: "theme.set", payload: ["theme": .string(theme.effective == .dark ? "dark" : "light")])
     send(type: "panel.size", payload: ["size": .string(panelSize)])
     send(
       type: "settings.set",
       payload: [
-        "autoImport": .bool(UserDefaults.standard.object(forKey: "autoImport") as? Bool ?? true)
+        "autoImport": .bool(autoImport)
       ]
     )
     applyContrast()
@@ -208,7 +215,6 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   private func readyPayload() -> String {
     let themeName = theme.effective == .dark ? "dark" : "light"
     let mode = theme.mode.rawValue
-    let autoImport = UserDefaults.standard.object(forKey: "autoImport") as? Bool ?? true
     return """
       {"theme":"\(themeName)","mode":"\(mode)","panelSize":"normal","settings":{"autoImport":\(autoImport)}}
       """
