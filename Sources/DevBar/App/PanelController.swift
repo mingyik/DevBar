@@ -164,6 +164,7 @@ final class PanelController {
 
   private func watchSize() {
     withObservationTracking {
+      _ = model.dropActive
       _ = model.autoImport
       _ = model.enlarged
       _ = model.page

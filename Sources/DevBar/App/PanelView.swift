@@ -14,16 +14,25 @@ struct PanelView: View {
     let scheme = theme.effective
     let _ = theme.increaseContrast
     VStack(spacing: 0) {
-      titleRow(scheme).frame(height: 32).padding(.bottom, 8)
-      content(scheme)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .opacity(model.dropActive ? 0 : 1)
-        .overlay {
-          if model.dropActive { FileDropOverlay(document: model.dropDocument, scheme: scheme) }
-        }
-        .onDrop(of: [.fileURL], delegate: PanelFileDrop(model: model))
-        .transition(.opacity)
-      if !model.toast.isEmpty {
+      if model.dropActive {
+        HStack {
+          Text(Strings.appName).font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(DesignTokens.textPrimary(scheme))
+          Spacer()
+        }.frame(height: 24).padding(.bottom, 8)
+      } else {
+        titleRow(scheme).frame(height: 32).padding(.bottom, 8)
+      }
+      ZStack {
+        content(scheme)
+          .opacity(model.dropActive ? 0 : 1)
+          .allowsHitTesting(!model.dropActive)
+        if model.dropActive { FileDropOverlay(document: model.dropDocument, scheme: scheme) }
+      }
+      .frame(maxWidth: .infinity, maxHeight: .infinity)
+      .onDrop(of: [.fileURL], delegate: PanelFileDrop(model: model))
+      .transition(.opacity)
+      if !model.dropActive && !model.toast.isEmpty {
         Text(model.toast).font(.system(size: 11))
           .foregroundStyle(DesignTokens.textSecondary(scheme)).lineLimit(1)
       }

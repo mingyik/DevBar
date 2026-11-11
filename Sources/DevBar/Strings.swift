@@ -1,6 +1,7 @@
 import DevBarCore
 
 enum Strings {
+  static let appName = "DevBar"
   static let fileDropJSON = "{ } JSON\n在工具中打开"
   static let fileDropDoc = "# Markdown / Mermaid\n在文稿中打开"
   static let fileDropFirst = "已打开第一个文件"

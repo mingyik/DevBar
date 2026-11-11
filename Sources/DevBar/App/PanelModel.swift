@@ -33,7 +33,8 @@ final class PanelModel {
     }
   }
   var panelSize: CGSize {
-    switch page {
+    if dropActive { return CGSize(width: 400, height: 144) }
+    return switch page {
     case .clipboard: CGSize(width: 380, height: 520)
     case .json, .doc: enlarged ? CGSize(width: 640, height: 720) : CGSize(width: 480, height: 600)
     case .qr: CGSize(width: 360, height: 480)

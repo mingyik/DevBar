@@ -95,3 +95,16 @@ import Testing
   model.leaveSettings()
   #expect(model.page == .qr)
 }
+
+@MainActor @Test func iconDropUsesCompactSizeAndRestoresPageDimensions() {
+  let defaults = UserDefaults(suiteName: "local.devbar.test.drop-size.\(UUID())")!
+  let model = PanelModel(defaults: defaults)
+  model.page = .json
+  model.enlarged = true
+  let before = model.panelSize
+  model.dropActive = true
+  #expect(model.panelSize == CGSize(width: 400, height: 144))
+  #expect(model.page == .json && model.enlarged)
+  model.dropActive = false
+  #expect(model.panelSize == before)
+}

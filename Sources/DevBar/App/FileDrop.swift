@@ -156,16 +156,27 @@ struct FileDropOverlay: View {
     HStack(spacing: 8) {
       zone(Strings.fileDropJSON, selected: !document)
       zone(Strings.fileDropDoc, selected: document)
-    }.padding(8).background(DesignTokens.panelInset(scheme)).clipShape(
-      RoundedRectangle(cornerRadius: 14))
+    }
   }
   private func zone(_ title: String, selected: Bool) -> some View {
     Text(title).font(.system(size: 13, weight: .medium)).multilineTextAlignment(.center)
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .foregroundStyle(
-        selected ? DesignTokens.selectionText(scheme) : DesignTokens.textPrimary(scheme)
-      )
-      .background(selected ? DesignTokens.textPrimary(scheme) : DesignTokens.panelControl(scheme))
+      .foregroundStyle(DesignTokens.textPrimary(scheme))
+      .background(DesignTokens.panelControl(scheme))
+      .overlay {
+        RoundedRectangle(cornerRadius: 12)
+          .fill(DesignTokens.panelControl(scheme).opacity(selected ? 0.6 : 0))
+          .allowsHitTesting(false)
+      }
       .clipShape(RoundedRectangle(cornerRadius: 12))
+      .overlay {
+        RoundedRectangle(cornerRadius: 12)
+          .strokeBorder(
+            selected
+              ? DesignTokens.selectionBorder(scheme).opacity(0.45)
+              : DesignTokens.lineBorder(scheme),
+            lineWidth: DesignTokens.strokeHairline
+          ).allowsHitTesting(false)
+      }
   }
 }
