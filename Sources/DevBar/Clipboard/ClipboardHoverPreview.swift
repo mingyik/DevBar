@@ -24,11 +24,12 @@ struct ClipboardHoverPreview: View {
         let image = NSImage(data: data)
       {
         Image(nsImage: image).resizable().scaledToFit()
+          .padding(.trailing, 14)
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else {
         ReadOnlyScrollView(
-          scheme: scheme, contentTrailingInset: 10, indicatorTrailingInset: 1,
-          indicatorWidth: 2, indicatorOpacity: 0.65, alwaysVisible: true
+          scheme: scheme, contentTrailingInset: 16, indicatorTrailingInset: 7,
+          indicatorWidth: 2, indicatorOpacity: 0.65, flashOnAppear: true
         ) {
           Text(content)
             .font(.system(size: 12, design: .monospaced))
@@ -38,7 +39,8 @@ struct ClipboardHoverPreview: View {
         }
       }
     }
-    .padding(14)
+    .padding(.leading, 14)
+    .padding(.vertical, 14)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     .background { PanelChrome(theme: theme, scheme: scheme) }
     .clipShape(RoundedRectangle(cornerRadius: DesignTokens.radiusLarge, style: .continuous))
@@ -57,7 +59,7 @@ struct ClipboardHoverPreview: View {
     } else {
       let text = String(content.prefix(32_000)) as NSString
       contentHeight = text.boundingRect(
-        with: NSSize(width: max(1, contentWidth - 10), height: .greatestFiniteMagnitude),
+        with: NSSize(width: max(1, width - 30), height: .greatestFiniteMagnitude),
         options: [.usesLineFragmentOrigin, .usesFontLeading],
         attributes: [.font: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)]
       ).height.rounded(.up)
