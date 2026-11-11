@@ -97,8 +97,9 @@ enum DragCardImage {
     title: String, subtitle: String, fileCount: Int, thumbnail: NSImage?, swatch: NSColor?,
     scheme: ColorScheme, counter: String? = nil
   ) -> (image: NSImage, hotspot: NSPoint) {
+    let displayTitle = DragCard.firstLine(title)
     let hasThumb = thumbnail != nil || swatch != nil
-    let width = DragCard.width(title: title, hasThumb: hasThumb)
+    let width = DragCard.width(title: displayTitle, hasThumb: hasThumb)
     let card = NSSize(width: width, height: DragCard.height)
     let pad: CGFloat = 10
     let image = NSImage(size: NSSize(width: card.width + pad * 2, height: card.height + pad * 2))
@@ -138,7 +139,7 @@ enum DragCardImage {
     let titleRect = NSRect(
       x: textX, y: bounds.midY + 1, width: bounds.maxX - textX - 12 - counterWidth, height: 16)
     draw(
-      title, in: titleRect, font: .systemFont(ofSize: 12), color: primary,
+      displayTitle, in: titleRect, font: .systemFont(ofSize: 12), color: primary,
       lineBreak: .byTruncatingTail)
     let subtitleRect = NSRect(
       x: textX, y: bounds.midY - 16, width: bounds.maxX - textX - 12, height: 14)

@@ -6,12 +6,22 @@ public enum DragCard: Sendable {
   public static let minWidth: CGFloat = 160
   public static let maxWidth: CGFloat = 260
 
+  /// Bound work before AppKit text layout; clipboard bytes are never truncated.
   public static func firstLine(_ text: String) -> String {
-    for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
-      let trimmed = line.trimmingCharacters(in: .whitespaces)
-      if !trimmed.isEmpty { return String(trimmed) }
+    var result = ""
+    var count = 0
+    var started = false
+    for character in text {
+      if !started {
+        if character.isWhitespace { continue }
+        started = true
+      }
+      if character == "\n" || character == "\r" || character == "\r\n" { break }
+      if count == 160 { return result + "…" }
+      result.append(character)
+      count += 1
     }
-    return ""
+    return result.trimmingCharacters(in: .whitespaces)
   }
 
   public static func width(title: String, hasThumb: Bool) -> CGFloat {

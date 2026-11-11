@@ -17,3 +17,11 @@ import Testing
   #expect(DragCard.fileSubtitle(names: ["first.txt", "second.txt"]) == "first.txt 等 2 个文件")
   #expect(DragCard.fileSubtitle(names: ["only.txt"]) == "only.txt")
 }
+
+@Test func dragCardBoundsMillionCharacterTitleBeforeDrawing() {
+  let text = "\n  " + String(repeating: "字", count: 1_000_000)
+  let title = DragCard.firstLine(text)
+  #expect(title.count == 161)
+  #expect(title.hasSuffix("…"))
+  #expect(DragCard.firstLine("\n  first line  \nsecond") == "first line")
+}
