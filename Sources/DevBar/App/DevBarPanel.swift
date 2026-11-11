@@ -3,7 +3,8 @@ import AppKit
 @MainActor
 final class DevBarPanel: NSPanel {
   var onEscape: (() -> Void)?
-  var onSelectPage: ((Int) -> Void)?
+  var onCyclePage: ((Bool) -> Void)?
+  var onClipboardKey: ((UInt16) -> Bool)?
 
   init() {
     super.init(
@@ -44,9 +45,14 @@ final class DevBarPanel: NSPanel {
       return true
     }
     let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-    guard flags == .command, let characters = event.charactersIgnoringModifiers,
-      characters.count == 1
-    else {
+    if flags == .command || flags == [.command, .shift],
+      event.charactersIgnoringModifiers?.lowercased() == "p"
+    {
+      onCyclePage?(flags.contains(.shift))
+      return true
+    }
+    if flags.isEmpty, onClipboardKey?(event.keyCode) == true { return true }
+    guard flags == .command, let characters = event.charactersIgnoringModifiers else {
       return false
     }
     // Menu-less agent apps have no Edit menu to dispatch these AppKit actions.
@@ -55,18 +61,6 @@ final class DevBarPanel: NSPanel {
     if let action = actions[characters] {
       return firstResponder?.tryToPerform(NSSelectorFromString(action), with: self) ?? false
     }
-    switch characters {
-    case "1":
-      onSelectPage?(0)
-    case "2":
-      onSelectPage?(1)
-    case "3":
-      onSelectPage?(2)
-    case "4":
-      onSelectPage?(3)
-    default:
-      return false
-    }
-    return true
+    return false
   }
 }

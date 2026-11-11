@@ -32,10 +32,8 @@ final class PanelController {
     panel.onEscape = { [weak self] in
       self?.dismiss()
     }
-    panel.onSelectPage = { [weak self] index in
-      guard let page = PanelModel.Page(rawValue: index) else { return }
-      self?.model.page = page
-      self?.reposition()
+    panel.onCyclePage = { [weak self] backwards in
+      self?.model.cyclePage(backwards: backwards)
     }
     resignObserver = NotificationCenter.default.addObserver(
       forName: NSWindow.didResignKeyNotification,
@@ -72,6 +70,7 @@ final class PanelController {
     updateMaterial()
     reposition()
     panel.makeKeyAndOrderFront(nil)
+    webHost.panelVisible = true
     NSApp.activate()
     let elapsed = started.duration(to: .now)
     let milliseconds = milliseconds(elapsed)
@@ -83,6 +82,7 @@ final class PanelController {
     guard panel.isVisible, !dismissing else { return }
     dismissing = true
     panel.orderOut(nil)
+    webHost.panelVisible = false
     dismissing = false
   }
 

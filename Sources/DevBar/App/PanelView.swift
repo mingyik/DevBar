@@ -6,23 +6,27 @@ struct PanelView: View {
   @Bindable var model: PanelModel
   @Bindable var theme: ThemeManager
   var webHost: WebHost
+  @State private var titleHovered = false
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
   var body: some View {
     let scheme = theme.effective
     let _ = theme.increaseContrast
-    VStack(spacing: 10) {
-      tabTrack(scheme)
-      titleRow(scheme)
+    VStack(spacing: 0) {
+      titleRow(scheme).frame(height: 32)
+      Rectangle().fill(DesignTokens.lineDivider(scheme)).frame(height: 0.7)
       content(scheme)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(10)
-        .background(DesignTokens.panelCard(scheme), in: cardShape)
-        .overlay(
-          cardShape.strokeBorder(
-            DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline))
+        .id(model.page)
+        .transition(.opacity)
+      if !model.toast.isEmpty {
+        Text(model.toast).font(.system(size: 11))
+          .foregroundStyle(DesignTokens.textSecondary(scheme)).lineLimit(1)
+      }
     }
-    .padding(14)
+    .animation(.easeInOut(duration: 0.15), value: model.page)
+    .padding(.horizontal, 16)
+    .padding(.vertical, 12)
     .background { chrome(scheme) }
     .clipShape(panelShape)
     .environment(\.colorScheme, scheme)
@@ -30,10 +34,6 @@ struct PanelView: View {
 
   private var panelShape: RoundedRectangle {
     RoundedRectangle(cornerRadius: DesignTokens.radiusLarge, style: .continuous)
-  }
-
-  private var cardShape: RoundedRectangle {
-    RoundedRectangle(cornerRadius: DesignTokens.radiusMedium, style: .continuous)
   }
 
   @ViewBuilder
@@ -65,54 +65,24 @@ struct PanelView: View {
       )
   }
 
-  private func tabTrack(_ scheme: ColorScheme) -> some View {
-    HStack(spacing: 2) {
-      ForEach(PanelModel.Page.allCases.filter { $0 != .settings }, id: \.self) { page in
-        tab(page, scheme)
-      }
-    }
-    .padding(2)
-    .frame(height: 28)
-    .background(
-      DesignTokens.panelCard(scheme), in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-    )
-    .overlay(
-      RoundedRectangle(cornerRadius: 8, style: .continuous)
-        .strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline)
-    )
-  }
-
-  private func tab(_ page: PanelModel.Page, _ scheme: ColorScheme) -> some View {
-    let selected = model.page == page
-    return Button {
-      model.page = page
-    } label: {
-      Image(systemName: page.symbol)
-        .font(.system(size: 13, weight: .regular))
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .foregroundStyle(
-          selected ? DesignTokens.selectionText(scheme) : DesignTokens.textPrimary(scheme)
-        )
-        .background {
-          if selected {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-              .fill(DesignTokens.selectionFill(scheme))
-              .padding(.vertical, 1)
-          }
-        }
-    }
-    .buttonStyle(.plain)
-    .help(page.title)
-    .accessibilityLabel(page.title)
-    .animation(.easeInOut(duration: 0.15), value: selected)
-  }
-
   private func titleRow(_ scheme: ColorScheme) -> some View {
     HStack(spacing: 8) {
-      Text(model.page.title)
-        .font(.system(size: 13, weight: .semibold))
-        .foregroundStyle(DesignTokens.textSecondary(scheme))
-        .lineLimit(1)
+      Button {
+        model.cyclePage()
+      } label: {
+        HStack(spacing: 6) {
+          Text(model.page.title)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(DesignTokens.textPrimary(scheme))
+            .overlay(alignment: .bottom) {
+              if titleHovered {
+                Rectangle().fill(DesignTokens.textPrimary(scheme)).frame(height: 0.7)
+              }
+            }
+          Text("⌘P").font(.system(size: 11))
+            .foregroundStyle(DesignTokens.textTertiary(scheme))
+        }.lineLimit(1)
+      }.buttonStyle(.plain).onHover { titleHovered = $0 }
       Spacer(minLength: 8)
       actionButton(model.pinned ? "pin.fill" : "pin", label: Strings.pin, scheme: scheme) {
         model.pinned.toggle()
@@ -150,8 +120,6 @@ struct PanelView: View {
     case .tools, .document:
       WebViewBox(host: webHost)
         .id(webHost.generation)
-    case .capture:
-      placeholder(Strings.capturePlaceholder, scheme)
     case .settings:
       settings(scheme)
     }
@@ -182,6 +150,8 @@ struct PanelView: View {
         shortcut(Strings.shortcutCapture, .captureRegion, scheme)
         shortcut(Strings.shortcutLong, .captureScroll, scheme)
         shortcut(Strings.shortcutRecord, .recordToggle, scheme)
+        Toggle(Strings.recordSystemAudio, isOn: $model.recordSystemAudio)
+        Toggle(Strings.recordMicrophone, isOn: $model.recordMicrophone)
         Text(Strings.aboutBody)
           .font(.system(size: 13))
           .foregroundStyle(DesignTokens.textSecondary(scheme))
@@ -268,7 +238,6 @@ extension PanelModel.Page {
     case .clipboard: Strings.tabClipboard
     case .tools: Strings.tabTools
     case .document: Strings.tabDocument
-    case .capture: Strings.tabCapture
     case .settings: Strings.settingsPage
     }
   }
@@ -278,7 +247,6 @@ extension PanelModel.Page {
     case .clipboard: "clipboard"
     case .tools: "wrench.and.screwdriver"
     case .document: "doc.text"
-    case .capture: "camera.viewfinder"
     case .settings: "gearshape"
     }
   }

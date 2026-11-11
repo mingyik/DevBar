@@ -42,6 +42,13 @@ final class StatusItemController: NSObject {
 
   private func showMenu() {
     let menu = NSMenu()
+    menu.autoenablesItems = false
+    for title in [Strings.shortcutCapture, Strings.shortcutLong, Strings.startRecording] {
+      let entry = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+      entry.isEnabled = false
+      menu.addItem(entry)
+    }
+    menu.addItem(.separator())
     menu.addItem(item(Strings.settingsTitle, action: #selector(openSettings)))
     menu.addItem(item(Strings.aboutTitle, action: #selector(openAbout)))
     menu.addItem(.separator())
