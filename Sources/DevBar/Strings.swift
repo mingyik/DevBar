@@ -55,7 +55,7 @@ enum Strings {
   static let recordMicrophone = "录屏：麦克风"
   static let startRecording = "开始录屏"
   static let appearance = "外观"
-  static let followSystem = "跟随系统"
+  static let followSystem = "跟随"
   static let light = "白"
   static let dark = "黑"
   static let shortcutToggle = "打开面板"

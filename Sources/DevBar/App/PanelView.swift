@@ -95,9 +95,6 @@ struct PanelView: View {
       actionButton(model.pinned ? "pin.fill" : "pin.slash", label: Strings.pin, scheme: scheme) {
         model.pinned.toggle()
       }
-      actionButton("circle.lefthalf.filled", label: Strings.theme, scheme: scheme) {
-        theme.toggleManual()
-      }
       actionButton("devbar.settings", label: Strings.settingsPage, scheme: scheme) {
         model.enterSettings()
       }
@@ -162,7 +159,7 @@ struct PanelView: View {
             Text(Strings.followSystem).tag(ThemeMode.system)
             Text(Strings.light).tag(ThemeMode.light)
             Text(Strings.dark).tag(ThemeMode.dark)
-          }.pickerStyle(.radioGroup)
+          }.pickerStyle(.segmented)
           Picker(Strings.defaultPage, selection: $model.defaultPage) {
             Text(Strings.lastPage).tag("last")
             ForEach(PanelModel.Page.contentPages, id: \.self) { page in
