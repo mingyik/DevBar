@@ -87,6 +87,7 @@ private struct ClipboardRow: View {
   let item: ClipItem
   let index: Int
   let scheme: ColorScheme
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var hovered = false
   @State private var dragging = false
   private var mono: Bool {
@@ -156,6 +157,7 @@ private struct ClipboardRow: View {
       }
     }
     .opacity(dragging ? 0.4 : 1)
+    .animation(reduceMotion || dragging ? nil : .easeOut(duration: 0.16), value: dragging)
     .contentShape(Rectangle()).onTapGesture { controller.showDetail(index) }
     .onHover { hovered = $0 }
   }

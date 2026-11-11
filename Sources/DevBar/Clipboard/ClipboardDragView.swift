@@ -81,7 +81,9 @@ struct ClipboardDragView: NSViewRepresentable {
         }
         return item
       }
-      beginDraggingSession(with: items, event: event, source: self)
+      let session = beginDraggingSession(with: items, event: event, source: self)
+      session.animatesToStartingPositionsOnCancelOrFail =
+        !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
 
     func draggingSession(
