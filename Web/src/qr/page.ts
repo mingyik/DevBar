@@ -14,7 +14,7 @@ export class QRPage {
   private readonly toggle: HTMLButtonElement;
   constructor(shell: PageShell) {
     this.shell = shell;
-    this.toggle = pill(strings.qr, () => {
+    this.toggle = pill(strings.preview, () => {
       void this.togglePreview();
     });
     this.toggle.classList.add("primary");
@@ -39,7 +39,7 @@ export class QRPage {
   }
   private edit(): void {
     this.shell.showPreview(false);
-    this.toggle.textContent = strings.qr;
+    this.toggle.textContent = strings.preview;
   }
   async togglePreview(): Promise<void> {
     if (this.shell.mode === "preview") {

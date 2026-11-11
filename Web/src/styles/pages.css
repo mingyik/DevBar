@@ -100,7 +100,7 @@
 }
 .page-fixed {
   display: flex;
-  gap: 2px;
+  gap: 8px;
   flex: none;
   align-items: center;
 }
@@ -272,4 +272,23 @@ button:disabled {
 }
 .snapshot-root .tree-buttons {
   display: none;
+}
+
+/* SF Symbols alpha masks inherit the current theme's foreground color. */
+.system-icon {
+  display: block;
+  width: 18px;
+  height: 18px;
+  background: currentColor;
+  mask-position: center;
+  mask-size: contain;
+  mask-repeat: no-repeat;
+}
+.page-fixed .icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--panel-control);
 }

@@ -168,6 +168,33 @@ try {
     return performance.now() - start;
   });
   assert(timing < 300, `2MiB preview ${timing}ms exceeds 300ms`);
+  await send("screen.show", { page: "qr" });
+  await send("tools.import", { page: "qr", text: "DevBar", mode: "replace" });
+  await page.getByRole("button", { name: "预览", exact: true }).click();
+  await page.getByRole("button", { name: "编辑", exact: true }).waitFor();
+  assert.equal(await page.locator("#qr .qr-preview img").count(), 1);
+  for (const label of ["复制", "清空"]) {
+    const style = await page
+      .getByRole("button", { name: label, exact: true })
+      .evaluate((button) => {
+        const icon = button.querySelector(".system-icon");
+        return {
+          mask: getComputedStyle(icon).maskImage,
+          background: getComputedStyle(button).backgroundColor,
+        };
+      });
+    assert(style.mask.includes("url("));
+    assert.notEqual(style.background, "rgba(0, 0, 0, 0)");
+  }
+  await page.getByRole("button", { name: "复制", exact: true }).click();
+  assert.equal(
+    await page.evaluate(() => window.testMessages.at(-1).type),
+    "clipboard.writeImage",
+  );
+  await page.getByRole("button", { name: "清空", exact: true }).click();
+  await page.getByRole("button", { name: "预览", exact: true }).waitFor();
+  assert(await page.locator("#qr .preview").isHidden());
+  await send("screen.show", { page: "json" });
   assert.equal(errors.length, 0, errors.join("\n"));
   const report = {
     checks: 16,

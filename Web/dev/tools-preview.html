@@ -40,6 +40,12 @@
                   status: "ok",
                   text: window.testClipboard,
                 });
+              if (type === "qr.show")
+                return JSON.stringify({
+                  status: "shown",
+                  pngBase64:
+                    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aU1sAAAAASUVORK5CYII=",
+                });
               if (type === "app.ready")
                 return JSON.stringify({
                   theme: "light",

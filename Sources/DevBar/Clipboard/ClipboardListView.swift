@@ -137,7 +137,7 @@ private struct ClipboardRow: View {
         Button {
           Task { await controller.remove(item.id) }
         } label: {
-          Image(systemName: "paintbrush").font(.system(size: 11)).frame(width: 20, height: 24)
+          Image(systemName: "eraser").font(.system(size: 11)).frame(width: 20, height: 24)
         }.buttonStyle(.plain).help(Strings.deleteItem)
       } else {
         Text(kindLabel).font(.system(size: 11))

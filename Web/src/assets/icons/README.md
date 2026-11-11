@@ -1,0 +1,5 @@
+# 系统操作图标
+
+copy.png：macOS SF Symbol `doc.on.doc`。clear.png：macOS SF Symbol `eraser`。
+
+由 AppKit 的 NSImage(systemSymbolName:accessibilityDescription:)、18pt regular 配置渲染，24pt 画布、2× PNG。Web 只使用 alpha 蒙版，以 currentColor 跟随主题；图标不含业务颜色。复制成功仍暂时显示对勾。仅作为 macOS 应用内操作图标使用。
