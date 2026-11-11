@@ -31,7 +31,6 @@ export class DocPage {
   private renderKey = "";
   private pending: Promise<void> = Promise.resolve();
   private toggle: HTMLButtonElement;
-  private modeButton: HTMLButtonElement;
   readonly shell: PageShell;
   constructor(shell: PageShell) {
     this.shell = shell;
@@ -46,13 +45,7 @@ export class DocPage {
     this.toggle = pill(strings.preview, () => {
       void this.togglePreview();
     });
-    this.modeButton = pill("Markdown", () => {
-      this.locked = true;
-      this.setMode(this.mode === "markdown" ? "mermaid" : "markdown");
-      shell.onStateChange();
-      if (shell.mode === "preview") void this.render();
-    });
-    shell.actions.append(this.toggle, this.modeButton);
+    shell.actions.append(this.toggle);
     shell.fixed.append(
       iconButton("exportImage", () => {
         void this.export();
@@ -125,8 +118,6 @@ export class DocPage {
         fileName: this.shell.fileName,
       }),
     });
-    this.modeButton.textContent = mode === "mermaid" ? "Mermaid" : "Markdown";
-    this.modeButton.setAttribute("aria-label", strings.docMode);
     if (this.languageMode === mode) return;
     this.languageMode = mode;
     this.shell.view.dispatch({

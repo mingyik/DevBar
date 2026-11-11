@@ -1,5 +1,4 @@
 export const strings = {
-  docMode: "文稿模式",
   previewFailed: "预览失败",
   clipboardUnavailable: "无法带入剪贴板，请检查读取授权",
   json: "JSON",
