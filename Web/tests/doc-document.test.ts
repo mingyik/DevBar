@@ -5,6 +5,7 @@ const state = vi.hoisted(() => ({
 }));
 vi.mock("../src/doc/preview", () => ({
   createMarkdownPreview: () => ({
+    render: (text: string) => text,
     renderAsync: async (text: string, theme: string) => {
       if (text === "old") await state.slow;
       return text + ":" + theme;

@@ -1,0 +1,553 @@
+{
+  "import-light-normal": {
+    "clearUnlocked": true,
+    "emptyImportUnlocked": true,
+    "importLocked": true,
+    "rawBytesPreserved": true,
+    "undoFileHint": "original.md · 只读，不会保存回文件",
+    "undoText": "# original"
+  },
+  "json-light-normal": {
+    "actualClipboard": "{\n  \"integer\": 1234567890123456789,\n  \"integer20\": 12345678901234567890,\n  \"decimal\": 1.0,\n  \"exponent\": 1e10,\n  \"negativeZero\": -0,\n  \"trailing\": 0.1000\n}",
+    "lossless": true,
+    "trace": [
+      {
+        "step": "paste+format",
+        "text": "{\n  \"integer\": 1234567890123456789,\n  \"integer20\": 12345678901234567890,\n  \"decimal\": 1.0,\n  \"exponent\": 1e10,\n  \"negativeZero\": -0,\n  \"trailing\": 0.1000\n}"
+      },
+      {
+        "step": "compact",
+        "text": "{\"integer\":1234567890123456789,\"integer20\":12345678901234567890,\"decimal\":1.0,\"exponent\":1e10,\"negativeZero\":-0,\"trailing\":0.1000}"
+      },
+      {
+        "step": "format",
+        "text": "{\n  \"integer\": 1234567890123456789,\n  \"integer20\": 12345678901234567890,\n  \"decimal\": 1.0,\n  \"exponent\": 1e10,\n  \"negativeZero\": -0,\n  \"trailing\": 0.1000\n}"
+      },
+      {
+        "step": "escape",
+        "text": "\"{\\n  \\\"integer\\\": 1234567890123456789,\\n  \\\"integer20\\\": 12345678901234567890,\\n  \\\"decimal\\\": 1.0,\\n  \\\"exponent\\\": 1e10,\\n  \\\"negativeZero\\\": -0,\\n  \\\"trailing\\\": 0.1000\\n}\""
+      },
+      {
+        "step": "unescape",
+        "text": "{\n  \"integer\": 1234567890123456789,\n  \"integer20\": 12345678901234567890,\n  \"decimal\": 1.0,\n  \"exponent\": 1e10,\n  \"negativeZero\": -0,\n  \"trailing\": 0.1000\n}"
+      },
+      {
+        "step": "tree+copy-request",
+        "text": "{\n  \"integer\": 1234567890123456789,\n  \"integer20\": 12345678901234567890,\n  \"decimal\": 1.0,\n  \"exponent\": 1e10,\n  \"negativeZero\": -0,\n  \"trailing\": 0.1000\n}"
+      },
+      {
+        "step": "undo-to-original",
+        "text": "{\"integer\":1234567890123456789,\"integer20\":12345678901234567890,\"decimal\":1.0,\"exponent\":1e10,\"negativeZero\":-0,\"trailing\":0.1000}"
+      }
+    ],
+    "treeRows": 7,
+    "undoRestoresInput": true
+  },
+  "export-light-normal": {
+    "completeMilliseconds": 750,
+    "copyButtons": 2,
+    "diagrams": [
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 0,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "328",
+        "index": 1,
+        "width": "450"
+      }
+    ],
+    "exportMeasure": {
+      "height": 0,
+      "lastText": "这是截图的最后一段。",
+      "lastTop": 0,
+      "width": 0
+    },
+    "exportMessage": "已保存并复制 · 在 Finder 中显示",
+    "exportMilliseconds": 406.9999999999999,
+    "externalPlaceholders": 0,
+    "firstTextMilliseconds": 5,
+    "highlightedBlocks": 1,
+    "warmMilliseconds": [
+      7,
+      10,
+      16,
+      16,
+      16.000000000000114
+    ]
+  },
+  "copy-dark-normal": {
+    "clipboardPNGBytes": 16687,
+    "completeMilliseconds": 1593.0000000000002,
+    "copyButtons": 22,
+    "copySucceeded": true,
+    "diagrams": [
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "134.84375",
+        "index": 0,
+        "width": "706"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "597",
+        "index": 1,
+        "width": "450"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "273.375",
+        "index": 2,
+        "width": "148.9765625"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "307.375",
+        "index": 3,
+        "width": "203.5"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "272.875",
+        "index": 4,
+        "width": "143.25"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "540",
+        "index": 5,
+        "width": "700"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "172",
+        "index": 6,
+        "width": "800"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "450",
+        "index": 7,
+        "width": "545.34375"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "199.0625",
+        "index": 8,
+        "width": "163.453125"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "173.22474670410156",
+        "index": 9,
+        "width": "267.890625"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "234.32656860351562",
+        "index": 10,
+        "width": "327.71484375"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "477.8656311035156",
+        "index": 11,
+        "width": "895"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "500",
+        "index": 12,
+        "width": "500"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "500",
+        "index": 13,
+        "width": "700"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "400",
+        "index": 14,
+        "width": "600"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "44.84375",
+        "index": 15,
+        "width": "144.875"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "527.3682861328125",
+        "index": 16,
+        "width": "832"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "64.84375",
+        "index": 17,
+        "width": "426"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "64.84375",
+        "index": 18,
+        "width": "426"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "64.84375",
+        "index": 19,
+        "width": "426"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "64.84375",
+        "index": 20,
+        "width": "1806"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": true,
+        "index": 21
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.075)",
+        "error": false,
+        "height": "64.84375",
+        "index": 22,
+        "width": "426"
+      }
+    ],
+    "externalPlaceholders": 0,
+    "firstTextMilliseconds": 10.000000000000028,
+    "highlightedBlocks": 10,
+    "warmMilliseconds": [
+      10,
+      13,
+      14,
+      15,
+      15
+    ]
+  },
+  "limit-dark-normal": {
+    "limitRejectedWithoutTruncation": true
+  },
+  "release-perfjson-0": {
+    "cancelAvailable": true,
+    "cancellationUsesDelayedRealWorker": true,
+    "cancelPreservesText": true,
+    "format": [
+      {
+        "bytes": 2097169,
+        "milliseconds": [
+          199,
+          208,
+          291,
+          257,
+          247
+        ]
+      },
+      {
+        "bytes": 10485836,
+        "milliseconds": [
+          911.0000000000005,
+          822.9999999999995,
+          812,
+          830,
+          786
+        ]
+      }
+    ],
+    "tree": [
+      157,
+      6,
+      6,
+      4,
+      4
+    ]
+  },
+  "release-perfdoc-0": {
+    "completeMilliseconds": 144,
+    "copyButtons": 5,
+    "diagrams": [
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 0,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 1,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 2,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 3,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 4,
+        "width": "656"
+      }
+    ],
+    "externalPlaceholders": 0,
+    "firstTextMilliseconds": 11.000000000000028,
+    "highlightedBlocks": 0,
+    "warmMilliseconds": [
+      13,
+      11,
+      10,
+      14,
+      15.000000000000057
+    ]
+  },
+  "release-perfdoc-1": {
+    "completeMilliseconds": 130,
+    "copyButtons": 5,
+    "diagrams": [
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 0,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 1,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 2,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 3,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 4,
+        "width": "656"
+      }
+    ],
+    "externalPlaceholders": 0,
+    "firstTextMilliseconds": 8,
+    "highlightedBlocks": 0,
+    "warmMilliseconds": [
+      13,
+      15.000000000000057,
+      15,
+      16,
+      15
+    ]
+  },
+  "release-perfdoc-2": {
+    "completeMilliseconds": 130,
+    "copyButtons": 5,
+    "diagrams": [
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 0,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 1,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 2,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 3,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 4,
+        "width": "656"
+      }
+    ],
+    "externalPlaceholders": 0,
+    "firstTextMilliseconds": 8,
+    "highlightedBlocks": 0,
+    "warmMilliseconds": [
+      15,
+      15,
+      16,
+      15,
+      15
+    ]
+  },
+  "release-perfdoc-3": {
+    "completeMilliseconds": 127,
+    "copyButtons": 5,
+    "diagrams": [
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 0,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 1,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 2,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 3,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 4,
+        "width": "656"
+      }
+    ],
+    "externalPlaceholders": 0,
+    "firstTextMilliseconds": 7,
+    "highlightedBlocks": 0,
+    "warmMilliseconds": [
+      11,
+      12,
+      16,
+      15,
+      16
+    ]
+  },
+  "release-perfdoc-4": {
+    "completeMilliseconds": 133,
+    "copyButtons": 5,
+    "diagrams": [
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 0,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 1,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 2,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 3,
+        "width": "656"
+      },
+      {
+        "background": "rgba(255, 255, 255, 0.38)",
+        "error": false,
+        "height": "64.84375",
+        "index": 4,
+        "width": "656"
+      }
+    ],
+    "externalPlaceholders": 0,
+    "firstTextMilliseconds": 9,
+    "highlightedBlocks": 0,
+    "warmMilliseconds": [
+      12,
+      15,
+      15,
+      14,
+      16
+    ]
+  }
+}

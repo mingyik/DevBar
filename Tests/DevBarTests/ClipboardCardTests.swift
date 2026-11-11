@@ -4,6 +4,22 @@ import Testing
 
 @testable import DevBar
 
+@Test @MainActor func clipboardCardEnterConfirmsOnceAfterClosing() {
+  _ = NSApplication.shared
+  let card = ClipboardCard(theme: ThemeManager())
+  var confirmations = 0
+  card.onConfirm = {
+    #expect(!card.panel.isVisible)
+    #expect(!card.temporaryKeys.isRegistered)
+    confirmations += 1
+  }
+  card.show(
+    index: 0, count: 1, title: "测试", subtitle: "", thumbnail: nil, swatch: nil, fileCount: 0,
+    boundary: false)
+  card.temporaryKeys.onKey?(36)
+  #expect(confirmations == 1)
+}
+
 @Test @MainActor func clipboardShortcutMigratesRetiredDefaultsButKeepsCustomBindings() {
   let expected = KeyboardShortcuts.Shortcut(.v, modifiers: [.command, .shift])
   #expect(ClipboardShortcutMigration.migrated(nil) == expected)
@@ -45,6 +61,7 @@ import Testing
     index: 0, count: 2, title: "合成测试", subtitle: "文本", thumbnail: nil, swatch: nil,
     fileCount: 0, boundary: false)
   #expect(card.panel.isVisible)
+  #expect(card.panel.contentView?.subviews.contains { $0 is NSVisualEffectView } == true)
   card.temporaryKeys.onKey?(53)
   #expect(!card.panel.isVisible)
   #expect(!card.temporaryKeys.isRegistered)

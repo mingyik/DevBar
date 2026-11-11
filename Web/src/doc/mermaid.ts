@@ -13,6 +13,7 @@ export function loadMermaid() {
 export function mermaidOptions(theme: Theme): MermaidConfig {
   return {
     journey: { textPlacement: "tspan" },
+    gantt: { useMaxWidth: false, useWidth: 800 },
     startOnLoad: false,
     securityLevel: "strict",
     theme: theme === "dark" ? "dark" : "default",
@@ -40,6 +41,27 @@ export function mermaidOptions(theme: Theme): MermaidConfig {
       "layout",
     ],
   };
+}
+/** Only fixes labels found unreadable in the official themes; palettes stay official. */
+export function textContrastKind(
+  source: string,
+  theme: Theme,
+): "journey" | "c4" | "sankey" | null {
+  if (
+    /\$\w*Color\s*=|Update(?:Element|Rel)Style\s*\(|^\s*(?:classDef|style)\s/m.test(
+      source,
+    )
+  )
+    return null;
+  if (theme === "light" && /^\s*journey\b/m.test(source)) return "journey";
+  if (
+    theme === "dark" &&
+    /^\s*C4(?:Context|Container|Component|Dynamic|Deployment)\b/m.test(source)
+  )
+    return "c4";
+  if (theme === "dark" && /^\s*sankey(?:-beta)?\b/m.test(source))
+    return "sankey";
+  return null;
 }
 export function normalizeSvg(svg: string): string {
   const template = document.createElement("template");
@@ -75,7 +97,17 @@ async function generate(source: string, theme: Theme): Promise<string> {
   backgrounds[theme] = m.mermaidAPI.getConfig().themeVariables?.background;
   await m.parse(source);
   const { svg } = await m.render("mmd-" + ++nonce, source);
-  const normalized = normalizeSvg(svg);
+  let normalized = normalizeSvg(svg);
+  const textColor = m.mermaidAPI.getConfig().themeVariables?.textColor;
+  if (textContrastKind(source, theme) && typeof textColor === "string") {
+    const template = document.createElement("template");
+    template.innerHTML = normalized;
+    for (const label of Array.from(
+      template.content.querySelectorAll<SVGElement>("text,tspan"),
+    ))
+      label.style.setProperty("fill", textColor, "important");
+    normalized = template.innerHTML;
+  }
   if (cache.size >= 64) cache.delete(cache.keys().next().value!);
   cache.set(key, normalized);
   return normalized;

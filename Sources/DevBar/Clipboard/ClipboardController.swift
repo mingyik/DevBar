@@ -1,4 +1,5 @@
 import AppKit
+@preconcurrency import ApplicationServices
 import DevBarCore
 import Observation
 import Synchronization
@@ -19,6 +20,7 @@ final class ClipboardController {
   private var copyFeedback: Task<Void, Never>?
   private var reloadGeneration = 0
   private(set) var lastCycleMilliseconds = 0.0
+  private var pasteTarget: pid_t?
   var currentIndex: Int { cycler.currentIndex }
 
   init(
@@ -35,6 +37,7 @@ final class ClipboardController {
       if corrupt.withLock({ $0 }) { message = Strings.historyRestarted }
     } catch { message = Strings.historyReadFailed }
     card.onMove = { [weak self] older in self?.cycle(older: older) }
+    card.onConfirm = { [weak self] in self?.pasteSelection() }
     monitor.onCapture = { [weak self] capture, source in await self?.record(capture, source: source)
     }
     Task { [weak self] in
@@ -118,6 +121,9 @@ final class ClipboardController {
 
   func cycle(older: Bool, board: NSPasteboard = .general) {
     guard !items.isEmpty else { return }
+    if !card.panel.isVisible {
+      pasteTarget = NSWorkspace.shared.frontmostApplication?.processIdentifier
+    }
     let started = ContinuousClock.now
     let boundary = cycler.move(older: older, count: items.count)
     select(cycler.currentIndex, board: board)
@@ -145,6 +151,23 @@ final class ClipboardController {
       boundary: boundary)
     let elapsed = started.duration(to: .now).components
     lastCycleMilliseconds = Double(elapsed.seconds) * 1000 + Double(elapsed.attoseconds) / 1e15
+  }
+
+  private func pasteSelection() {
+    guard let target = pasteTarget,
+      target != ProcessInfo.processInfo.processIdentifier,
+      NSWorkspace.shared.frontmostApplication?.processIdentifier == target
+    else { return }
+    let options =
+      [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+    guard AXIsProcessTrustedWithOptions(options) else { return }
+    guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 9, keyDown: true),
+      let up = CGEvent(keyboardEventSource: nil, virtualKey: 9, keyDown: false)
+    else { return }
+    down.flags = .maskCommand
+    up.flags = .maskCommand
+    down.postToPid(target)
+    up.postToPid(target)
   }
 
   func showDetail(_ index: Int, board: NSPasteboard = .general) {

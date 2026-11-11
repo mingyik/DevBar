@@ -1,4 +1,5 @@
 export const strings = {
+  previewFailed: "预览失败",
   clipboardUnavailable: "无法带入剪贴板，请检查读取授权",
   json: "JSON",
   qr: "二维码",

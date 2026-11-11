@@ -8,6 +8,7 @@ import SwiftUI
   let temporaryKeys = ClipboardTemporaryKeys()
   var onMove: ((Bool) -> Void)?
   var onDismiss: (() -> Void)?
+  var onConfirm: (() -> Void)?
   private let theme: ThemeManager
   private var pointer: NSPoint?
   private var dismissal: Task<Void, Never>?
@@ -22,7 +23,10 @@ import SwiftUI
     panel.isOpaque = false
     panel.hasShadow = false
     temporaryKeys.onKey = { [weak self] key in
-      if key == 36 || key == 76 || key == 53 {
+      if key == 36 || key == 76 {
+        self?.dismiss()
+        self?.onConfirm?()
+      } else if key == 53 {
         self?.dismiss()
       } else {
         self?.onMove?(key == 123 || key == 126)
@@ -45,11 +49,21 @@ import SwiftUI
     if first { pointer = NSEvent.mouseLocation }
     let image = DragCardImage.make(
       title: title, subtitle: subtitle, fileCount: fileCount, thumbnail: thumbnail, swatch: swatch,
-      scheme: theme.effective, counter: "\(index+1) / \(count)"
+      scheme: theme.effective, counter: "\(index+1) / \(count)", glass: true
     ).image
     let view = NSImageView(frame: NSRect(origin: .zero, size: image.size))
     view.image = image
-    panel.contentView = view
+    let container = NSView(frame: view.frame)
+    let glass = NSVisualEffectView(frame: view.frame.insetBy(dx: 10, dy: 10))
+    glass.material = .popover
+    glass.blendingMode = .behindWindow
+    glass.state = .active
+    glass.wantsLayer = true
+    glass.layer?.cornerRadius = 10
+    glass.layer?.masksToBounds = true
+    container.addSubview(glass)
+    container.addSubview(view)
+    panel.contentView = container
     panel.appearance = theme.appearance()
     let anchor = pointer ?? NSEvent.mouseLocation
     if let screen = NSScreen.screens.first(where: { $0.frame.contains(anchor) }) ?? NSScreen.main {

@@ -30,7 +30,6 @@ export type Tokens = {
   stroke: { hairline: number; strong: number };
   font: { body: number; bodyLarge: number; lineHeight: number };
   opaqueBackdrop: { light: string; dark: string };
-  mermaid?: { roles: Record<string, string | { gray: number }>; configRoles?: Record<string, string | string[]> };
 };
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -43,7 +42,6 @@ const outputs = [
   "Web/src/theme/cm-highlight.ts",
   "Web/src/theme/shiki-devbar-light.json",
   "Web/src/theme/shiki-devbar-dark.json",
-  "Web/src/theme/mermaid-vars.ts",
 ] as const;
 
 export function parseHex(hex: string): RGB {
@@ -441,95 +439,6 @@ function renderShiki(tokens: Tokens, scheme: Scheme): string {
   return JSON.stringify(theme, null, 2) + "\n";
 }
 
-function grayStep(tokens: Tokens, scheme: Scheme, alpha: number): string {
-  const text = resolveColor(tokens, scheme, "text.primary");
-  return compositeOpaque(text.color, alpha, tokens.opaqueBackdrop[scheme]);
-}
-
-function renderMermaid(tokens: Tokens): string {
-  const configs: string[] = [];
-  const schemes = (["light", "dark"] as const).map((scheme) => {
-    const paint = (key: string) => compositeOpaque(
-      resolveColor(tokens, scheme, key).color,
-      resolveColor(tokens, scheme, key).alpha,
-      tokens.opaqueBackdrop[scheme],
-    );
-    const vars: Record<string, unknown> = {
-      background: paint("panel.base"),
-      primaryColor: paint("panel.card"),
-      primaryTextColor: paint("text.primary"),
-      primaryBorderColor: paint("text.tertiary"),
-      secondaryColor: paint("panel.raised"),
-      tertiaryColor: paint("panel.control"),
-      lineColor: paint("text.tertiary"),
-      textColor: paint("text.primary"),
-      mainBkg: paint("panel.card"),
-      nodeBorder: paint("text.tertiary"),
-      clusterBkg: paint("panel.control"),
-      clusterBorder: paint("text.tertiary"),
-      noteBkgColor: paint("panel.raised"),
-      noteTextColor: paint("text.primary"),
-      noteBorderColor: paint("text.tertiary"),
-      actorBkg: paint("panel.card"),
-      actorBorder: paint("text.tertiary"),
-      actorTextColor: paint("text.primary"),
-      signalColor: paint("text.tertiary"),
-      labelBoxBkgColor: paint("panel.card"),
-      edgeLabelBackground: paint("panel.raised"),
-      sectionBkgColor: paint("panel.card"),
-      altSectionBkgColor: paint("panel.control"),
-      gridColor: paint("line.divider"),
-      todayLineColor: paint("text.primary"),
-      taskBkgColor: paint("panel.raised"),
-      taskBorderColor: paint("text.tertiary"),
-      taskTextColor: paint("text.primary"),
-      activeTaskBkgColor: paint("text.secondary"),
-      activeTaskBorderColor: paint("text.tertiary"),
-      doneTaskBkgColor: paint("panel.card"),
-      doneTaskBorderColor: paint("text.tertiary"),
-      critBkgColor: paint("text.tertiary"),
-      critBorderColor: paint("text.tertiary"),
-      pieTitleTextColor: paint("text.primary"),
-      pieSectionTextColor: paint("text.primary"),
-      pieLegendTextColor: paint("text.secondary"),
-      pieStrokeColor: paint("text.tertiary"),
-      commitLabelColor: paint("text.primary"),
-      commitLabelBackground: paint("panel.card"),
-      tagLabelColor: paint("text.primary"),
-      tagLabelBackground: paint("panel.raised"),
-      tagLabelBorder: paint("text.tertiary"),
-    };
-    for (let index = 1; index <= 12; index += 1) {
-      vars[`pie${index}`] = grayStep(tokens, scheme, index / 13);
-    }
-    for (let index = 0; index <= 7; index += 1) {
-      vars[`git${index}`] = grayStep(tokens, scheme, (index + 1) / 9);
-    }
-    for (const [path, role] of Object.entries(tokens.mermaid?.roles ?? {})) {
-      const parts = path.split(".");
-      let parent = vars;
-      for (const part of parts.slice(0, -1)) {
-        parent[part] ??= {};
-        parent = parent[part] as Record<string, unknown>;
-      }
-      parent[parts.at(-1)!] = typeof role === "string" ? paint(role) : grayStep(tokens, scheme, role.gray);
-    }
-    // Distinct neutral palettes, including diagrams whose defaults derive hue rotations.
-    for (let index = 1; index <= 12; index++) vars[`pie${index}`] = grayStep(tokens, scheme, index / 13);
-    for (let index = 0; index <= 7; index++) vars[`git${index}`] = grayStep(tokens, scheme, (index + 1) / 9);
-    ((vars.xyChart ??= {}) as Record<string, unknown>).plotColorPalette = Array.from({length: 8}, (_, i) => grayStep(tokens, scheme, (i + 1) / 9)).join(",");
-    vars.useGradient = false;
-    const config: Record<string, Record<string, unknown>> = {};
-    for (const [path, role] of Object.entries(tokens.mermaid?.configRoles ?? {})) {
-      const [section, name] = path.split(".");
-      (config[section] ??= {})[name] = Array.isArray(role) ? role.map(paint) : paint(role);
-    }
-    configs.push(`  ${scheme}: ${JSON.stringify(config, null, 2)},`);
-    return `    ${scheme}: ${JSON.stringify(vars, null, 2)},`;
-  });
-  return ["// " + header, "export const mermaidVars = {", ...schemes, "};", "export const mermaidDiagramConfig = {", ...configs, "};", ""].join("\n");
-}
-
 export function renderTokens(tokens: Tokens): Record<string, string> {
   assertTextAlphas(tokens);
   return {
@@ -544,7 +453,6 @@ export function renderTokens(tokens: Tokens): Record<string, string> {
       "shiki-devbar-dark.json",
       renderShiki(tokens, "dark"),
     ),
-    "Web/src/theme/mermaid-vars.ts": formatPrettier("mermaid-vars.ts", renderMermaid(tokens)),
   };
 }
 
