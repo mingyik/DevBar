@@ -316,3 +316,42 @@ private func addText(_ text: String, to store: ClipboardStore, date: Date = Date
       == Set(["broken first", "broken second"]))
   #expect(calls.withLock { $0 } == 2)
 }
+
+@Test func clipboardDeleteAndClearPersistAndRemoveOriginals() async throws {
+  let root = try temporaryClipboardDirectory()
+  defer { try? FileManager.default.removeItem(at: root) }
+  let store = try ClipboardStore(directory: root)
+  let first = try await addText("first", to: store)
+  _ = try await addText("second", to: store)
+  try await store.remove(first.id)
+  #expect(await store.items.count == 1)
+  #expect(
+    try FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("blobs").path)
+      .count == 1)
+  try await store.clear()
+  #expect(await store.items.isEmpty)
+  let restored = try ClipboardStore(directory: root)
+  #expect(await restored.items.isEmpty)
+  #expect(
+    try FileManager.default.contentsOfDirectory(atPath: root.appendingPathComponent("blobs").path)
+      .isEmpty)
+}
+
+@Test func clipboardLoadsPersistedThumbnailWithoutReplacingOriginal() async throws {
+  let root = try temporaryClipboardDirectory()
+  defer { try? FileManager.default.removeItem(at: root) }
+  let store = try ClipboardStore(directory: root)
+  let original = Data(repeating: 42, count: 4096)
+  let thumb = Data([1, 2, 3])
+  let result = try await store.add(
+    kind: .image, preview: "original",
+    representations: [ClipboardPayload(type: "public.png", data: original)], thumbnail: thumb)
+  guard case .inserted(let item) = result else {
+    Issue.record("expected image")
+    return
+  }
+  #expect(try await store.thumbnail(for: item.id) == thumb)
+  #expect(try await store.payloads(for: item.id).first?.data == original)
+  let text = try await addText("no thumbnail", to: store)
+  #expect(try await store.thumbnail(for: text.id) == nil)
+}

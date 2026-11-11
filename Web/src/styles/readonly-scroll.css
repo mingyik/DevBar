@@ -1,0 +1,26 @@
+* {
+  scrollbar-width: none;
+}
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.devbar-scroll-thumb {
+  position: fixed;
+  z-index: 2147483647;
+  pointer-events: none;
+  background: var(--scroll-thumb);
+  border-radius: 2px;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.devbar-scroll-thumb.vertical {
+  width: 3px;
+}
+.devbar-scroll-thumb.horizontal {
+  height: 3px;
+}
+
+.devbar-scroll-thumb.scrolling {
+  opacity: 1;
+}

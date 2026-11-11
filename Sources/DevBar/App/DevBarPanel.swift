@@ -3,7 +3,8 @@ import AppKit
 @MainActor
 final class DevBarPanel: NSPanel {
   var onEscape: (() -> Void)?
-  var onSelectPage: ((Int) -> Void)?
+  var onCyclePage: ((Bool) -> Void)?
+  var onClipboardKey: ((UInt16) -> Bool)?
 
   init() {
     super.init(
@@ -24,6 +25,18 @@ final class DevBarPanel: NSPanel {
   override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { false }
 
+  override func sendEvent(_ event: NSEvent) {
+    // Scroll views can consume arrows before keyDown reaches the window.
+    // Clipboard navigation owns unmodified arrows/return on that page only.
+    let modifiers = event.modifierFlags.intersection([.command, .shift, .control, .option])
+    if event.type == .keyDown, modifiers.isEmpty,
+      [UInt16(125), 126, 36].contains(event.keyCode), onClipboardKey?(event.keyCode) == true
+    {
+      return
+    }
+    super.sendEvent(event)
+  }
+
   override func performKeyEquivalent(with event: NSEvent) -> Bool {
     if handle(event) {
       return true
@@ -43,24 +56,23 @@ final class DevBarPanel: NSPanel {
       onEscape?()
       return true
     }
-    let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-    guard flags == .command, let characters = event.charactersIgnoringModifiers,
-      characters.count == 1
-    else {
+    let flags = event.modifierFlags.intersection([.command, .shift, .control, .option])
+    if flags == .command || flags == [.command, .shift],
+      event.charactersIgnoringModifiers?.lowercased() == "p"
+    {
+      onCyclePage?(flags.contains(.shift))
+      return true
+    }
+    if flags.isEmpty, onClipboardKey?(event.keyCode) == true { return true }
+    guard flags == .command, let characters = event.charactersIgnoringModifiers?.lowercased() else {
       return false
     }
-    switch characters {
-    case "1":
-      onSelectPage?(0)
-    case "2":
-      onSelectPage?(1)
-    case "3":
-      onSelectPage?(2)
-    case "4":
-      onSelectPage?(3)
-    default:
-      return false
+    // Menu-less agent apps have no Edit menu to dispatch these AppKit actions.
+    // Leave select-all and history shortcuts to WKWebView / CodeMirror.
+    let actions = ["v": "paste:", "c": "copy:", "x": "cut:"]
+    if let action = actions[characters] {
+      return firstResponder?.tryToPerform(NSSelectorFromString(action), with: self) ?? false
     }
-    return true
+    return false
   }
 }

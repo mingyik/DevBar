@@ -1,3 +1,4 @@
+import { installReadOnlyScrollbars } from "./styles/readonly-scroll";
 export const entryName = "DevBar";
 import type { EditorView } from "@codemirror/view";
 import {
@@ -66,6 +67,7 @@ declare global {
 if (typeof document !== "undefined") start();
 
 function start(): void {
+  installReadOnlyScrollbars(document);
   toolsView = createEditor(requiredElement("tools"));
   docView = createEditor(requiredElement("doc"));
   window.__devbar = bridge;

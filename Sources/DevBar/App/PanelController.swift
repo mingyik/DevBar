@@ -9,8 +9,10 @@ final class PanelController {
   let theme: ThemeManager
   let panel: DevBarPanel
   let webHost: WebHost
+  let clipboard: ClipboardController
   private let host: NSHostingView<PanelView>
   private var outsideMonitor: Any?
+  private var activationObserver: NSObjectProtocol?
   private var resignObserver: NSObjectProtocol?
   private var dismissing = false
   private var lastAnchor: CGRect?
@@ -18,24 +20,46 @@ final class PanelController {
   private let signposter = OSSignposter(subsystem: "local.devbar.app", category: "panel")
 
   init(theme: ThemeManager) {
-    let model = PanelModel()
+    #if DEBUG
+      let model = PanelModel(defaults: SelfCheckEnvironment.defaults)
+      let clipboard = ClipboardController(
+        theme: theme,
+        directory: SelfCheckEnvironment.stateDirectory?.deletingLastPathComponent().appending(
+          path: "clipboard"),
+        reader: SelfCheckEnvironment.isActive
+          ? SelfCheckPasteboardReader() as any PasteboardReading : SystemPasteboardReader(),
+        startMonitoring: !SelfCheckEnvironment.isActive)
+    #else
+      let model = PanelModel()
+      let clipboard = ClipboardController(theme: theme)
+    #endif
     let webHost = WebHost(theme: theme)
+    self.clipboard = clipboard
     self.model = model
     self.theme = theme
     self.webHost = webHost
     panel = DevBarPanel()
-    host = NSHostingView(rootView: PanelView(model: model, theme: theme, webHost: webHost))
+    host = NSHostingView(
+      rootView: PanelView(model: model, theme: theme, webHost: webHost, clipboard: clipboard))
     webHost.onToast = { text in
       model.toast = text
+    }
+    webHost.onClipboardWrite = { [weak clipboard] count in clipboard?.monitor.markSelfWrite(count) }
+    panel.onClipboardKey = { [weak self] code in
+      guard self?.model.page == .clipboard else { return false }
+      return self?.clipboard.handleKey(code) ?? false
+    }
+    activationObserver = NotificationCenter.default.addObserver(
+      forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+    ) { [weak clipboard] _ in
+      Task { @MainActor in await clipboard?.monitor.poll() }
     }
     installChrome()
     panel.onEscape = { [weak self] in
       self?.dismiss()
     }
-    panel.onSelectPage = { [weak self] index in
-      guard let page = PanelModel.Page(rawValue: index) else { return }
-      self?.model.page = page
-      self?.reposition()
+    panel.onCyclePage = { [weak self] backwards in
+      self?.model.cyclePage(backwards: backwards)
     }
     resignObserver = NotificationCenter.default.addObserver(
       forName: NSWindow.didResignKeyNotification,
@@ -59,8 +83,18 @@ final class PanelController {
     if panel.isVisible {
       dismiss()
     } else {
+      model.prepareToOpen()
       show(anchor: anchor)
     }
+  }
+
+  func open(page: PanelModel.Page, anchor: CGRect?) {
+    if panel.isVisible, model.page == page {
+      dismiss()
+      return
+    }
+    model.page = page
+    show(anchor: anchor)
   }
 
   func show(anchor: CGRect?) {
@@ -72,7 +106,9 @@ final class PanelController {
     updateMaterial()
     reposition()
     panel.makeKeyAndOrderFront(nil)
+    webHost.panelVisible = true
     NSApp.activate()
+    Task { await clipboard.monitor.poll() }
     let elapsed = started.duration(to: .now)
     let milliseconds = milliseconds(elapsed)
     signposter.endInterval("openPanel", interval)
@@ -83,6 +119,7 @@ final class PanelController {
     guard panel.isVisible, !dismissing else { return }
     dismissing = true
     panel.orderOut(nil)
+    webHost.panelVisible = false
     dismissing = false
   }
 
@@ -116,9 +153,9 @@ final class PanelController {
     panel.appearance = theme.appearance()
     webHost.panelVisible = panel.isVisible
     webHost.syncAppearance(panelSize: model.enlarged && model.showsEnlarge ? "large" : "normal")
-    if model.page == .tools {
+    if model.page == .json {
       webHost.showScreen("tools")
-    } else if model.page == .document {
+    } else if model.page == .doc {
       webHost.showScreen("doc")
     }
   }
@@ -144,16 +181,14 @@ final class PanelController {
     let visible = screen(for: lastAnchor).visibleFrame
     let iconCenterX = lastAnchor?.midX ?? visible.midX
     let menuBottom = lastAnchor?.minY ?? visible.maxY
-    let enlarged = model.enlarged && model.showsEnlarge
-    panel.setFrame(
-      PanelLayout.frame(
-        iconCenterX: iconCenterX,
-        menuBarBottomY: menuBottom,
-        enlarged: enlarged,
-        visibleFrame: visible
-      ),
-      display: true
-    )
+    let frame = PanelLayout.frame(
+      iconCenterX: iconCenterX, menuBarBottomY: menuBottom,
+      size: model.panelSize, visibleFrame: visible)
+    NSAnimationContext.runAnimationGroup(
+      { context in
+        context.duration = panel.isVisible ? 0.15 : 0
+        panel.animator().setFrame(frame, display: true)
+      }, completionHandler: nil)
   }
 
   private func screen(for anchor: CGRect?) -> NSScreen {

@@ -40,12 +40,9 @@ await build({
                                 id,
                               )
                             ? ["shiki-core"]
-                            : id.includes("elkjs/") ||
-                                id.includes("layout-elk/")
-                              ? ["elk"]
-                              : id.includes("mermaid/")
-                                ? ["mermaid"]
-                                : [],
+                            : id.includes("mermaid/")
+                              ? ["mermaid"]
+                              : [],
                       ),
                     ),
                   ],

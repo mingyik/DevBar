@@ -1,21 +1,16 @@
 import type { MermaidConfig } from "mermaid";
 import { mermaidVars, mermaidDiagramConfig } from "../theme/mermaid-vars";
 import type { Theme } from "./highlight";
-export type Layout = "dagre" | "elk";
-export const LAYOUT = { flowchart: "dagre", state: "dagre" } as const;
+export const LAYOUT = "dagre" as const;
 export const SYSTEM_FONT = "-apple-system, BlinkMacSystemFont, sans-serif";
 let library: Promise<(typeof import("mermaid"))["default"]> | undefined;
-let elk: Promise<void> | undefined;
 let queue: Promise<unknown> = Promise.resolve();
 let nonce = 0;
 const cache = new Map<string, string>();
 export function loadMermaid() {
   return (library ??= import("mermaid").then((m) => m.default));
 }
-export function mermaidOptions(
-  theme: Theme,
-  layout: Layout = "dagre",
-): MermaidConfig {
+export function mermaidOptions(theme: Theme): MermaidConfig {
   return {
     ...mermaidDiagramConfig[theme],
     journey: {
@@ -31,7 +26,7 @@ export function mermaidOptions(
     fontFamily: SYSTEM_FONT,
     look: "neo",
     htmlLabels: false,
-    layout,
+    layout: LAYOUT,
     flowchart: { htmlLabels: false, useMaxWidth: false },
     state: { useMaxWidth: false },
     suppressErrorRendering: true,
@@ -78,20 +73,12 @@ export function normalizeSvg(svg: string): string {
   root.setAttribute("xmlns", "http://www.w3.org/2000/svg");
   return root.outerHTML;
 }
-async function generate(
-  source: string,
-  theme: Theme,
-  layout: Layout,
-): Promise<string> {
-  const key = JSON.stringify([source, theme, layout]);
+async function generate(source: string, theme: Theme): Promise<string> {
+  const key = JSON.stringify([source, theme]);
   const existing = cache.get(key);
   if (existing) return existing;
   const m = await loadMermaid();
-  if (layout === "elk")
-    await (elk ??= import("@mermaid-js/layout-elk").then((module) => {
-      m.registerLayoutLoaders(module.default);
-    }));
-  m.initialize(mermaidOptions(theme, layout));
+  m.initialize(mermaidOptions(theme));
   await m.parse(source);
   if (/^\s*sankey(?:-beta)?\s*$/m.test(source)) {
     const diagram = await m.mermaidAPI.getDiagramFromText(source);
@@ -105,7 +92,7 @@ async function generate(
         String(vars[`pie${(i % 12) + 1}`]),
       ]),
     );
-    m.initialize({ ...mermaidOptions(theme, layout), sankey: { nodeColors } });
+    m.initialize({ ...mermaidOptions(theme), sankey: { nodeColors } });
   }
   const { svg } = await m.render("mmd-" + ++nonce, source);
   let output = svg;
@@ -129,7 +116,7 @@ async function generate(
   }
   if (
     /^\s*C4(?:Context|Container|Component|Dynamic|Deployment)/m.test(source) &&
-    !/Update(?:Element|Rel)Style\s*\(/.test(source)
+    !/(?:Update(?:Element|Rel)Style\s*\(|\$\w*Color\s*=)/i.test(source)
   ) {
     // C4 12.3 hardcodes default white node labels and dark relationship labels.
     // Respect explicit C4 styling; adapt only diagrams using those defaults.
@@ -156,29 +143,18 @@ async function generate(
   cache.set(key, normalized);
   return normalized;
 }
-export function renderMermaid(
-  source: string,
-  theme: Theme,
-  layout?: Layout,
-): Promise<string> {
-  const chosen =
-    layout ??
-    (/^\s*stateDiagram/m.test(source) ? LAYOUT.state : LAYOUT.flowchart);
-  const result = queue.then(() => generate(source, theme, chosen));
+export function renderMermaid(source: string, theme: Theme): Promise<string> {
+  const result = queue.then(() => generate(source, theme));
   queue = result.catch(() => {});
   return result;
 }
-export async function renderMermaidElements(
-  root: HTMLElement,
-  theme: Theme,
-  layout?: Layout,
-) {
+export async function renderMermaidElements(root: HTMLElement, theme: Theme) {
   for (const element of Array.from(
     root.querySelectorAll<HTMLElement>(".mmd[data-src]"),
   )) {
     const source = element.dataset.src ?? "";
     try {
-      element.innerHTML = await renderMermaid(source, theme, layout);
+      element.innerHTML = await renderMermaid(source, theme);
       element.classList.remove("mmd-error");
     } catch (error) {
       element.replaceChildren();
@@ -203,14 +179,14 @@ export async function svgToPngBase64(
   const node = template.content.querySelector("svg")!;
   const width = Number(node.getAttribute("width")),
     height = Number(node.getAttribute("height"));
-  if (width * height * 4 > 64000000) throw new Error("图表过大，无法生成图片");
+  const pixels = pngDimensions(width, height);
   const image = new Image();
   image.src =
     "data:image/svg+xml;charset=utf-8," + encodeURIComponent(normalized);
   await image.decode();
   const canvas = document.createElement("canvas");
-  canvas.width = Math.ceil(width * 2);
-  canvas.height = Math.ceil(height * 2);
+  canvas.width = pixels.width;
+  canvas.height = pixels.height;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("无法创建图片");
   context.fillStyle = mermaidVars[theme].primaryColor;
@@ -226,4 +202,20 @@ export async function svgToPngBase64(
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary);
+}
+
+export function pngDimensions(width: number, height: number) {
+  const w = Math.ceil(width * 2),
+    h = Math.ceil(height * 2);
+  if (
+    !Number.isFinite(w) ||
+    !Number.isFinite(h) ||
+    w <= 0 ||
+    h <= 0 ||
+    w > 8192 ||
+    h > 8192 ||
+    w * h * 4 > 64000000
+  )
+    throw new Error("图表过大，无法生成图片");
+  return { width: w, height: h };
 }

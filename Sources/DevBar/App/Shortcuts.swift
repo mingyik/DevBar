@@ -4,6 +4,11 @@ import os
 
 @MainActor
 extension KeyboardShortcuts.Name {
+  static let pageClipboard = Self("page.clipboard")
+  static let pageJSON = Self("page.json")
+  static let pageEncode = Self("page.encode")
+  static let pageQR = Self("page.qr")
+  static let pageDoc = Self("page.doc")
   static let togglePanel = Self(
     "togglePanel", default: .init(.d, modifiers: [.control, .option]))
   static let cycleOlder = Self("cycleOlder", default: .init(.v, modifiers: [.control]))
@@ -22,6 +27,11 @@ enum ShortcutActions {
   private static let logger = Logger(subsystem: "local.devbar.app", category: "shortcut")
 
   static func register(panel: PanelController, status: StatusItemController) {
+    for page in PanelModel.Page.contentPages {
+      KeyboardShortcuts.onKeyUp(for: page.shortcutName) {
+        Task { @MainActor in panel.open(page: page, anchor: status.anchor) }
+      }
+    }
     let retired = KeyboardShortcuts.Shortcut(.space, modifiers: [.option, .command])
     if KeyboardShortcuts.getShortcut(for: .togglePanel) == retired {
       KeyboardShortcuts.reset(.togglePanel)
@@ -34,13 +44,24 @@ enum ShortcutActions {
       }
     }
     KeyboardShortcuts.onKeyUp(for: .cycleOlder) {
-      Task { @MainActor in log("cycleOlder") }
+      Task { @MainActor in
+        log("cycleOlder")
+        panel.clipboard.cycle(older: true)
+      }
     }
     KeyboardShortcuts.onKeyUp(for: .cycleNewer) {
-      Task { @MainActor in log("cycleNewer") }
+      Task { @MainActor in
+        log("cycleNewer")
+        panel.clipboard.cycle(older: false)
+      }
     }
     KeyboardShortcuts.onKeyUp(for: .openTools) {
-      Task { @MainActor in log("openTools") }
+      Task { @MainActor in
+        log("openTools")
+        // Import/routing belongs to R8; R7 exposes the JSON placeholder.
+        panel.model.page = .json
+        panel.show(anchor: status.anchor)
+      }
     }
     KeyboardShortcuts.onKeyUp(for: .captureRegion) {
       Task { @MainActor in log("captureRegion") }

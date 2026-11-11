@@ -5,12 +5,25 @@
 // 结果只记录检查项、状态和长度，不记录编辑器内容（自检只写入自己的标记文本）。
 #if DEBUG
   import AppKit
+  import DevBarCore
   import Network
   import WebKit
 
+  struct SelfCheckPasteboardReader: PasteboardReading {
+    func metadata() -> PasteboardMetadata { .init(count: 0, types: [], access: .allow) }
+    func read() -> [ClipboardPayload] { [] }
+  }
+
   /// 自检环境。只在带 --devbar-selfcheck 启动时生效；ScreenStateStore 据此改用测试目录。
   enum SelfCheckEnvironment {
-    static let isActive = CommandLine.arguments.contains("--devbar-selfcheck")
+    static let isActive =
+      CommandLine.arguments.contains("--devbar-selfcheck")
+      || CommandLine.arguments.contains("--devbar-manual-editor")
+      || CommandLine.arguments.contains("--devbar-uicheck")
+
+    @MainActor static let defaults: UserDefaults =
+      isActive
+      ? UserDefaults(suiteName: "local.devbar.debug.\(UUID())")! : .standard
 
     /// 每次启动一个新的临时目录：<系统临时目录>/devbar-selfcheck-<UUID>/state
     static let stateDirectory: URL? = {
@@ -47,6 +60,10 @@
 
     func run() async -> [String: Any] {
       let started = Date()
+      if CommandLine.arguments.contains("--immediate-open") {
+        panel.model.page = .json
+        panel.show(anchor: nil)
+      }
       let testDirectory = SelfCheckEnvironment.stateDirectory
       defer {
         if let root = testDirectory?.deletingLastPathComponent() {
@@ -60,7 +77,7 @@
       let ready = await waitFor("页面就绪", seconds: 15) {
         await self.js("return !!window.__devbar") as? Bool == true
       }
-      panel.model.page = .tools
+      panel.model.page = .json
       panel.show(anchor: nil)
       // 前提 2：被测的 WebView（宿主当前的 webView）确实挂在面板上
       var mountedAtStart = false
@@ -79,6 +96,11 @@
         }
       }
       let mounted = mountedAtStart || mountedAfterReopen
+      if CommandLine.arguments.contains("--immediate-open") {
+        record(
+          "启动立即打开面板挂载真实 WebView", status: ready && mountedAtStart ? "pass" : "fail",
+          ["mountedWithoutReopen": mountedAtStart, "generation": panel.webHost.generation])
+      }
       record(
         "前提：页面就绪且被测 WebView 已挂上面板",
         status: ready && mounted ? "pass" : "unable",

@@ -132,6 +132,26 @@ public actor ClipboardStore {
     }
   }
 
+  public func thumbnail(for id: UUID) throws -> Data? {
+    guard items.contains(where: { $0.id == id }) else { throw StoreError.unknownItem }
+    let path = directory.appendingPathComponent("thumbs/\(id).png")
+    guard FileManager.default.fileExists(atPath: path.path) else { return nil }
+    return try Data(contentsOf: path)
+  }
+
+  public func remove(_ id: UUID) throws {
+    let next = items.filter { $0.id != id }
+    try Self.persist(next, directory: directory)
+    items = next
+    Self.cleanup(next, directory: directory)
+  }
+
+  public func clear() throws {
+    try Self.persist([], directory: directory)
+    items = []
+    Self.cleanup([], directory: directory)
+  }
+
   private static func safeBlob(_ name: String) -> Bool {
     !name.isEmpty && name != "." && name != ".." && !name.contains("/") && !name.contains("\\")
   }
