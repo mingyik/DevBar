@@ -136,6 +136,10 @@ final class ClipboardController {
     case 125: focusedIndex = min(focusedIndex + 1, max(items.count - 1, 0))
     case 126: focusedIndex = max(focusedIndex - 1, 0)
     case 36: showDetail(focusedIndex)
+    case 51:
+      guard items.indices.contains(focusedIndex) else { return false }
+      let id = items[focusedIndex].id
+      Task { await remove(id) }
     default: return false
     }
     return true

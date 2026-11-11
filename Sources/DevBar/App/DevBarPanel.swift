@@ -30,7 +30,7 @@ final class DevBarPanel: NSPanel {
     // Clipboard navigation owns unmodified arrows/return on that page only.
     let modifiers = event.modifierFlags.intersection([.command, .shift, .control, .option])
     if event.type == .keyDown, modifiers.isEmpty,
-      [UInt16(125), 126, 36].contains(event.keyCode), onClipboardKey?(event.keyCode) == true
+      [UInt16(125), 126, 36, 51].contains(event.keyCode), onClipboardKey?(event.keyCode) == true
     {
       return
     }
