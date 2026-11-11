@@ -14,7 +14,7 @@ struct PanelView: View {
     let scheme = theme.effective
     let _ = theme.increaseContrast
     VStack(spacing: 0) {
-      titleRow(scheme).frame(height: 32)
+      titleRow(scheme).frame(height: 32).padding(.bottom, 8)
       content(scheme)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .id(model.page)

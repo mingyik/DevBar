@@ -16,7 +16,7 @@ struct ReadOnlyScrollView<Content: View>: View {
   }
 
   var body: some View {
-    ScrollView { content() }
+    ScrollView { content().padding(.trailing, 10) }
       .scrollIndicators(.never)
       .onScrollGeometryChange(for: Metrics.self) { geometry in
         Metrics(
