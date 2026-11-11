@@ -136,8 +136,9 @@ final class ClipboardController {
       : item.kind == .files ? DragCard.fileSubtitle(names: files) : item.preview
     let color = ClipboardColor.parse(item.preview)
     let swatch = color.map {
-      NSColor(srgbRed: $0.red, green: $0.green, blue: $0.blue, alpha: $0.alpha)
-    }  // devbar:allow-color
+      NSColor(  // devbar:allow-color
+        srgbRed: $0.red, green: $0.green, blue: $0.blue, alpha: $0.alpha)
+    }
     card.show(
       index: cycler.currentIndex, count: items.count, title: DragCard.firstLine(source),
       subtitle: subtitle, thumbnail: thumbnails[item.id], swatch: swatch, fileCount: files.count,

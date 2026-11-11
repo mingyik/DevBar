@@ -11,7 +11,8 @@ import KeyboardShortcuts
     return retired.contains(shortcut) ? current : shortcut
   }
   static func apply() {
-    let existing = KeyboardShortcuts.getShortcut(for: .cycleOlder)
-    KeyboardShortcuts.setShortcut(migrated(existing), for: .cycleOlder)
+    guard let existing = KeyboardShortcuts.getShortcut(for: .cycleOlder) else { return }
+    let next = migrated(existing)
+    if next != existing { KeyboardShortcuts.setShortcut(next, for: .cycleOlder) }
   }
 }
