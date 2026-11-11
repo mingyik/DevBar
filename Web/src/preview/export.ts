@@ -29,12 +29,17 @@ export function collectCSS(): string {
   }
   return parts.join("\n");
 }
-export async function exportPreview(shell: PageShell): Promise<void> {
+export async function exportPreview(
+  shell: PageShell,
+  content?: Node,
+): Promise<void> {
   const root = document.createElement("div");
   root.className = "snapshot-root snapshot-measure";
   root.style.width = `${shell.content.clientWidth}px`;
   root.append(
-    ...Array.from(shell.preview.childNodes, (node) => node.cloneNode(true)),
+    ...(content
+      ? [content.cloneNode(true)]
+      : Array.from(shell.preview.childNodes, (node) => node.cloneNode(true))),
   );
   document.body.append(root);
   try {

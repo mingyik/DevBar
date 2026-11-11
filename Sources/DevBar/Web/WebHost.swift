@@ -12,6 +12,8 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   var onClipboardWrite: ((Int) -> Void)?
   var onToast: ((String) -> Void)?
 
+  private let previewImage = PreviewImage()
+  var lastPreviewImagePath: String? { previewImage.lastSavedPath }
   private let theme: ThemeManager
   private let store = ScreenStateStore()
   private let handler: DevBarSchemeHandler
@@ -148,6 +150,33 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       PasteboardBridge.writePNGBase64(payload["pngBase64"]?.stringValue ?? "")
       onClipboardWrite?(NSPasteboard.general.changeCount)
       return #"{"ok":true}"#
+    case "preview.exportImage":
+      guard case .number(let width) = payload["width"], case .number(let height) = payload["height"]
+      else { return "{}" }
+      #if DEBUG
+        let exportDirectory = SelfCheckEnvironment.stateDirectory?.appending(path: "exports")
+        if let exportDirectory {
+          try? FileManager.default.createDirectory(
+            at: exportDirectory, withIntermediateDirectories: true)
+          previewImage.writesClipboard = false
+        }
+      #else
+        let exportDirectory: URL? = nil
+      #endif
+      let result = await previewImage.export(
+        page: payload["page"]?.stringValue ?? "",
+        width: width,
+        height: height,
+        html: payload["html"]?.stringValue ?? "",
+        css: payload["css"]?.stringValue ?? "",
+        theme: payload["theme"]?.stringValue ?? "light",
+        background: payload["background"]?.stringValue ?? "", directory: exportDirectory,
+        host: webView.window?.contentView)
+      if result.contains("\"saved\"") { onClipboardWrite?(NSPasteboard.general.changeCount) }
+      return result
+    case "preview.reveal":
+      previewImage.reveal(path: payload["path"]?.stringValue ?? "")
+      return "{}"
     case "qr.show":
       return QRPanel.present(text: payload["text"]?.stringValue ?? "")
     case "state.save":

@@ -139,6 +139,7 @@ export class JsonPage {
   }
   setEncoding(value: Encoding): void {
     this.encoding = value;
+    if (value === "base64") this.shell.showPreview(false);
     this.labels();
     this.shell.onStateChange();
   }
@@ -177,8 +178,8 @@ export class JsonPage {
     this.wholeSelect.value = this.wholeURL ? "whole" : "component";
     this.jsonButton.disabled = this.analysis?.state !== "valid";
     this.previewButton.disabled =
-      this.analysis?.state !== "valid" &&
-      (this.encoding === "base64" || !urlPreview(this.shell.text.trim()));
+      this.encoding === "base64" ||
+      (this.analysis?.state !== "valid" && !urlPreview(this.shell.text.trim()));
     setIcon(
       this.previewButton,
       this.shell.mode === "preview" ? "edit" : "preview",
@@ -306,6 +307,7 @@ export class JsonPage {
       );
   }
   async togglePreview(): Promise<void> {
+    if (this.encoding === "base64") return;
     if (this.shell.mode === "preview") {
       this.shell.showPreview(false);
       this.labels();
@@ -322,7 +324,6 @@ export class JsonPage {
         post("clipboard.writeText", { text }),
       );
     } else {
-      if (this.encoding === "base64") return;
       const url = urlPreview(this.shell.text.trim());
       if (!url) return;
       const table = element("table", "url-table");
@@ -360,16 +361,19 @@ export class JsonPage {
     } else await post("clipboard.writeText", { text: this.shell.text });
   }
   async exportImage(): Promise<void> {
-    if (this.shell.mode !== "preview") {
+    let content: HTMLElement | undefined;
+    if (
+      this.shell.mode !== "preview" ||
+      this.shell.preview.querySelector(".tree-more")
+    ) {
       if (this.analysis?.state !== "valid") await this.analyze();
       if (this.analysis?.state !== "valid") return;
       const result = await this.request("format");
       if (result.status !== "success") return;
-      const pre = element("pre", "export-text", result.text);
-      this.shell.preview.replaceChildren(pre);
+      content = element("pre", "export-text", result.text);
     }
     // Snapshot preparation is shared with the document page in R9.
     const { exportPreview } = await import("../../preview/export");
-    await exportPreview(this.shell);
+    await exportPreview(this.shell, content);
   }
 }

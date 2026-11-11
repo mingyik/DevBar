@@ -41,9 +41,16 @@ enum PasteboardBridge {
 
   static func writePNGBase64(_ encoded: String) {
     guard let data = Data(base64Encoded: encoded) else { return }
+    writePNG(data, file: nil)
+  }
+
+  static func writePNG(_ data: Data, file: URL?) {
     let board = NSPasteboard.general
     board.clearContents()
-    board.setData(data, forType: .png)
+    let item = NSPasteboardItem()
+    item.setData(data, forType: .png)
+    if let file { item.setString(file.absoluteString, forType: .fileURL) }
+    board.writeObjects([item])
     logger.notice("clipboardWriteImage bytes=\(data.count, privacy: .public)")
   }
 }
