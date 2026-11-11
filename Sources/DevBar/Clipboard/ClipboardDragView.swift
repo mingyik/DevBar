@@ -95,7 +95,7 @@ struct ClipboardDragView: NSViewRepresentable {
 enum DragCardImage {
   static func make(
     title: String, subtitle: String, fileCount: Int, thumbnail: NSImage?, swatch: NSColor?,
-    scheme: ColorScheme, counter: String? = nil
+    scheme: ColorScheme, counter: String? = nil, glass: Bool = false
   ) -> (image: NSImage, hotspot: NSPoint) {
     let displayTitle = DragCard.firstLine(title)
     let hasThumb = thumbnail != nil || swatch != nil
@@ -111,10 +111,12 @@ enum DragCardImage {
     shadow.shadowBlurRadius = 6
     shadow.shadowColor = NSColor(DesignTokens.textPrimary(scheme)).withAlphaComponent(0.18)
     shadow.set()
-    NSColor(DesignTokens.opaqueBackdrop(scheme)).setFill()
-    path.fill()
-    NSColor(DesignTokens.panelRaised(scheme)).setFill()
-    path.fill()
+    if !glass {
+      NSColor(DesignTokens.opaqueBackdrop(scheme)).setFill()
+      path.fill()
+      NSColor(DesignTokens.panelRaised(scheme)).setFill()
+      path.fill()
+    }
     NSShadow().set()
     path.lineWidth = 1.5
     NSColor(DesignTokens.textPrimary(scheme)).setStroke()
