@@ -40,3 +40,12 @@ import Testing
   model.prepareToOpen()
   #expect(model.page == .encode)
 }
+
+@MainActor @Test func reopeningAfterSettingsReturnsToRememberedContentPage() {
+  let defaults = UserDefaults(suiteName: "local.devbar.test.reopen.\(UUID())")!
+  let model = PanelModel(defaults: defaults)
+  model.page = .json
+  model.page = .settings
+  model.prepareToOpen()
+  #expect(model.page == .json)
+}

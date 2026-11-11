@@ -43,7 +43,11 @@ final class PanelModel {
   }
 
   func prepareToOpen() {
-    if let fixed = Page(rawValue: defaultPage), fixed != .settings { page = fixed }
+    if let fixed = Page(rawValue: defaultPage), fixed != .settings {
+      page = fixed
+    } else if page == .settings {
+      page = Page(rawValue: defaults.string(forKey: "lastContentPage") ?? "") ?? .clipboard
+    }
   }
 
   func cyclePage(backwards: Bool = false) {
