@@ -34,7 +34,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   }
 
   func showScreen(_ screen: String) {
-    send(type: "screen.show", payload: ["screen": .string(screen)])
+    send(type: "screen.show", payload: ["page": .string(screen)])
   }
 
   func syncAppearance(panelSize: String) {

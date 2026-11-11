@@ -17,7 +17,6 @@ struct PanelView: View {
       titleRow(scheme).frame(height: 32).padding(.bottom, 8)
       content(scheme)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .id(model.page)
         .transition(.opacity)
       if !model.toast.isEmpty {
         Text(model.toast).font(.system(size: 11))
@@ -129,10 +128,11 @@ struct PanelView: View {
     switch model.page {
     case .clipboard:
       ClipboardListView(controller: clipboard, scheme: scheme)
-    case .json, .qr, .doc:
+    case .json, .qr:
+      WebViewBox(host: webHost).id(webHost.generation)
+    case .doc:
       #if DEBUG
         if model.showsWebViewForSelfCheck {
-          // Mount the existing host only in the runtime harness. Product pages remain placeholders.
           WebViewBox(host: webHost).id(webHost.generation)
         } else {
           PlaceholderPage(page: model.page, scheme: scheme)

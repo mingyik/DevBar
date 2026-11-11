@@ -153,8 +153,8 @@ final class PanelController {
     panel.appearance = theme.appearance()
     webHost.panelVisible = panel.isVisible
     webHost.syncAppearance(panelSize: model.enlarged && model.showsEnlarge ? "large" : "normal")
-    if model.page == .json {
-      webHost.showScreen("tools")
+    if model.page == .json || model.page == .qr {
+      webHost.showScreen(model.page.rawValue)
     } else if model.page == .doc {
       webHost.showScreen("doc")
     }

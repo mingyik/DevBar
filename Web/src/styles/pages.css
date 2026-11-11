@@ -1,0 +1,272 @@
+.page-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  gap: 4px;
+  font-family: -apple-system, sans-serif;
+}
+.page-shell[hidden],
+[hidden] {
+  display: none !important;
+}
+.page-content {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: var(--panel-inset);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.source,
+.preview {
+  position: absolute;
+  inset: 0 0 28px;
+  min-width: 0;
+  min-height: 0;
+}
+.source .cm-content {
+  padding: 12px 22px 12px 12px;
+}
+.preview {
+  padding: 12px 22px 12px 12px;
+  overflow: auto;
+  font:
+    13px ui-monospace,
+    monospace;
+}
+.page-info {
+  position: absolute;
+  right: 12px;
+  bottom: 6px;
+  font:
+    11px -apple-system,
+    sans-serif;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  max-width: calc(100% - 24px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.file-label {
+  position: absolute;
+  top: 6px;
+  left: 12px;
+  right: 12px;
+  font:
+    11px -apple-system,
+    sans-serif;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.has-file .source,
+.has-file .preview {
+  top: 24px;
+}
+.page-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  flex: 0 0 36px;
+  min-width: 0;
+}
+.page-actions {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  height: 36px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+.page-fixed {
+  display: flex;
+  gap: 2px;
+  flex: none;
+  align-items: center;
+}
+button,
+select {
+  font:
+    12px -apple-system,
+    sans-serif;
+  color: var(--text-primary);
+  border: none;
+  background: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.pill {
+  border-radius: 8px;
+  background: var(--panel-control);
+  height: 28px;
+  padding: 0 12px;
+  flex: none;
+  min-width: 48px;
+}
+.pill.primary {
+  background: var(--text-primary);
+  color: var(--selection-text);
+}
+.pill:hover,
+.icon-button:hover {
+  background: var(--panel-control);
+}
+button:active {
+  transform: scale(0.97);
+}
+button:focus-visible,
+select:focus-visible {
+  outline: 1.5px solid var(--text-primary);
+  outline-offset: -1px;
+}
+button:disabled {
+  color: var(--text-tertiary);
+  cursor: default;
+}
+.icon-button {
+  padding: 5px;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 8px;
+}
+.icon-button svg {
+  width: 14px;
+  height: 14px;
+}
+.codec-segment {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 2px;
+}
+.codec-segment button {
+  padding: 4px;
+  border-radius: 6px;
+}
+.codec-segment .selected {
+  background: var(--panel-control);
+}
+.page-error {
+  text-decoration: underline wavy var(--text-primary);
+  text-underline-offset: 3px;
+}
+.page-status {
+  font:
+    11px -apple-system,
+    sans-serif;
+  color: var(--text-primary);
+}
+.qr-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.qr-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  background: var(--qr-background);
+  border-radius: 14px;
+}
+.tree-node {
+  margin-left: 16px;
+  border-left: 0.7px solid var(--line-divider);
+}
+.tree-root {
+  margin-left: 0;
+  border-left: 0;
+}
+.tree-row {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.tree-toggle {
+  flex: 0 0 16px;
+  width: 16px;
+  padding: 0;
+}
+.tree-key {
+  font-weight: 600;
+  color: var(--syntax-keyword);
+}
+.tree-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tree-value.string {
+  color: var(--syntax-string);
+}
+.tree-value.number {
+  color: var(--syntax-number);
+  font-variant-numeric: tabular-nums;
+}
+.tree-value.constant {
+  color: var(--syntax-constant);
+  font-style: italic;
+}
+.tree-buttons {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+}
+.tree-row:hover .tree-buttons,
+.tree-row:focus-within .tree-buttons {
+  opacity: 1;
+}
+.tree-buttons button {
+  font-size: 11px;
+}
+.url-table {
+  border-collapse: collapse;
+  width: 100%;
+  font:
+    13px ui-monospace,
+    monospace;
+}
+.url-table td {
+  padding: 6px 4px;
+  border-bottom: 0.7px solid var(--line-divider);
+  overflow-wrap: anywhere;
+}
+.url-table td:first-child {
+  font-weight: 600;
+}
+.snapshot-root {
+  display: none;
+}
+.snapshot-active body > * {
+  visibility: hidden;
+}
+.snapshot-active .snapshot-root {
+  display: block;
+  visibility: visible;
+  position: absolute;
+  top: 0;
+  left: 0;
+  box-sizing: border-box;
+  padding: 12px;
+  color: var(--text-primary);
+  background: var(--snapshot-background);
+  font:
+    13px ui-monospace,
+    monospace;
+}
+.snapshot-root pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.snapshot-root .tree-buttons {
+  display: none;
+}
