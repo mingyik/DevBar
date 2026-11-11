@@ -33,13 +33,13 @@ DevBar 是一个 macOS 菜单栏小工具（内部自用），四个大块：剪
 
 ## 红线（违反任何一条，审核直接不通过）
 
-1. **不加功能。** （例外：方案第 12 版补充的「JSON / 文稿预览长图」是需求方要求的，按方案做。）不加回已删的功能：树编辑、JSON 查询 / 排序 / 表格视图、文件打开保存、导出、独立编辑窗口、搜索剪贴板、置顶、窗口截图、全屏截图、标注、录屏剪辑、GIF、自动滚动长图、直接粘贴（模拟按键）。
+1. **不加功能。** （例外：方案第 12 版补充的「JSON / 文稿预览长图」是需求方要求的，按方案做。）不加回已删的功能：树编辑、JSON 查询 / 排序 / 表格视图、文件打开保存、导出、独立编辑窗口、搜索剪贴板、置顶、窗口截图、全屏截图、标注、录屏剪辑、GIF、自动滚动长图、直接粘贴（模拟按键，红线 7 所列的剪贴板卡片 Enter 例外除外）。
 2. **不联网。** Swift 不发外部请求；Web 不用 `fetch` / `XMLHttpRequest` / `WebSocket` / `EventSource`。
 3. **只有黑白。** 业务代码不写字面颜色值，只用 `design/tokens.json` 生成的变量。彩色例外：剪贴板里颜色值的色块；**代码高亮、JSON 树、Mermaid 图用库自带的彩色主题**（R8 需求方决定：CodeMirror defaultHighlightStyle / One Dark，Shiki github-light / github-dark，Mermaid default / dark；颜色来自库主题，业务代码仍不得写字面颜色）。面板本身、按钮、排版仍只有黑白。识别颜色文本、必须写颜色字面量或颜色正则时，同一行加上 `// devbar:allow-color`，字面颜色检查会跳过该行。
 4. **不猜改内容。** 自动行为不覆盖、不改写用户内容：不合法的 JSON 不自动修复；编辑区有内容时不自动导入；数字识别只用于排版。
 5. **JSON 数字无损。** `Web/src/tools/`、`Web/src/tree/` 禁止原生 `JSON.parse` / `JSON.stringify`，只用 lossless-json。JSON 正文跨桥只作为字符串，Swift 不解析。
 6. **安全设置不放宽。** CSP 不加 `unsafe-eval` / `wasm-unsafe-eval`；不用 `eval` / `new Function`；Mermaid 保持 `securityLevel: "strict"`。
-7. **不需要辅助功能权限。** 不调用 `AXIsProcessTrusted`、不模拟按键（`CGEvent` post）。
+7. **不需要辅助功能权限。** 不调用 `AXIsProcessTrusted`、不模拟按键（`CGEvent` post）。**唯一例外**（需求方 R9 确认）：剪贴板悬浮卡片按 Enter 确认时，可检查辅助功能授权并向**卡片出现时的前台应用**发送一次 ⌘V（`ClipboardController.pasteSelection`）；前台应用已改变、目标是 DevBar 自身或未授权时不发送。其他任何功能、任何位置都不得新增辅助功能调用或模拟按键。
 8. **不用 Vorssaint 的品牌。** 名字、图标、bundle id、文案都不能出现在 DevBar 里。从 Reference 抽取的代码保留原 GPL 版权头，并加一行 `// Adapted for DevBar.`。
 9. **不记录用户内容。** 日志里不出现剪贴板、工具、文稿的内容，只记事件和长度。
 10. **依赖锁版本。** npm 写死版本号（不用 `^` `~`），Swift 包用 `.exact`。新增依赖必须在回报里说明理由，并经审核同意。
