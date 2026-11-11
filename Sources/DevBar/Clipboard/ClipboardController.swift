@@ -6,7 +6,7 @@ import Synchronization
 @MainActor @Observable
 final class ClipboardController {
   let monitor: ClipboardMonitor
-  let hud: ClipboardHUD
+  let card: ClipboardCard
   private(set) var items: [ClipItem] = []
   private(set) var originals: [UUID: [ClipboardPayload]] = [:]
   private(set) var thumbnails: [UUID: NSImage] = [:]
@@ -18,6 +18,7 @@ final class ClipboardController {
   private var store: ClipboardStore?
   private var copyFeedback: Task<Void, Never>?
   private var reloadGeneration = 0
+  private(set) var lastCycleMilliseconds = 0.0
   var currentIndex: Int { cycler.currentIndex }
 
   init(
@@ -25,7 +26,7 @@ final class ClipboardController {
     reader: any PasteboardReading = SystemPasteboardReader(), startMonitoring: Bool = true
   ) {
     monitor = ClipboardMonitor(reader: reader)
-    hud = ClipboardHUD(theme: theme)
+    card = ClipboardCard(theme: theme)
     do {
       let root = directory ?? URL.applicationSupportDirectory.appending(path: "DevBar/clipboard")
       let corrupt = Mutex(false)
@@ -33,6 +34,7 @@ final class ClipboardController {
         directory: root, onCorruptHistory: { corrupt.withLock { $0 = true } })
       if corrupt.withLock({ $0 }) { message = Strings.historyRestarted }
     } catch { message = Strings.historyReadFailed }
+    card.onMove = { [weak self] older in self?.cycle(older: older) }
     monitor.onCapture = { [weak self] capture, source in await self?.record(capture, source: source)
     }
     Task { [weak self] in
@@ -116,12 +118,32 @@ final class ClipboardController {
 
   func cycle(older: Bool, board: NSPasteboard = .general) {
     guard !items.isEmpty else { return }
+    let started = ContinuousClock.now
     let boundary = cycler.move(older: older, count: items.count)
     select(cycler.currentIndex, board: board)
     let item = items[cycler.currentIndex]
-    hud.show(
-      index: cycler.currentIndex, count: items.count, preview: item.preview,
-      thumbnail: thumbnails[item.id], boundary: boundary)
+    let payloads = originals[item.id] ?? []
+    let source =
+      payloads.first { $0.type == NSPasteboard.PasteboardType.string.rawValue }.flatMap {
+        String(data: $0.data, encoding: .utf8)
+      } ?? item.preview
+    let files = payloads.filter { $0.type == NSPasteboard.PasteboardType.fileURL.rawValue }
+      .compactMap { String(data: $0.data, encoding: .utf8) }.compactMap(URL.init(string:)).map(
+        \.lastPathComponent)
+    let subtitle =
+      item.kind == .text
+      ? DragCard.textSubtitle(characters: source.count)
+      : item.kind == .files ? DragCard.fileSubtitle(names: files) : item.preview
+    let color = ClipboardColor.parse(item.preview)
+    let swatch = color.map {
+      NSColor(srgbRed: $0.red, green: $0.green, blue: $0.blue, alpha: $0.alpha)
+    }  // devbar:allow-color
+    card.show(
+      index: cycler.currentIndex, count: items.count, title: DragCard.firstLine(source),
+      subtitle: subtitle, thumbnail: thumbnails[item.id], swatch: swatch, fileCount: files.count,
+      boundary: boundary)
+    let elapsed = started.duration(to: .now).components
+    lastCycleMilliseconds = Double(elapsed.seconds) * 1000 + Double(elapsed.attoseconds) / 1e15
   }
 
   func showDetail(_ index: Int, board: NSPasteboard = .general) {

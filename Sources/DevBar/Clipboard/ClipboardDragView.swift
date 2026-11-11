@@ -95,7 +95,7 @@ struct ClipboardDragView: NSViewRepresentable {
 enum DragCardImage {
   static func make(
     title: String, subtitle: String, fileCount: Int, thumbnail: NSImage?, swatch: NSColor?,
-    scheme: ColorScheme
+    scheme: ColorScheme, counter: String? = nil
   ) -> (image: NSImage, hotspot: NSPoint) {
     let hasThumb = thumbnail != nil || swatch != nil
     let width = DragCard.width(title: title, hasThumb: hasThumb)
@@ -134,8 +134,9 @@ enum DragCardImage {
     }
     let primary = NSColor(DesignTokens.textPrimary(scheme))
     let tertiary = NSColor(DesignTokens.textTertiary(scheme))
+    let counterWidth: CGFloat = counter == nil ? 0 : 50
     let titleRect = NSRect(
-      x: textX, y: bounds.midY + 1, width: bounds.maxX - textX - 12, height: 16)
+      x: textX, y: bounds.midY + 1, width: bounds.maxX - textX - 12 - counterWidth, height: 16)
     draw(
       title, in: titleRect, font: .systemFont(ofSize: 12), color: primary,
       lineBreak: .byTruncatingTail)
@@ -144,7 +145,12 @@ enum DragCardImage {
     draw(
       subtitle, in: subtitleRect, font: .systemFont(ofSize: 11), color: tertiary,
       lineBreak: .byTruncatingTail)
-    if fileCount > 1 {
+    if let counter {
+      draw(
+        counter, in: NSRect(x: bounds.maxX - 58, y: bounds.maxY - 21, width: 48, height: 14),
+        font: .monospacedDigitSystemFont(ofSize: 11, weight: .regular), color: tertiary,
+        lineBreak: .byClipping, align: .right)
+    } else if fileCount > 1 {
       let badge = NSRect(x: bounds.maxX - 22, y: bounds.maxY - 22, width: 18, height: 18)
       let circle = NSBezierPath(ovalIn: badge)
       primary.setFill()

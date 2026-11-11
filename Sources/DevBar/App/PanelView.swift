@@ -174,7 +174,6 @@ struct PanelView: View {
           shortcut(Strings.shortcutTools, .openTools, scheme)
           Text(Strings.clipboardGroup).font(.system(size: 13, weight: .semibold)).id("clipboard")
           shortcut(Strings.shortcutOlder, .cycleOlder, scheme)
-          shortcut(Strings.shortcutNewer, .cycleNewer, scheme)
           Text(Strings.captureGroup).font(.system(size: 13, weight: .semibold)).id("capture")
           Toggle(Strings.recordSystemAudio, isOn: $model.recordSystemAudio)
           Toggle(Strings.recordMicrophone, isOn: $model.recordMicrophone)

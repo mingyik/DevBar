@@ -10,8 +10,7 @@ extension KeyboardShortcuts.Name {
   static let pageDoc = Self("page.doc")
   static let togglePanel = Self(
     "togglePanel", default: .init(.d, modifiers: [.control, .option]))
-  static let cycleOlder = Self("cycleOlder", default: .init(.v, modifiers: [.control]))
-  static let cycleNewer = Self("cycleNewer", default: .init(.v, modifiers: [.control, .shift]))
+  static let cycleOlder = Self("cycleOlder", default: .init(.v, modifiers: [.command, .shift]))
   static let openTools = Self("openTools", default: .init(.j, modifiers: [.option, .command]))
   static let captureRegion = Self(
     "captureRegion", default: .init(.four, modifiers: [.option, .command]))
@@ -26,6 +25,7 @@ enum ShortcutActions {
   private static let logger = Logger(subsystem: "local.devbar.app", category: "shortcut")
 
   static func register(panel: PanelController, status: StatusItemController) {
+    ClipboardShortcutMigration.apply()
     KeyboardShortcuts.reset(KeyboardShortcuts.Name("page.encode"))
     for page in PanelModel.Page.contentPages {
       KeyboardShortcuts.onKeyUp(for: page.shortcutName) {
@@ -43,16 +43,10 @@ enum ShortcutActions {
         panel.toggle(anchor: status.anchor)
       }
     }
-    KeyboardShortcuts.onKeyUp(for: .cycleOlder) {
+    KeyboardShortcuts.onKeyDown(for: .cycleOlder) {
       Task { @MainActor in
         log("cycleOlder")
         panel.clipboard.cycle(older: true)
-      }
-    }
-    KeyboardShortcuts.onKeyUp(for: .cycleNewer) {
-      Task { @MainActor in
-        log("cycleNewer")
-        panel.clipboard.cycle(older: false)
       }
     }
     KeyboardShortcuts.onKeyUp(for: .openTools) {
