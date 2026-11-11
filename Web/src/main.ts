@@ -135,6 +135,7 @@ async function show(page: Page): Promise<void> {
   current = page;
   for (const [name, shell] of pages) shell.root.hidden = name !== page;
   const shell = pages.get(page)!;
+  if (page === "doc") doc.refresh();
   shell.view.focus();
   if (autoImport && shell.text === "" && page !== "doc") {
     const revision = shell.revision;

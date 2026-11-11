@@ -123,3 +123,12 @@
   background: var(--selection-fill);
   color: var(--selection-text);
 }
+.preview.prose {
+  font:
+    var(--font-body) / var(--font-line-height) -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+}
+.preview.prose.large {
+  font-size: var(--font-body-large);
+}
