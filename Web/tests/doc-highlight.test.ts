@@ -13,7 +13,13 @@ it("unknown language falls back with escaped source", async () =>
   expect(
     await highlightCode("<img onerror=x>", "not-a-language", "light"),
   ).toBe('<pre class="code plain"><code>&lt;img onerror=x&gt;</code></pre>'));
-it("dark and light use generated themes", async () => {
+it("dark and light use bundled GitHub themes", async () => {
+  expect(await highlightCode('const x = "a"; // c', "js", "dark")).toContain(
+    "github-dark",
+  );
+  expect(await highlightCode('const x = "a"; // c', "js", "light")).toContain(
+    "github-light",
+  );
   expect(await highlightCode('const x = "a"; // c', "js", "dark")).not.toBe(
     await highlightCode('const x = "a"; // c', "js", "light"),
   );

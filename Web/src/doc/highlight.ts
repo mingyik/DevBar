@@ -1,7 +1,7 @@
 import { createHighlighterCore } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
-import light from "../theme/shiki-devbar-light.json";
-import dark from "../theme/shiki-devbar-dark.json";
+import light from "shiki/themes/github-light.mjs";
+import dark from "shiki/themes/github-dark.mjs";
 export type Theme = "light" | "dark";
 const aliases: Record<string, string> = {
   js: "javascript",
@@ -76,7 +76,10 @@ export async function highlightCode(
   if (!languages.includes(lang)) return plain();
   try {
     const renderer = await getHighlighter();
-    return renderer.codeToHtml(text, { lang, theme: "devbar-" + theme });
+    return renderer.codeToHtml(text, {
+      lang,
+      theme: theme === "dark" ? "github-dark" : "github-light",
+    });
   } catch {
     if (!warned) {
       console.warn("代码高亮不可用，已显示原文");
