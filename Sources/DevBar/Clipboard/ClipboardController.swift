@@ -11,6 +11,7 @@ final class ClipboardController {
   private(set) var originals: [UUID: [ClipboardPayload]] = [:]
   private(set) var thumbnails: [UUID: NSImage] = [:]
   private(set) var cycler = ClipboardCycler()
+  var detailID: UUID?
   var focusedIndex = 0
   var copiedID: UUID?
   var message = ""
@@ -71,6 +72,7 @@ final class ClipboardController {
       }
     }
     guard generation == reloadGeneration else { return }
+    if !updated.contains(where: { $0.id == detailID }) { detailID = nil }
     items = updated
     originals = payloads
     thumbnails = images
@@ -122,11 +124,18 @@ final class ClipboardController {
       thumbnail: thumbnails[item.id], boundary: boundary)
   }
 
+  func showDetail(_ index: Int, board: NSPasteboard = .general) {
+    guard items.indices.contains(index) else { return }
+    select(index, board: board)
+    detailID = items[index].id
+  }
+
   func handleKey(_ code: UInt16) -> Bool {
+    guard detailID == nil else { return false }
     switch code {
     case 125: focusedIndex = min(focusedIndex + 1, max(items.count - 1, 0))
     case 126: focusedIndex = max(focusedIndex - 1, 0)
-    case 36: select(focusedIndex)
+    case 36: showDetail(focusedIndex)
     default: return false
     }
     return true

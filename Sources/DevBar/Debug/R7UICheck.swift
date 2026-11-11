@@ -89,7 +89,10 @@
           ])!
           await panel.clipboard.record(tooLarge, source: nil)
         }
-        panel.model.page = size == "large" ? .json : .clipboard
+        panel.model.page =
+          args.first(where: { $0.hasPrefix("--page=") })
+          .flatMap { PanelModel.Page(rawValue: String($0.dropFirst(7))) }
+          ?? (size == "large" ? .json : .clipboard)
         panel.model.enlarged = size == "large"
         panel.show(anchor: nil)
         try? await Task.sleep(for: .milliseconds(900))
@@ -107,6 +110,10 @@
         panel.model.page = initial
         panel.show(anchor: nil)
         try? await Task.sleep(for: .milliseconds(700))
+        if args.contains("--scrolling") {
+          panel.clipboard.focusedIndex = 8
+          try? await Task.sleep(for: .milliseconds(80))
+        }
         let results: [String: Any] = [
           "processID": ProcessInfo.processInfo.processIdentifier,
           "windowNumber": panel.panel.windowNumber,

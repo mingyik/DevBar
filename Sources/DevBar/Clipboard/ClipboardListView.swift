@@ -11,24 +11,22 @@ struct ClipboardListView: View {
   var body: some View {
     VStack(spacing: 0) {
       authorization
-      if controller.items.isEmpty {
+      if let id = controller.detailID, let item = controller.items.first(where: { $0.id == id }) {
+        ClipboardDetailView(controller: controller, item: item, scheme: scheme)
+      } else if controller.items.isEmpty {
         Text(Strings.clipboardEmpty).font(.system(size: 13))
           .foregroundStyle(DesignTokens.textSecondary(scheme)).lineLimit(1)
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else {
         ScrollViewReader { proxy in
-          ScrollView {
+          ReadOnlyScrollView(scheme: scheme) {
             LazyVStack(spacing: 0) {
               ForEach(Array(controller.items.enumerated()), id: \.element.id) { index, item in
                 ClipboardRow(controller: controller, item: item, index: index, scheme: scheme)
                   .id(item.id)
-                if index < controller.items.count - 1 {
-                  Rectangle().fill(DesignTokens.lineDivider(scheme)).frame(height: 0.7)
-                }
               }
             }
           }
-          .defaultScrollAnchor(.top)
           .onAppear {
             if controller.items.indices.contains(controller.focusedIndex) {
               proxy.scrollTo(controller.items[controller.focusedIndex].id, anchor: .top)
@@ -139,7 +137,7 @@ private struct ClipboardRow: View {
         ClipboardDragView(
           payloads: controller.originals[item.id] ?? [],
           thumbnail: controller.thumbnails[item.id]
-        ) { controller.select(index) }
+        ) { controller.showDetail(index) }
       }
       if controller.copiedID == item.id {
         Image(systemName: "checkmark").font(.system(size: 11))
@@ -152,16 +150,8 @@ private struct ClipboardRow: View {
           Image(systemName: "xmark").font(.system(size: 11)).frame(width: 20, height: 24)
         }.buttonStyle(.plain).help(Strings.deleteItem)
       } else {
-        if let bundle = item.sourceBundleID,
-          let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle)
-        {
-          Image(nsImage: NSWorkspace.shared.icon(forFile: url.path))
-            .resizable().saturation(0).frame(width: 16, height: 16)
-        }
-        TimelineView(.periodic(from: .now, by: 60)) { context in
-          Text(relativeTime(now: context.date)).font(.system(size: 11))
-            .foregroundStyle(DesignTokens.textTertiary(scheme)).lineLimit(1)
-        }
+        Text(kindLabel).font(.system(size: 11))
+          .foregroundStyle(DesignTokens.textTertiary(scheme)).lineLimit(1)
       }
     }
     .padding(.horizontal, 8).frame(height: 52)
@@ -179,15 +169,15 @@ private struct ClipboardRow: View {
           DesignTokens.lineBorder(scheme), lineWidth: 0.7)
       }
     }
-    .contentShape(Rectangle()).onTapGesture { controller.select(index) }
+    .contentShape(Rectangle()).onTapGesture { controller.showDetail(index) }
     .onHover { hovered = $0 }
   }
 
-  private func relativeTime(now: Date) -> String {
-    let seconds = max(0, Int(now.timeIntervalSince(item.createdAt)))
-    if seconds < 60 { return Strings.justNow }
-    if seconds < 3600 { return Strings.minutesAgo(seconds / 60) }
-    if seconds < 86400 { return Strings.hoursAgo(seconds / 3600) }
-    return Strings.yesterday
+  private var kindLabel: String {
+    switch item.kind {
+    case .text: Strings.clipboardTextType
+    case .image: Strings.clipboardImageType
+    case .files: Strings.clipboardFileType
+    }
   }
 }

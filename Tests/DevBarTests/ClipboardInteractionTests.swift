@@ -69,6 +69,7 @@ import Testing
 }
 
 @MainActor @Test func clipboardSelectionNeverReordersAndNewCaptureResetsCursor() async throws {
+  _ = NSApplication.shared
   let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
   defer { try? FileManager.default.removeItem(at: root) }
   let controller = ClipboardController(
@@ -123,6 +124,7 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
 }
 
 @MainActor @Test func clipboardOversizedFirstImageLeavesVisibleFeedbackAndNoHistory() async throws {
+  _ = NSApplication.shared
   let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
   defer { try? FileManager.default.removeItem(at: root) }
   let controller = ClipboardController(
@@ -134,4 +136,28 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
   await controller.record(ClipboardCapture(payloads: payloads)!, source: nil)
   #expect(controller.items.isEmpty)
   #expect(controller.message == Strings.imageTooLarge)
+}
+
+@MainActor @Test func clipboardDetailUsesOriginalAndReturnsToListAfterRemoval() async throws {
+  _ = NSApplication.shared
+  let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: root) }
+  let controller = ClipboardController(
+    theme: ThemeManager(), directory: root, startMonitoring: false)
+  let text = String(repeating: "原文\n", count: 300)
+  let payload = ClipboardPayload(
+    type: NSPasteboard.PasteboardType.string.rawValue, data: Data(text.utf8))
+  await controller.record(ClipboardCapture(payloads: [payload])!, source: nil)
+  let board = NSPasteboard.withUniqueName()
+  defer { board.releaseGlobally() }
+  controller.showDetail(0, board: board)
+  let id = try #require(controller.detailID)
+  #expect(controller.originals[id]?.first?.data == Data(text.utf8))
+  #expect(board.string(forType: .string) == text)
+  #expect(!controller.handleKey(125))
+  controller.detailID = nil
+  #expect(controller.handleKey(125))
+  controller.showDetail(0, board: board)
+  await controller.remove(id)
+  #expect(controller.detailID == nil)
 }
