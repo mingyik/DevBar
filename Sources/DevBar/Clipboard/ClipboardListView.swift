@@ -20,7 +20,7 @@ struct ClipboardListView: View {
       } else {
         ScrollViewReader { proxy in
           ReadOnlyScrollView(scheme: scheme) {
-            LazyVStack(spacing: 0) {
+            LazyVStack(spacing: 8) {
               ForEach(Array(controller.items.enumerated()), id: \.element.id) { index, item in
                 ClipboardRow(controller: controller, item: item, index: index, scheme: scheme)
                   .id(item.id)
@@ -108,7 +108,6 @@ private struct ClipboardRow: View {
   let index: Int
   let scheme: ColorScheme
   @State private var hovered = false
-  private var current: Bool { controller.currentIndex == index }
   private var mono: Bool {
     item.preview.contains("\n") && ["{", ";", "=>", "</"].contains(where: item.preview.contains)
   }
@@ -156,18 +155,13 @@ private struct ClipboardRow: View {
     }
     .padding(.horizontal, 8).frame(height: 52)
     .background {
-      if current { RoundedRectangle(cornerRadius: 7).fill(DesignTokens.panelControl(scheme)) }
-    }
-    .overlay(alignment: .leading) {
-      if current {
-        Rectangle().fill(DesignTokens.textPrimary(scheme)).frame(width: 2).padding(.vertical, 8)
+      if controller.focusedIndex == index {
+        RoundedRectangle(cornerRadius: 7).fill(DesignTokens.panelControl(scheme))
       }
     }
     .overlay {
-      if controller.focusedIndex == index && !current {
-        RoundedRectangle(cornerRadius: 7).strokeBorder(
-          DesignTokens.lineBorder(scheme), lineWidth: 0.7)
-      }
+      RoundedRectangle(cornerRadius: 7).strokeBorder(
+        DesignTokens.lineBorder(scheme), lineWidth: 0.7)
     }
     .contentShape(Rectangle()).onTapGesture { controller.showDetail(index) }
     .onHover { hovered = $0 }

@@ -46,7 +46,7 @@ struct PlaceholderPage: View {
   private func block<Content: View>(@ViewBuilder content: () -> Content) -> some View {
     content().padding(12)
       .background(
-        DesignTokens.panelCard(scheme),
+        page == .json ? DesignTokens.panelInset(scheme) : DesignTokens.panelCard(scheme),
         in: RoundedRectangle(cornerRadius: DesignTokens.radiusMedium, style: .continuous))
   }
 }

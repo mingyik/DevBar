@@ -313,6 +313,17 @@ enum DesignTokens {
     }
   }
 
+  static func panelInset(_ scheme: ColorScheme) -> Color {
+    switch scheme {
+    case .light:
+      return Color(red: 0, green: 0, blue: 0, opacity: 0.035)
+    case .dark:
+      return Color(red: 0, green: 0, blue: 0, opacity: 0.18)
+    @unknown default:
+      return Color(red: 0, green: 0, blue: 0, opacity: 0.035)
+    }
+  }
+
   static func opaqueBackdrop(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:

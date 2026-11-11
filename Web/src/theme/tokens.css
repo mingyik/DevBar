@@ -36,6 +36,7 @@
   --selection-fill: rgba(0, 0, 0, 1);
   --selection-text: rgba(255, 255, 255, 1);
   --scroll-thumb: rgba(0, 0, 0, 0.22);
+  --panel-inset: rgba(0, 0, 0, 0.035);
 }
 
 :root[data-theme="dark"] {
@@ -63,4 +64,5 @@
   --selection-fill: rgba(255, 255, 255, 1);
   --selection-text: rgba(0, 0, 0, 1);
   --scroll-thumb: rgba(255, 255, 255, 0.22);
+  --panel-inset: rgba(0, 0, 0, 0.18);
 }
