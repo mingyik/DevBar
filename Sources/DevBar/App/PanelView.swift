@@ -67,28 +67,40 @@ struct PanelView: View {
 
   private func titleRow(_ scheme: ColorScheme) -> some View {
     HStack(spacing: 8) {
-      Button {
-        model.cyclePage()
-      } label: {
-        HStack(spacing: 6) {
-          Text(model.page.title)
-            .font(.system(size: 15, weight: .semibold))
+      if model.page == .settings {
+        Button {
+          model.leaveSettings()
+        } label: {
+          Label(Strings.settingsBack, systemImage: "chevron.left").font(.system(size: 13))
             .foregroundStyle(DesignTokens.textPrimary(scheme))
-            .overlay(alignment: .bottom) {
-              if titleHovered {
-                Rectangle().fill(DesignTokens.textPrimary(scheme)).frame(height: 0.7)
+        }.buttonStyle(.plain)
+      } else {
+        Button {
+          model.cyclePage()
+        } label: {
+          HStack(spacing: 6) {
+            Text(model.page.title)
+              .font(.system(size: 15, weight: .semibold))
+              .foregroundStyle(DesignTokens.textPrimary(scheme))
+              .overlay(alignment: .bottom) {
+                if titleHovered {
+                  Rectangle().fill(DesignTokens.textPrimary(scheme)).frame(height: 0.7)
+                }
               }
-            }
-          Text("⌘P").font(.system(size: 11))
-            .foregroundStyle(DesignTokens.textTertiary(scheme))
-        }.lineLimit(1)
-      }.buttonStyle(.plain).onHover { titleHovered = $0 }
+            Text("⌘P").font(.system(size: 11))
+              .foregroundStyle(DesignTokens.textTertiary(scheme))
+          }.lineLimit(1)
+        }.buttonStyle(.plain).onHover { titleHovered = $0 }
+      }
       Spacer(minLength: 8)
-      actionButton(model.pinned ? "pin.fill" : "pin", label: Strings.pin, scheme: scheme) {
+      actionButton(model.pinned ? "pin.fill" : "pin.slash", label: Strings.pin, scheme: scheme) {
         model.pinned.toggle()
       }
       actionButton("circle.lefthalf.filled", label: Strings.theme, scheme: scheme) {
         theme.toggleManual()
+      }
+      actionButton("devbar.settings", label: Strings.settingsPage, scheme: scheme) {
+        model.enterSettings()
       }
       if model.showsEnlarge {
         actionButton(
@@ -142,41 +154,45 @@ struct PanelView: View {
   }
 
   private func settings(_ scheme: ColorScheme) -> some View {
-    ReadOnlyScrollView(scheme: scheme) {
-      VStack(alignment: .leading, spacing: 12) {
-        Picker(Strings.appearance, selection: $theme.mode) {
-          Text(Strings.followSystem).tag(ThemeMode.system)
-          Text(Strings.light).tag(ThemeMode.light)
-          Text(Strings.dark).tag(ThemeMode.dark)
-        }
-        .pickerStyle(.radioGroup)
-        .foregroundStyle(DesignTokens.textPrimary(scheme))
-        Picker(Strings.defaultPage, selection: $model.defaultPage) {
-          Text(Strings.lastPage).tag("last")
-          ForEach(PanelModel.Page.contentPages, id: \.self) { page in
-            Text(page.title).tag(page.rawValue)
+    ScrollViewReader { proxy in
+      ReadOnlyScrollView(scheme: scheme) {
+        VStack(alignment: .leading, spacing: 16) {
+          Text(Strings.generalGroup).font(.system(size: 13, weight: .semibold)).id("general")
+          Picker(Strings.appearance, selection: $theme.mode) {
+            Text(Strings.followSystem).tag(ThemeMode.system)
+            Text(Strings.light).tag(ThemeMode.light)
+            Text(Strings.dark).tag(ThemeMode.dark)
+          }.pickerStyle(.radioGroup)
+          Picker(Strings.defaultPage, selection: $model.defaultPage) {
+            Text(Strings.lastPage).tag("last")
+            ForEach(PanelModel.Page.contentPages, id: \.self) { page in
+              Text(page.title).tag(page.rawValue)
+            }
           }
-        }.lineLimit(1)
-        Text(Strings.pageShortcuts).font(.system(size: 13, weight: .semibold))
-          .foregroundStyle(DesignTokens.textPrimary(scheme)).lineLimit(1)
-        ForEach(PanelModel.Page.contentPages, id: \.self) { page in
-          shortcut(page.title, page.shortcutName, scheme)
-        }
-        shortcut(Strings.shortcutToggle, .togglePanel, scheme)
-        shortcut(Strings.shortcutOlder, .cycleOlder, scheme)
-        shortcut(Strings.shortcutNewer, .cycleNewer, scheme)
-        shortcut(Strings.shortcutTools, .openTools, scheme)
-        shortcut(Strings.shortcutCapture, .captureRegion, scheme)
-        shortcut(Strings.shortcutLong, .captureScroll, scheme)
-        shortcut(Strings.shortcutRecord, .recordToggle, scheme)
-        Toggle(Strings.recordSystemAudio, isOn: $model.recordSystemAudio)
-        Toggle(Strings.recordMicrophone, isOn: $model.recordMicrophone)
-        Text(Strings.aboutBody)
-          .font(.system(size: 13))
-          .foregroundStyle(DesignTokens.textSecondary(scheme))
-          .lineLimit(1)
+          Toggle(Strings.autoImport, isOn: $model.autoImport)
+          shortcut(Strings.shortcutToggle, .togglePanel, scheme)
+          shortcut(Strings.shortcutTools, .openTools, scheme)
+          Text(Strings.clipboardGroup).font(.system(size: 13, weight: .semibold)).id("clipboard")
+          shortcut(Strings.shortcutOlder, .cycleOlder, scheme)
+          shortcut(Strings.shortcutNewer, .cycleNewer, scheme)
+          Text(Strings.captureGroup).font(.system(size: 13, weight: .semibold)).id("capture")
+          Toggle(Strings.recordSystemAudio, isOn: $model.recordSystemAudio)
+          Toggle(Strings.recordMicrophone, isOn: $model.recordMicrophone)
+          shortcut(Strings.shortcutCapture, .captureRegion, scheme)
+          shortcut(Strings.shortcutLong, .captureScroll, scheme)
+          shortcut(Strings.shortcutRecord, .recordToggle, scheme)
+          Text(Strings.pageShortcuts).font(.system(size: 13, weight: .semibold)).id("shortcuts")
+          ForEach(PanelModel.Page.contentPages, id: \.self) { page in
+            shortcut(page.title, page.shortcutName, scheme)
+          }
+          Text(Strings.aboutBody).font(.system(size: 11)).foregroundStyle(
+            DesignTokens.textSecondary(scheme))
+        }.foregroundStyle(DesignTokens.textPrimary(scheme))
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }.task(id: model.settingsGroup) {
+        try? await Task.sleep(for: .milliseconds(80))
+        proxy.scrollTo(model.settingsGroup, anchor: .top)
       }
-      .frame(maxWidth: .infinity, alignment: .leading)
     }
   }
 
@@ -201,9 +217,13 @@ private struct ActionIcon: View {
   let action: () -> Void
   @State private var hovered = false
 
+  private var icon: Image {
+    symbol == "devbar.settings" ? Image(nsImage: AppIcons.settings) : Image(systemName: symbol)
+  }
+
   var body: some View {
     Button(action: action) {
-      Image(systemName: symbol)
+      icon
         .font(.system(size: 13, weight: .regular))
         .frame(width: 24, height: 24)
         .foregroundStyle(DesignTokens.textSecondary(scheme))

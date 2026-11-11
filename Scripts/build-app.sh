@@ -63,6 +63,7 @@ chmod +x "$app/Contents/MacOS/DevBar"
 cp "$root/Resources/Info.plist" "$app/Contents/Info.plist"
 cp "$root/Resources/AppIcon/AppIcon.icns" "$app/Contents/Resources/AppIcon.icns"
 cp -R "$root/Web/dist/." "$app/Contents/Resources/Web/"
+cp -R "$bin_dir/DevBar_DevBar.bundle" "$app/DevBar_DevBar.bundle"
 cp -R "$root/Resources/Licenses/." "$app/Contents/Resources/Licenses/"
 printf 'APPL????' > "$app/Contents/PkgInfo"
 

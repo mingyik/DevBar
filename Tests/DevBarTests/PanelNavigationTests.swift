@@ -81,3 +81,17 @@ import Testing
   #expect(model.page == .qr)
 }
 
+@MainActor @Test func settingsReturnsToOriginAndTargetsOneSharedGroup() {
+  let defaults = UserDefaults(suiteName: "local.devbar.test.r8.settings.\(UUID())")!
+  let model = PanelModel(defaults: defaults)
+  model.enterSettings()
+  #expect(model.settingsGroup == "clipboard")
+  #expect(model.page == .settings)
+  model.leaveSettings()
+  #expect(model.page == .clipboard)
+  model.page = .qr
+  model.enterSettings()
+  #expect(model.settingsGroup == "general")
+  model.leaveSettings()
+  #expect(model.page == .qr)
+}

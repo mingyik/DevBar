@@ -1,4 +1,9 @@
 enum Strings {
+  static let settingsBack = "返回"
+  static let generalGroup = "通用"
+  static let clipboardGroup = "剪贴板"
+  static let captureGroup = "截图录屏"
+  static let autoImport = "内容为空时带入剪贴板"
   static let clipboardTextType = "文本"
   static let clipboardImageType = "图片"
   static let clipboardFileType = "文件"

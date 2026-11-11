@@ -16,6 +16,9 @@ final class PanelModel {
   var defaultPage: String {
     didSet { defaults.set(defaultPage, forKey: "defaultPage") }
   }
+  private(set) var settingsOrigin: Page = .clipboard
+  private(set) var settingsGroup = "general"
+  var autoImport: Bool { didSet { defaults.set(autoImport, forKey: "autoImport") } }
   var pinned = false
   private var jsonEnlarged: Bool {
     didSet { defaults.set(jsonEnlarged, forKey: "enlarged.json") }
@@ -52,6 +55,7 @@ final class PanelModel {
 
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
+    autoImport = defaults.object(forKey: "autoImport") as? Bool ?? true
     let raw = defaults.string(forKey: "lastContentPage") ?? ""
     let stored: Page = raw == "encode" ? .json : Page(rawValue: raw) ?? .clipboard
     if raw == "encode" { defaults.set("json", forKey: "lastContentPage") }
@@ -66,6 +70,14 @@ final class PanelModel {
     recordSystemAudio = defaults.bool(forKey: "recordSystemAudio")
     recordMicrophone = defaults.bool(forKey: "recordMicrophone")
   }
+
+  func enterSettings() {
+    if page != .settings { settingsOrigin = page }
+    settingsGroup = settingsOrigin == .clipboard ? "clipboard" : "general"
+    page = .settings
+  }
+
+  func leaveSettings() { page = settingsOrigin }
 
   func prepareToOpen() {
     if let fixed = Page(rawValue: defaultPage), fixed != .settings {

@@ -124,7 +124,7 @@ final class PanelController {
   }
 
   func showSettings(anchor: CGRect?) {
-    model.page = .settings
+    model.enterSettings()
     if panel.isVisible {
       if let anchor {
         lastAnchor = anchor
