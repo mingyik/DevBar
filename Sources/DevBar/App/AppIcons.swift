@@ -2,7 +2,9 @@ import AppKit
 
 @MainActor enum AppIcons {
   static var settings: NSImage {
-    let url = Bundle.module.url(
+    let installed = Bundle.main.resourceURL?.appending(path: "DevBar_DevBar.bundle")
+    let resources = installed.flatMap(Bundle.init(url:)) ?? Bundle.module
+    let url = resources.url(
       forResource: "settings", withExtension: "pdf",
       subdirectory: "Assets.xcassets/Settings.imageset")
     let image =
