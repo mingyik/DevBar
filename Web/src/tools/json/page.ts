@@ -133,8 +133,11 @@ export class JsonPage {
     }, 400);
   }
   private labels(): void {
-    this.encoding =
-      detect(this.shell.text).type === "base64" ? "base64" : "url";
+    this.encoding = /^[\s]*[{[]/.test(this.shell.text)
+      ? "url"
+      : detect(this.shell.text).type === "base64"
+        ? "base64"
+        : "url";
     const labels = actionLabels(this.shell.text, this.encoding);
     this.escapeButton.textContent = strings[labels.escape];
     this.codecButton.textContent = strings[labels.codec];

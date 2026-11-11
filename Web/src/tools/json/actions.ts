@@ -5,11 +5,13 @@ import { decode } from "../url";
 export type Encoding = "url" | "base64";
 export function actionLabels(text: string, encoding: Encoding) {
   const t = text.trim();
-  let unescape: boolean;
-  try {
-    unescape = typeof parse(t) === "string";
-  } catch {
-    unescape = t.includes('\\"');
+  let unescape = false;
+  if (t.startsWith('"') || t.includes('\\"')) {
+    try {
+      unescape = typeof parse(t) === "string";
+    } catch {
+      unescape = t.includes('\\"');
+    }
   }
   return {
     escape: unescape ? ("unescape" as const) : ("escape" as const),
@@ -29,7 +31,11 @@ export function routeImport(text: string): {
 } {
   return {
     page: "json",
-    encoding: detect(text).type === "base64" ? "base64" : "url",
+    encoding: /^[\s]*[{[]/.test(text)
+      ? "url"
+      : detect(text).type === "base64"
+        ? "base64"
+        : "url",
   };
 }
 export function decodedRanges(input: string) {
