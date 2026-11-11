@@ -115,6 +115,17 @@ enum DesignTokens {
     }
   }
 
+  static func selectionBorder(_ scheme: ColorScheme) -> Color {
+    switch scheme {
+    case .light:
+      return Color(red: 0, green: 0, blue: 0, opacity: 0.6)
+    case .dark:
+      return Color(red: 1, green: 1, blue: 1, opacity: 0.6)
+    @unknown default:
+      return Color(red: 0, green: 0, blue: 0, opacity: 0.6)
+    }
+  }
+
   static func textSecondary(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
