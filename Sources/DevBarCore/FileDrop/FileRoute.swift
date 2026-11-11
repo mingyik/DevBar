@@ -52,8 +52,10 @@ public enum FileDropReader {
       defer { try? handle.close() }
       var data = try handle.read(upToCount: byteLimit + 1) ?? Data()
       guard data.count <= byteLimit else { return .failure(.tooLarge) }
-      if data.starts(with: [0xEF, 0xBB, 0xBF]) { data.removeFirst(3) }
-      guard let text = String(data: data, encoding: .utf8) else { return .failure(.notUTF8) }
+      let preserveBytes = ["mmd", "mermaid"].contains(file.pathExtension.lowercased())
+      if !preserveBytes && data.starts(with: [0xEF, 0xBB, 0xBF]) { data.removeFirst(3) }
+      guard let decoded = String(data: data, encoding: .utf8) else { return .failure(.notUTF8) }
+      let text = preserveBytes ? String(decoding: data, as: UTF8.self) : decoded
       let sniff = String(text.prefix(4096))
       let route = FileRoute.route(fileName: file.lastPathComponent, sniff: sniff)
       if case .rejected(let reason) = route { return .failure(reason) }

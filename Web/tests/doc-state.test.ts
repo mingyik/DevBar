@@ -5,6 +5,7 @@ import {
   documentHistory,
   documentMetadata,
   metadataField,
+  sourceText,
 } from "../src/doc/state";
 it("file import and its mode metadata undo and redo together without changing bytes", () => {
   let state = EditorState.create({
@@ -58,4 +59,13 @@ it("clearing unlocks imported or manually selected modes", () => {
       .update({ changes: { from: 0, to: imported.doc.length } })
       .state.field(metadataField),
   ).toEqual({ mode: "markdown", locked: false, fileName: null });
+});
+
+it.each([
+  "\r\nflowchart LR\r\n A --> B\r\n",
+  "flowchart LR\n A --> B\r\n",
+  "flowchart LR\r A --> B",
+])("untouched imports retain the original line endings: %j", (raw) => {
+  expect(sourceText(raw.replace(/\r\n?|\n/g, "\n"), raw)).toBe(raw);
+  expect(sourceText("modified", raw)).toBe("modified");
 });

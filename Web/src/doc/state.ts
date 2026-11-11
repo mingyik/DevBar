@@ -21,8 +21,16 @@ export const metadataField = StateField.define<DocumentMetadata>({
 export const documentHistory = [
   metadataField,
   invertedEffects.of((transaction) =>
+    (transaction.docChanged && transaction.newDoc.length === 0) ||
     transaction.effects.some((effect) => effect.is(documentMetadata))
       ? [documentMetadata.of(transaction.startState.field(metadataField))]
       : [],
   ),
 ];
+
+/** CodeMirror uses LF internally; untouched imports retain their exact line endings. */
+export function sourceText(normalized: string, raw?: string): string {
+  return raw !== undefined && raw.replace(/\r\n?|\n/g, "\n") === normalized
+    ? raw
+    : normalized;
+}

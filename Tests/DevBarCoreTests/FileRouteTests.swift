@@ -35,3 +35,12 @@ import Testing
   #expect(FileDropReader.read([large]) == .failure(.tooLarge))
   #expect(FileDropReader.read([]) == .failure(.noFile))
 }
+@Test func mermaidImportPreservesEveryUTF8ByteIncludingBOMAndMixedLineEndings() throws {
+  let file = FileManager.default.temporaryDirectory.appending(path: "\(UUID()).mmd")
+  let bytes = Data([0xEF, 0xBB, 0xBF] + Array("\r\nflowchart LR\r\n A --> B\n".utf8))
+  defer { try? FileManager.default.removeItem(at: file) }
+  try bytes.write(to: file)
+  let imported = try FileDropReader.read([file]).get()
+  #expect(Data(imported.text.utf8) == bytes)
+  #expect(imported.route == .doc(.mermaid))
+}
