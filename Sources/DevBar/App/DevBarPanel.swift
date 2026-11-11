@@ -49,6 +49,12 @@ final class DevBarPanel: NSPanel {
     else {
       return false
     }
+    // Menu-less agent apps have no Edit menu to dispatch these AppKit actions.
+    // Leave select-all and history shortcuts to WKWebView / CodeMirror.
+    let actions = ["v": "paste:", "c": "copy:", "x": "cut:"]
+    if let action = actions[characters] {
+      return firstResponder?.tryToPerform(NSSelectorFromString(action), with: self) ?? false
+    }
     switch characters {
     case "1":
       onSelectPage?(0)

@@ -10,7 +10,9 @@
 
   /// 自检环境。只在带 --devbar-selfcheck 启动时生效；ScreenStateStore 据此改用测试目录。
   enum SelfCheckEnvironment {
-    static let isActive = CommandLine.arguments.contains("--devbar-selfcheck")
+    static let isActive =
+      CommandLine.arguments.contains("--devbar-selfcheck")
+      || CommandLine.arguments.contains("--devbar-manual-editor")
 
     /// 每次启动一个新的临时目录：<系统临时目录>/devbar-selfcheck-<UUID>/state
     static let stateDirectory: URL? = {
