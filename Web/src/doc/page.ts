@@ -13,10 +13,11 @@ import type { PageState } from "../editor/page-shell";
 import { post } from "../bridge/client";
 import { strings } from "../strings";
 import { exportPreview } from "../preview/export";
-import { renderDocument } from "./document";
+import { releaseDocumentPreview, renderDocument } from "./document";
 import { bindPreviewLinks } from "./preview";
 import { detectDocMode, type DocMode } from "./mode";
-import { svgToPngBase64 } from "./mermaid";
+import { releaseMermaidCache, svgToPngBase64 } from "./mermaid";
+import { releaseHighlighter } from "./highlight";
 
 export type DocumentState = PageState & {
   docMode?: DocMode;
@@ -200,6 +201,15 @@ export class DocPage {
   refresh() {
     if (this.shell.mode === "preview" && !this.shell.root.hidden)
       void this.render();
+  }
+  async releaseMemory(): Promise<void> {
+    clearTimeout(this.timer);
+    await this.pending;
+    this.shell.preview.replaceChildren();
+    this.renderKey = "";
+    releaseDocumentPreview(this.shell.preview.ownerDocument);
+    releaseMermaidCache();
+    await releaseHighlighter();
   }
   async export() {
     if (this.shell.mode !== "preview") await this.togglePreview();

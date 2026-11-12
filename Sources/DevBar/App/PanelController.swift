@@ -60,6 +60,7 @@ final class PanelController {
       model.toast = text
     }
     webHost.onClipboardWrite = { [weak clipboard] count in clipboard?.monitor.markSelfWrite(count) }
+    webHost.onMemoryFlush = { [weak self] in self?.releaseHiddenVisualCaches() }
     panel.onClipboardKey = { [weak self] code in
       guard self?.model.page == .clipboard else { return false }
       return self?.clipboard.handleKey(code) ?? false
@@ -131,6 +132,7 @@ final class PanelController {
     if let anchor {
       lastAnchor = anchor
     }
+    webHost.setPanelVisible(true)
     updateMaterial()
     reposition()
     if activateApplication {
@@ -139,8 +141,10 @@ final class PanelController {
     } else {
       panel.orderFrontRegardless()
     }
-    webHost.panelVisible = true
-    Task { await clipboard.monitor.poll() }
+    Task {
+      if clipboard.needsVisualCacheReload { await clipboard.reload() }
+      await clipboard.monitor.poll()
+    }
     let elapsed = started.duration(to: .now)
     let milliseconds = milliseconds(elapsed)
     signposter.endInterval("openPanel", interval)
@@ -153,7 +157,7 @@ final class PanelController {
     panel.orderOut(nil)
     previewHideTask?.cancel()
     hideClipboardPreview()
-    webHost.panelVisible = false
+    webHost.setPanelVisible(false)
     dismissing = false
   }
 
@@ -339,6 +343,21 @@ final class PanelController {
     clipboardPreview?.orderOut(nil)
   }
 
+  private func releaseHiddenVisualCaches() {
+    guard !panel.isVisible else { return }
+    previewHideTask?.cancel()
+    hideClipboardPreview()
+    clipboardPreviewState?.releaseMemory()
+    clipboardPreview?.contentView = nil
+    clipboardPreview = nil
+    clipboardPreviewHost = nil
+    clipboardPreviewState = nil
+    clipboardPreviewScheme = nil
+    previewContents.removeAll(keepingCapacity: false)
+    previewHeights.removeAll(keepingCapacity: false)
+    clipboard.releaseVisualCaches()
+  }
+
   private func installChrome() {
     host.translatesAutoresizingMaskIntoConstraints = false
     let container = NSView()
@@ -359,7 +378,6 @@ final class PanelController {
       hideClipboardPreview()
     }
     panel.appearance = theme.appearance()
-    webHost.panelVisible = panel.isVisible
     webHost.syncAppearance(
       panelSize: model.enlarged && model.showsEnlarge ? "large" : "normal",
       autoImport: model.autoImport)

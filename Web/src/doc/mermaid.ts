@@ -1,5 +1,6 @@
 import type { MermaidConfig } from "mermaid";
 import type { Theme } from "./highlight";
+import { BoundedTextCache } from "../bounded-text-cache";
 export const LAYOUT = "dagre" as const;
 export const SYSTEM_FONT = "-apple-system, BlinkMacSystemFont, sans-serif";
 const WIDE_DIAGRAM_RATIO = 2;
@@ -7,7 +8,7 @@ const WIDE_DIAGRAM_SCALE = 0.5;
 let library: Promise<(typeof import("mermaid"))["default"]> | undefined;
 let queue: Promise<unknown> = Promise.resolve();
 let nonce = 0;
-const cache = new Map<string, string>();
+const cache = new BoundedTextCache(64, 8 * 1024 * 1024);
 const backgrounds: Partial<Record<Theme, string>> = {};
 export function loadMermaid() {
   return (library ??= import("mermaid").then((m) => m.default));
@@ -168,9 +169,11 @@ async function generate(source: string, theme: Theme): Promise<string> {
       contrastKind,
       m.mermaidAPI.getConfig().themeVariables,
     );
-  if (cache.size >= 64) cache.delete(cache.keys().next().value!);
   cache.set(key, normalized);
   return normalized;
+}
+export function releaseMermaidCache(): void {
+  cache.clear();
 }
 export function renderMermaid(source: string, theme: Theme): Promise<string> {
   const result = queue.then(() => generate(source, theme));

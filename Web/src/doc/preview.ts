@@ -120,7 +120,12 @@ export function createMarkdownPreview(doc: Document = document) {
     }
     return fragment.innerHTML;
   }
-  return { render, renderAsync };
+  function releaseMemory(): void {
+    sources.length = 0;
+    lastText = undefined;
+    lastHTML = "";
+  }
+  return { render, renderAsync, releaseMemory };
 }
 /** Ordinary clicks never navigate; only an explicit command-click requests the host. */
 export function bindPreviewLinks(

@@ -50,3 +50,7 @@ export async function renderDocument(
   if (revisions.get(root) === revision)
     root.replaceChildren(...Array.from(staged.childNodes));
 }
+
+export function releaseDocumentPreview(doc: Document): void {
+  previews.get(doc)?.releaseMemory();
+}

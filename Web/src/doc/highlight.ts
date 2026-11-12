@@ -59,6 +59,12 @@ export function getHighlighter() {
     engine: createJavaScriptRegexEngine(),
   }));
 }
+export async function releaseHighlighter(): Promise<void> {
+  const current = highlighter;
+  highlighter = undefined;
+  warned = false;
+  if (current) await current.then((loaded) => loaded.dispose()).catch(() => {});
+}
 function escape(text: string) {
   return text
     .replaceAll("&", "&amp;")

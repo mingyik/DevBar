@@ -8,6 +8,7 @@ import os
   private let logger = Logger(subsystem: "local.devbar.app", category: "preview")
   private var savedPaths = Set<String>()
   private var busy = false
+  private var releaseWhenIdle = false
   private var canvas: WKWebView?
   private var loadContinuation: CheckedContinuation<Bool, Never>?
   private var loadGeneration = 0
@@ -27,6 +28,14 @@ import os
   /// scale so the bitmap is 2× the CSS size on both 1× and 2× displays.
   static func snapshotPointWidth(pixels: Int, scale: CGFloat) -> CGFloat {
     CGFloat(pixels) / (scale > 0 ? scale : 2)
+  }
+
+  func releaseMemory() {
+    guard !busy else {
+      releaseWhenIdle = true
+      return
+    }
+    releaseCanvas()
   }
 
   static func destination(directory: URL, now: Date, exists: (String) -> Bool) -> URL {
@@ -79,7 +88,13 @@ import os
       return #"{"status":"tooLarge"}"#
     }
     busy = true
-    defer { busy = false }
+    defer {
+      busy = false
+      if releaseWhenIdle {
+        releaseWhenIdle = false
+        releaseCanvas()
+      }
+    }
     guard let host = host ?? NSApp?.keyWindow?.contentView else { return #"{"status":"failed"}"# }
     let view = ensureCanvas(width: width, height: min(height, 512), host: host)
     let loaded = await load(
@@ -186,6 +201,16 @@ import os
     host.addSubview(view, positioned: .below, relativeTo: nil)
     canvas = view
     return view
+  }
+
+  private func releaseCanvas() {
+    loadGeneration += 1
+    finishLoad(false)
+    guard let canvas else { return }
+    canvas.stopLoading()
+    canvas.navigationDelegate = nil
+    canvas.removeFromSuperview()
+    self.canvas = nil
   }
 
   private func load(_ html: String, in view: WKWebView) async -> Bool {

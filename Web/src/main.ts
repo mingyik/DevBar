@@ -79,6 +79,9 @@ const bridge = {
         break;
       case "memory.flush":
         await save();
+        json.releaseMemory();
+        qr.releaseMemory();
+        await doc.releaseMemory();
         return { ok: true };
     }
     return {};
@@ -126,6 +129,8 @@ async function show(page: Page): Promise<void> {
   for (const [name, shell] of pages) shell.root.hidden = name !== page;
   const shell = pages.get(page)!;
   if (page === "doc") doc.refresh();
+  if (page === "json") await json.refresh();
+  if (page === "qr") await qr.refresh();
   shell.view.focus();
   if (autoImport && shell.text === "" && page !== "doc") {
     const revision = shell.revision;

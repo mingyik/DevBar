@@ -392,6 +392,35 @@ export default async function run(scenario, fixture) {
         document.querySelector("#doc .page-info").textContent;
     }
   }
-  await receive("memory.flush", {});
+  if (scenario === "memory") {
+    await receive("memory.flush", {});
+    result.memoryFlushClearsPreviews = {
+      document: document.querySelector("#doc .preview").childElementCount === 0,
+      json: document.querySelector("#tools .preview").childElementCount === 0,
+      qr: document.querySelector("#qr .preview").childElementCount === 0,
+    };
+    await receive("screen.show", { page: "doc" });
+    await until(
+      () =>
+        document.querySelectorAll("#doc .mmd:not(.mmd-error) svg").length ===
+        22,
+      "document preview restored after memory flush",
+    );
+    result.documentPreviewRestored = true;
+    await receive("screen.show", { page: "json" });
+    await until(
+      () => !!document.querySelector("#tools .tree-root"),
+      "JSON tree restored after memory flush",
+    );
+    result.jsonTreeRestored = true;
+    await receive("screen.show", { page: "qr" });
+    await until(
+      () => !!document.querySelector("#qr .preview img"),
+      "QR preview restored after memory flush",
+    );
+    result.qrPreviewRestored = true;
+  } else {
+    await receive("memory.flush", {});
+  }
   return result;
 }

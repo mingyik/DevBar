@@ -33,6 +33,14 @@ final class ClipboardHoverPreviewState {
     }
     isLoading = false
   }
+
+  func releaseMemory() {
+    item = nil
+    content = ""
+    image = nil
+    isLoading = false
+    isSizing = false
+  }
 }
 
 /// Immutable image data can cross from the background decoder to the main actor.

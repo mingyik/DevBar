@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import Synchronization
 import WebKit
 import os
 
@@ -8,10 +9,11 @@ import os
 final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDelegate, WKUIDelegate {
   private(set) var webView: WKWebView
   private(set) var generation = 0
-  var panelVisible = false
+  private(set) var panelVisible = false
   var autoImport = true
   var onClipboardWrite: ((Int) -> Void)?
   var onToast: ((String) -> Void)?
+  var onMemoryFlush: (() -> Void)?
   var lastPreviewImagePath: String? { previewImage.lastSavedPath }
   var acceptsFiles: (() -> Bool)?
   var receivedFiles: (([URL]) -> Void)?
@@ -24,6 +26,9 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   private var ready = false
   private var pending: [String] = []
   private var memorySource: DispatchSourceMemoryPressure?
+  private var hiddenFlushTask: Task<Void, Never>?
+  private var memoryFlushInProgress = false
+  private var webViewReleased = false
   private var ruleList: WKContentRuleList?
   private var loading = false
 
@@ -38,7 +43,22 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     webView = WKWebView()
     super.init()
     installMemoryWatch()
-    Task { await start() }
+    Task {
+      await start()
+      if !panelVisible { scheduleHiddenMemoryFlush() }
+    }
+  }
+
+  func setPanelVisible(_ visible: Bool) {
+    guard panelVisible != visible else { return }
+    panelVisible = visible
+    hiddenFlushTask?.cancel()
+    hiddenFlushTask = nil
+    if visible {
+      if webViewReleased { rebuild() }
+    } else {
+      scheduleHiddenMemoryFlush()
+    }
   }
 
   func importFile(text: String, name: String, docMode: String? = nil, document: Bool) {
@@ -117,6 +137,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   }
 
   private func rebuild() {
+    webViewReleased = false
     ready = false
     loading = true
     generation += 1
@@ -262,7 +283,8 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   }
 
   private func installMemoryWatch() {
-    let source = DispatchSource.makeMemoryPressureSource(eventMask: .critical, queue: .main)
+    let source = DispatchSource.makeMemoryPressureSource(
+      eventMask: [.warning, .critical], queue: .main)
     source.setEventHandler { [weak self] in
       MainActor.assumeIsolated {
         self?.handleMemoryPressure()
@@ -274,29 +296,81 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
 
   private func handleMemoryPressure() {
     guard !panelVisible else { return }
-    logger.notice("memoryFlush")
-    let envelope = BridgeEnvelope(v: 1, id: UUID().uuidString, type: "memory.flush", payload: [:])
-      .encoded()
-    if ready {
-      Task {
-        _ = try? await webView.callAsyncJavaScript(
-          "return await window.__devbar.receive(env)",
-          arguments: ["env": envelope],
-          in: nil,
-          contentWorld: .page
-        )
-      }
+    hiddenFlushTask?.cancel()
+    hiddenFlushTask = Task { @MainActor [weak self] in await self?.flushHiddenMemory() }
+  }
+
+  private func scheduleHiddenMemoryFlush() {
+    hiddenFlushTask?.cancel()
+    hiddenFlushTask = Task { @MainActor [weak self] in
+      try? await Task.sleep(for: .seconds(60))
+      guard !Task.isCancelled else { return }
+      await self?.flushHiddenMemory()
     }
-    Task {
-      try? await Task.sleep(for: .seconds(1))
-      self.releaseHiddenWebView()
+  }
+
+  private func flushHiddenMemory() async {
+    guard !panelVisible, !memoryFlushInProgress, !webViewReleased else { return }
+    memoryFlushInProgress = true
+    defer { memoryFlushInProgress = false }
+    logger.notice("memoryFlush")
+    if ready {
+      let envelope = BridgeEnvelope(
+        v: 1, id: UUID().uuidString, type: "memory.flush", payload: [:]
+      ).encoded()
+      let replied = await requestMemoryFlush(envelope)
+      logger.notice("memoryFlushReply=\(replied, privacy: .public)")
+    }
+    guard !panelVisible else { return }
+    onMemoryFlush?()
+    previewImage.releaseMemory()
+    releaseHiddenWebView()
+  }
+
+  private func requestMemoryFlush(_ envelope: String) async -> Bool {
+    let view = webView
+    return await withCheckedContinuation { continuation in
+      let gate = MemoryFlushGate()
+      let request = Task { @MainActor in
+        let success: Bool
+        do {
+          _ = try await view.callAsyncJavaScript(
+            "return await window.__devbar.receive(env)",
+            arguments: ["env": envelope],
+            in: nil,
+            contentWorld: .page
+          )
+          success = true
+        } catch {
+          success = false
+        }
+        if gate.claim() { continuation.resume(returning: success) }
+      }
+      Task { @MainActor in
+        try? await Task.sleep(for: .seconds(1))
+        if gate.claim() {
+          request.cancel()
+          view.stopLoading()
+          continuation.resume(returning: false)
+        }
+      }
     }
   }
 
   private func releaseHiddenWebView() {
     guard !panelVisible else { return }
+    let old = webView
+    old.stopLoading()
+    old.navigationDelegate = nil
+    old.uiDelegate = nil
+    old.configuration.userContentController.removeScriptMessageHandler(
+      forName: "devbar", contentWorld: .page)
+    old.removeFromSuperview()
+    webView = WKWebView(frame: old.frame, configuration: WKWebViewConfiguration())
+    generation += 1
     ready = false
-    webView.stopLoading()
+    loading = false
+    webViewReleased = true
     logger.notice("webViewReleased")
   }
 
@@ -321,5 +395,17 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     else { return false }
     NSWorkspace.shared.open(url)
     return true
+  }
+}
+
+private final class MemoryFlushGate: @unchecked Sendable {
+  private let claimed = Mutex(false)
+
+  func claim() -> Bool {
+    claimed.withLock { value in
+      guard !value else { return false }
+      value = true
+      return true
+    }
   }
 }

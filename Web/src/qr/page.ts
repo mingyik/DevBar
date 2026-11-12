@@ -46,21 +46,37 @@ export class QRPage {
       this.shell.onStateChange();
       return;
     }
+    if (await this.renderPreview()) this.shell.onStateChange();
+  }
+  async refresh(): Promise<void> {
+    if (
+      this.shell.mode === "preview" &&
+      !this.png &&
+      this.shell.preview.childElementCount === 0
+    )
+      await this.renderPreview();
+  }
+  releaseMemory(): void {
+    this.png = "";
+    this.shell.preview.replaceChildren();
+    this.shell.preview.classList.remove("qr-preview");
+  }
+  private async renderPreview(): Promise<boolean> {
     const bytes = new TextEncoder().encode(this.shell.text).length;
     if (bytes > 2331) {
       this.shell.updateInfo(strings.qrTooLarge(bytes));
-      return;
+      return false;
     }
     const revision = this.shell.revision;
     const reply = await post("qr.show", { text: this.shell.text });
-    if (revision !== this.shell.revision) return;
+    if (revision !== this.shell.revision) return false;
     if (reply.status !== "shown" || typeof reply.pngBase64 !== "string") {
       this.shell.updateInfo(
         reply.status === "tooLarge"
           ? strings.qrTooLarge(bytes)
           : strings.qrFailed,
       );
-      return;
+      return false;
     }
     this.png = reply.pngBase64;
     const image = element("img");
@@ -70,7 +86,7 @@ export class QRPage {
     this.shell.preview.replaceChildren(image);
     this.shell.showPreview(true);
     this.toggle.textContent = strings.edit;
-    this.shell.onStateChange();
+    return true;
   }
   async copy(): Promise<void> {
     if (this.shell.mode === "preview" && this.png)

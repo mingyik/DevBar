@@ -17,13 +17,76 @@
       Task {
         panel.panel.ignoresMouseEvents = true
         panel.model.autoImport = false
+        var result: [String: Any] = ["scenario": scenario, "theme": theme, "large": large]
+        if scenario == "mem-idle" {
+          let ready = await waitForReady(panel.webHost)
+          result["ready"] = ready
+          result["processID"] = ProcessInfo.processInfo.processIdentifier
+          write(result, to: output)
+          return
+        }
+        if scenario == "mem-daily" {
+          panel.theme.mode = theme == "dark" ? .dark : .light
+          panel.model.pinned = true
+          panel.model.page = .json
+          panel.show(anchor: nil, activateApplication: false)
+          let text = "{\"daily\":{\"items\":[1,2,3,4,5],\"ready\":true}}"
+          let payload = BridgeEnvelope(
+            v: 1, id: UUID().uuidString, type: "tools.import",
+            payload: [
+              "text": .string(text), "mode": .string("replace"), "page": .string("json"),
+            ]
+          ).encoded()
+          let document = BridgeEnvelope(
+            v: 1, id: UUID().uuidString, type: "doc.import",
+            payload: [
+              "text": .string("# Daily\n\nA short synthetic document."),
+              "docMode": .string("markdown"),
+            ]
+          ).encoded()
+          let ready = await waitForReady(panel.webHost)
+          if ready {
+            for value in ["daily clip one", "daily clip two", "daily clip three"] {
+              if let capture = ClipboardCapture(payloads: [
+                ClipboardPayload(
+                  type: NSPasteboard.PasteboardType.string.rawValue, data: Data(value.utf8))
+              ]) {
+                await panel.clipboard.record(capture, source: nil)
+              }
+            }
+            _ = try? await panel.webHost.webView.callAsyncJavaScript(
+              "await window.__devbar.receive(docRaw); return await window.__devbar.receive(raw)",
+              arguments: ["raw": payload, "docRaw": document], in: nil,
+              contentWorld: .page)
+            _ = try? await panel.webHost.webView.evaluateJavaScript(
+              "document.dispatchEvent(new KeyboardEvent('keydown',{key:'e',metaKey:true,bubbles:true}))"
+            )
+            for _ in 0..<100 {
+              if (try? await panel.webHost.webView.evaluateJavaScript(
+                "!!document.querySelector('#tools .tree-root')")) as? Bool == true
+              {
+                break
+              }
+              try? await Task.sleep(for: .milliseconds(50))
+            }
+          }
+          result["ready"] = ready
+          result["syntheticClipboardItems"] = panel.clipboard.items.count
+          result["jsonBytes"] = text.utf8.count
+          result["jsonTreeMounted"] =
+            (try? await panel.webHost.webView.evaluateJavaScript(
+              "!!document.querySelector('#tools .tree-root')")) as? Bool ?? false
+          result["processID"] = ProcessInfo.processInfo.processIdentifier
+          panel.dismiss()
+          write(result, to: output)
+          return
+        }
         panel.theme.mode = theme == "dark" ? .dark : .light
         panel.model.pinned = true
         panel.model.page = scenario == "json" ? .json : .doc
         panel.show(anchor: nil, activateApplication: false)
         panel.model.enlarged = large
         panel.show(anchor: nil, activateApplication: false)
-        var result: [String: Any] = ["scenario": scenario, "theme": theme, "large": large]
         do {
           for _ in 0..<150 {
             if (try? await panel.webHost.webView.evaluateJavaScript("!!window.__devbar")) as? Bool
@@ -100,12 +163,50 @@
           ]
         } catch { result["error"] = String(describing: error) }
         result["processID"] = ProcessInfo.processInfo.processIdentifier
-        if let data = try? JSONSerialization.data(
-          withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
-        {
-          try? data.write(to: output)
+        write(result, to: output)
+        if scenario == "memory" {
+          panel.dismiss()
+          if args.contains("--verify-idle-release") {
+            let generation = panel.webHost.generation
+            try? await Task.sleep(for: .seconds(65))
+            result["hiddenReleaseOccurred"] = panel.webHost.generation > generation
+            panel.model.page = .doc
+            panel.show(anchor: nil, activateApplication: false)
+            result["readyAfterReopen"] = await waitForReady(panel.webHost)
+            for _ in 0..<150 {
+              if (try? await panel.webHost.webView.evaluateJavaScript(
+                "document.querySelectorAll('#doc .mmd:not(.mmd-error) svg').length")) as? Int == 22
+              {
+                break
+              }
+              try? await Task.sleep(for: .milliseconds(100))
+            }
+            result["restoredDiagramCount"] =
+              (try? await panel.webHost.webView.evaluateJavaScript(
+                "document.querySelectorAll('#doc .mmd:not(.mmd-error) svg').length")) as? Int ?? 0
+            panel.dismiss()
+            write(result, to: output)
+          }
         }
       }
+    }
+
+    private static func waitForReady(_ host: WebHost) async -> Bool {
+      for _ in 0..<150 {
+        if (try? await host.webView.evaluateJavaScript("!!window.__devbar")) as? Bool == true {
+          return true
+        }
+        try? await Task.sleep(for: .milliseconds(100))
+      }
+      return false
+    }
+
+    private static func write(_ result: [String: Any], to output: URL) {
+      guard
+        let data = try? JSONSerialization.data(
+          withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
+      else { return }
+      try? data.write(to: output)
     }
   }
 #endif

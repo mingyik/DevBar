@@ -15,6 +15,7 @@ final class ClipboardController {
   private(set) var previewTexts: [UUID: String] = [:]
   private(set) var thumbnails: [UUID: NSImage] = [:]
   private(set) var cycler = ClipboardCycler()
+  private(set) var needsVisualCacheReload = false
   var detailID: UUID?
   private(set) var hoverID: UUID?
   private(set) var isDragging = false
@@ -110,8 +111,15 @@ final class ClipboardController {
     originals = payloads
     previewTexts = texts
     thumbnails = images
+    needsVisualCacheReload = false
     cycler.select(cycler.currentIndex, count: items.count)
     focusedIndex = min(focusedIndex, max(items.count - 1, 0))
+  }
+
+  func releaseVisualCaches() {
+    thumbnails.removeAll(keepingCapacity: false)
+    previewTexts.removeAll(keepingCapacity: false)
+    needsVisualCacheReload = true
   }
 
   func select(_ index: Int, board: NSPasteboard = .general) {

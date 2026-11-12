@@ -259,17 +259,37 @@ export class JsonPage {
       return;
     }
     await this.analyze();
+    if (await this.buildPreview()) this.shell.onStateChange();
+  }
+  async refresh(): Promise<void> {
+    if (this.analysis === null && this.shell.text.trim()) await this.analyze();
+    if (
+      this.shell.mode === "preview" &&
+      this.shell.preview.childElementCount === 0
+    )
+      await this.buildPreview();
+  }
+  releaseMemory(): void {
+    clearTimeout(this.analysisTimer);
+    this.cancel();
+    this.cancelButton.hidden = true;
+    this.analysis = null;
+    this.shell.preview.replaceChildren();
+    markErrors(this.shell.view, []);
+    this.labels();
+  }
+  private async buildPreview(): Promise<boolean> {
     if (this.analysis?.state === "valid") {
       const revision = this.shell.revision;
       const result = await this.request("parse");
       if (revision !== this.shell.revision || result.status !== "success")
-        return;
+        return false;
       renderTree(this.shell.preview, result.value, (text) =>
         post("clipboard.writeText", { text }),
       );
     } else {
       const url = urlPreview(this.shell.text.trim());
-      if (!url) return;
+      if (!url) return false;
       const table = element("table", "url-table");
       for (const [label, value] of [
         [strings.protocol, url.scheme],
@@ -295,7 +315,7 @@ export class JsonPage {
     }
     this.shell.showPreview(true);
     this.labels();
-    this.shell.onStateChange();
+    return true;
   }
   async copy(): Promise<void> {
     if (this.shell.mode === "preview" && this.analysis?.state === "valid") {
