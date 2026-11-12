@@ -41,7 +41,8 @@ final class ClipboardController {
     monitor = ClipboardMonitor(reader: reader)
     card = ClipboardCard(theme: theme)
     do {
-      let root = directory ?? URL.applicationSupportDirectory.appending(path: "DevBar/clipboard")
+      if directory == nil { try DataLocations.prepare(DataLocations.root) }
+      let root = directory ?? DataLocations.root.appending(path: "Paste")
       let corrupt = Mutex(false)
       store = try ClipboardStore(
         directory: root, onCorruptHistory: { corrupt.withLock { $0 = true } })
@@ -56,6 +57,12 @@ final class ClipboardController {
       await self?.reload()
       if startMonitoring { self?.monitor.start() }
     }
+  }
+
+  func reopenStorage() async throws {
+    let replacement = try ClipboardStore(directory: DataLocations.root.appending(path: "Paste"))
+    store = replacement
+    await reload()
   }
 
   func record(_ capture: ClipboardCapture, source: String?) async {

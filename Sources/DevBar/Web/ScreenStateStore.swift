@@ -2,29 +2,25 @@ import Foundation
 import os
 
 actor ScreenStateStore {
-  private let directory: URL
+  private let explicitDirectory: URL?
+  private var directory: URL { explicitDirectory ?? DataLocations.root }
   private let logger = Logger(subsystem: "local.devbar.app", category: "web")
 
   init(directory explicitDirectory: URL? = nil) {
-    if let explicitDirectory {
-      directory = explicitDirectory
-      return
-    }
     #if DEBUG
-      // 自检时改用独立的测试目录，不读写用户的状态目录（见 Debug/WebSelfCheck.swift）。
-      if let testDirectory = SelfCheckEnvironment.stateDirectory {
-        directory = testDirectory
-        return
-      }
+      self.explicitDirectory = explicitDirectory ?? SelfCheckEnvironment.stateDirectory
+    #else
+      self.explicitDirectory = explicitDirectory
     #endif
-    let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-    directory = base.appending(path: "DevBar/state")
   }
 
-  func save(screen: String, json: String) {
-    guard let file = fileURL(screen), let data = json.data(using: .utf8) else { return }
+  @discardableResult
+  func save(screen: String, json: String) -> Bool {
+    guard let file = fileURL(screen), let data = json.data(using: .utf8) else { return false }
     do {
-      try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+      if explicitDirectory == nil { try DataLocations.prepare(directory) }
+      try FileManager.default.createDirectory(
+        at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
       let temporary = file.appendingPathExtension("tmp")
       try data.write(to: temporary, options: .atomic)
       if FileManager.default.fileExists(atPath: file.path) {
@@ -34,12 +30,17 @@ actor ScreenStateStore {
       }
       logger.notice(
         "stateSave screen=\(screen, privacy: .public) bytes=\(data.count, privacy: .public)")
+      return true
     } catch {
       logger.error("stateSaveFailed screen=\(screen, privacy: .public)")
+      return false
     }
   }
 
   func load(screen: String) -> String? {
+    if explicitDirectory == nil {
+      do { try DataLocations.prepare(directory) } catch { return nil }
+    }
     if screen == "json" || screen == "tools",
       let file = fileURL(screen), !FileManager.default.fileExists(atPath: file.path),
       let data = try? Data(contentsOf: directory.appending(path: "tools.json")),
@@ -57,7 +58,17 @@ actor ScreenStateStore {
   }
 
   private func fileURL(_ screen: String) -> URL? {
-    switch screen {
+    if explicitDirectory == nil {
+      let name: String
+      switch screen {
+      case "tools", "json": name = "Json"
+      case "qr": name = "QrCode"
+      case "doc": name = "Markdown"
+      default: return nil
+      }
+      return directory.appending(path: name + "/state.json")
+    }
+    return switch screen {
     case "tools", "json": directory.appending(path: "json.json")
     case "qr": directory.appending(path: "qr.json")
     case "doc": directory.appending(path: "doc.json")

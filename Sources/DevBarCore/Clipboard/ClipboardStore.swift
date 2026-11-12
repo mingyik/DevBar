@@ -93,7 +93,8 @@ public actor ClipboardStore {
     do {
       var stored: [Representation] = []
       for (index, payload) in representations.enumerated() {
-        let name = "\(id)-\(index).blob"
+        let stamp = Int64(createdAt.timeIntervalSince1970 * 1000)
+        let name = "\(stamp)-\(id)-\(index).blob"
         let path = directory.appendingPathComponent("blobs/" + name)
         try payload.data.write(to: path, options: .atomic)
         written.append(path)
