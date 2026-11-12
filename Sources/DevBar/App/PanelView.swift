@@ -2,7 +2,6 @@ import AppKit
 import DevBarCore
 import KeyboardShortcuts
 import SwiftUI
-import UniformTypeIdentifiers
 
 private enum SettingsControlLayout {
   static let width: CGFloat = 130
@@ -15,6 +14,10 @@ struct PanelView: View {
   var clipboard: ClipboardController
   @Bindable var storage: StorageSettings
   @State private var draggedPage: PanelModel.Page?
+  @State private var pageFrames: [PanelModel.Page: CGRect] = [:]
+  @State private var pageDragLocation: CGPoint?
+  @State private var pageDragOffset = CGSize.zero
+  @GestureState private var pageDragActive = false
   @State private var titleHovered = false
   @State private var titleShortcut: String?
 
@@ -150,6 +153,36 @@ struct PanelView: View {
       .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
+  /// 松手后被拖页面在列表里的最终位置：指针上方有几行，就排在第几位。
+  private func pageDropIndex(_ y: CGFloat, dragging source: PanelModel.Page) -> Int? {
+    guard model.pageOrder.contains(source) else { return nil }
+    var index = 0
+    for candidate in model.pageOrder where candidate != source {
+      guard let frame = pageFrames[candidate] else { return nil }
+      if y > frame.midY { index += 1 }
+    }
+    return index
+  }
+
+  /// 插入线画在目标行的哪一边：往下拖画在下边，往上拖画在上边。
+  private func pageDropEdge(for page: PanelModel.Page) -> Alignment? {
+    guard let source = draggedPage, source != page, let location = pageDragLocation,
+      let from = model.pageOrder.firstIndex(of: source),
+      let index = pageDropIndex(location.y, dragging: source), index != from,
+      model.pageOrder.indices.contains(index), model.pageOrder[index] == page
+    else { return nil }
+    return index > from ? .bottom : .top
+  }
+
+  /// 被拖的行只在页面列表范围内上下移动。
+  private func pageDragClampedOffset(_ page: PanelModel.Page) -> CGFloat {
+    let frames = model.pageOrder.compactMap { pageFrames[$0] }
+    guard let own = pageFrames[page], let top = frames.map(\.minY).min(),
+      let bottom = frames.map(\.maxY).max()
+    else { return 0 }
+    return min(max(pageDragOffset.height, top - own.minY), bottom - own.maxY)
+  }
+
   private func settings(_ scheme: ColorScheme) -> some View {
     ScrollViewReader { proxy in
       ReadOnlyScrollView(scheme: scheme) {
@@ -175,8 +208,12 @@ struct PanelView: View {
             Text(storage.message).font(.system(size: 11)).foregroundStyle(
               DesignTokens.textSecondary(scheme))
           }
-          Toggle(Strings.autoImport, isOn: $model.autoImport)
-            .toggleStyle(.switch)
+          HStack {
+            Text(Strings.autoImport).font(.system(size: 13))
+            Spacer(minLength: 12)
+            Toggle(Strings.autoImport, isOn: $model.autoImport)
+              .labelsHidden().toggleStyle(.switch)
+          }
           shortcut(Strings.shortcutToggle, .togglePanel, scheme)
           settingsHeading(Strings.clipboardGroup, scheme: scheme).id("clipboard")
           HistoryLimitRow(clipboard: clipboard, scheme: scheme).disabled(storage.busy)
@@ -193,18 +230,25 @@ struct PanelView: View {
                 .frame(width: 18, height: 28).contentShape(Rectangle())
                 .help(Strings.reorderPages)
                 .accessibilityLabel(Strings.reorderPages + " " + page.title)
-                .onDrag {
-                  draggedPage = page
-                  let provider = NSItemProvider()
-                  let data = Data(page.rawValue.utf8)
-                  provider.registerDataRepresentation(
-                    forTypeIdentifier: PageOrderDrop.type.identifier, visibility: .ownProcess
-                  ) { completion in
-                    completion(data, nil)
-                    return nil
-                  }
-                  return provider
-                }
+                .highPriorityGesture(
+                  DragGesture(minimumDistance: 4, coordinateSpace: .named("page-order"))
+                    .updating($pageDragActive) { _, active, _ in active = true }
+                    .onChanged { value in
+                      draggedPage = page
+                      pageDragLocation = value.location
+                      pageDragOffset = value.translation
+                    }
+                    .onEnded { value in
+                      if let index = pageDropIndex(value.location.y, dragging: page),
+                        model.pageOrder.indices.contains(index)
+                      {
+                        model.movePage(page, to: model.pageOrder[index])
+                      }
+                      draggedPage = nil
+                      pageDragLocation = nil
+                      pageDragOffset = .zero
+                    }
+                )
               Text(page.title).font(.system(size: 13)).lineLimit(1)
               Spacer(minLength: 8)
               Toggle(
@@ -220,14 +264,45 @@ struct PanelView: View {
                 width: SettingsControlLayout.width)
             }
             .contentShape(Rectangle())
-            .onDrop(
-              of: [PageOrderDrop.type],
-              delegate: PageOrderDrop(model: model, target: page, dragged: $draggedPage))
+            .onGeometryChange(for: CGRect.self) { proxy in
+              proxy.frame(in: .named("page-order"))
+            } action: { frame in
+              pageFrames[page] = frame
+            }
+            .background {
+              if draggedPage == page {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                  .fill(DesignTokens.panelControl(scheme)).padding(.horizontal, -6)
+              }
+            }
+            .offset(y: draggedPage == page ? pageDragClampedOffset(page) : 0)
+            .zIndex(draggedPage == page ? 1 : 0)
+            .overlay {
+              if let edge = pageDropEdge(for: page) {
+                Rectangle().fill(DesignTokens.textPrimary(scheme)).frame(height: 2)
+                  .frame(maxHeight: .infinity, alignment: edge)
+                  .offset(y: edge == .top ? -8 : 8)
+                  .allowsHitTesting(false)
+              }
+            }
           }
           Text(Strings.aboutBody).font(.system(size: 11)).foregroundStyle(
             DesignTokens.textSecondary(scheme))
         }.foregroundStyle(DesignTokens.textPrimary(scheme))
           .frame(maxWidth: .infinity, alignment: .leading)
+          .coordinateSpace(name: "page-order")
+          .onChange(of: pageDragActive) { _, active in
+            if !active {
+              draggedPage = nil
+              pageDragLocation = nil
+              pageDragOffset = .zero
+            }
+          }
+          .onDisappear {
+            draggedPage = nil
+            pageDragLocation = nil
+            pageDragOffset = .zero
+          }
       }.task(id: model.settingsGroup) {
         try? await Task.sleep(for: .milliseconds(80))
         proxy.scrollTo(model.settingsGroup, anchor: .top)
@@ -342,23 +417,6 @@ struct PanelChrome: View {
       )
   }
 
-}
-
-private struct PageOrderDrop: DropDelegate {
-  static let type = UTType(exportedAs: "local.devbar.page-order")
-  let model: PanelModel
-  let target: PanelModel.Page
-  @Binding var dragged: PanelModel.Page?
-  func validateDrop(info: DropInfo) -> Bool {
-    dragged != nil && info.hasItemsConforming(to: [Self.type])
-  }
-  func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
-  func performDrop(info: DropInfo) -> Bool {
-    guard let source = dragged, info.hasItemsConforming(to: [Self.type]) else { return false }
-    model.movePage(source, to: target)
-    dragged = nil
-    return true
-  }
 }
 
 private struct HistoryLimitRow: View {

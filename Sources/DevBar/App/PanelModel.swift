@@ -22,7 +22,6 @@ final class PanelModel {
       candidate == page ? enabled : cyclingPages.contains(candidate)
     }
     defaults.set(cyclingPages.map(\.rawValue), forKey: "cyclingPages")
-    if !enabled, defaultPage == page.rawValue { defaultPage = "last" }
   }
   func movePage(_ source: Page, to target: Page) {
     guard source != target, let from = pageOrder.firstIndex(of: source),
@@ -45,9 +44,6 @@ final class PanelModel {
     }
   }
   @ObservationIgnored var onPageChange: (() -> Void)?
-  var defaultPage: String {
-    didSet { defaults.set(defaultPage, forKey: "defaultPage") }
-  }
   private(set) var settingsOrigin: Page = .clipboard
   private(set) var settingsGroup = "general"
   var autoImport: Bool { didSet { defaults.set(autoImport, forKey: "autoImport") } }
@@ -107,11 +103,6 @@ final class PanelModel {
     let stored: Page = raw == "encode" ? .json : Page(rawValue: raw) ?? .clipboard
     if raw == "encode" { defaults.set("json", forKey: "lastContentPage") }
     page = stored == .settings ? .clipboard : stored
-    let oldPreferred = defaults.string(forKey: "defaultPage") ?? "last"
-    let preferred = oldPreferred == "encode" ? "json" : oldPreferred
-    if oldPreferred == "encode" { defaults.set("json", forKey: "defaultPage") }
-    defaultPage =
-      Page.contentPages.contains(where: { $0.rawValue == preferred }) ? preferred : "last"
     jsonEnlarged = defaults.bool(forKey: "enlarged.json")
     docEnlarged = defaults.bool(forKey: "enlarged.doc")
   }

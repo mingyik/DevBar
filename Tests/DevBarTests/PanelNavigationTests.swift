@@ -20,24 +20,20 @@ import Testing
 
 @MainActor @Test func fourPagesCycleInOrderAndFirstOpenUsesFirstEnabledPage() {
   let defaults = UserDefaults(suiteName: "local.devbar.test.fivepages.\(UUID())")!
+  defaults.set("qr", forKey: "defaultPage")
   let model = PanelModel(defaults: defaults)
+  model.prepareToOpen()
+  #expect(model.page == .clipboard)
   for expected in [PanelModel.Page.json, .qr, .doc, .clipboard] {
     model.cyclePage()
     #expect(model.page == expected)
   }
-  model.defaultPage = "qr"  // Legacy preference no longer overrides the ordered startup page.
-  model.prepareToOpen()
-  #expect(model.page == .clipboard)
-  #expect(PanelModel(defaults: defaults).defaultPage == "qr")
   model.page = .json
   #expect(model.showsEnlarge)
   model.page = .doc
   #expect(model.showsEnlarge)
   model.page = .qr
   #expect(!model.showsEnlarge)
-  model.defaultPage = "last"
-  model.prepareToOpen()
-  #expect(model.page == .qr)
 }
 
 @MainActor @Test func reopeningAfterSettingsReturnsToRememberedContentPage() {
@@ -72,10 +68,8 @@ import Testing
 @MainActor @Test func removedEncodeMemoryMigratesToJSONAndFourPageCycle() {
   let defaults = UserDefaults(suiteName: "local.devbar.test.r8.\(UUID())")!
   defaults.set("encode", forKey: "lastContentPage")
-  defaults.set("encode", forKey: "defaultPage")
   let model = PanelModel(defaults: defaults)
   #expect(model.page == .json)
-  #expect(model.defaultPage == "json")
   #expect(PanelModel.Page.contentPages.map(\.rawValue) == ["clipboard", "json", "qr", "doc"])
   model.cyclePage()
   #expect(model.page == .qr)
@@ -139,17 +133,6 @@ import Testing
   #expect(model.cyclingPages == [.clipboard, .doc])
   defaults.set([], forKey: "cyclingPages")
   #expect(PanelModel(defaults: defaults).cyclingPages == [.clipboard])
-}
-
-@MainActor @Test func disablingFixedDefaultReturnsToEnabledPage() {
-  let defaults = UserDefaults(suiteName: "devbar.cycle.default.\(UUID())")!
-  let model = PanelModel(defaults: defaults)
-  model.defaultPage = "doc"
-  model.page = .doc
-  model.setCycleParticipation(.doc, enabled: false)
-  #expect(model.defaultPage == "last")
-  model.prepareToOpen()
-  #expect(model.page == .clipboard)
 }
 
 @MainActor @Test func shiftCommandPDoesNotInvokePageCycling() throws {

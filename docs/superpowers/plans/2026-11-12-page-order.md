@@ -1,6 +1,6 @@
 # 页面拖动排序与默认首次页面
 
-需求明确，在main直接实现：PanelModel持久化完整pageOrder及开启项cyclingPages，排序去重并补齐缺项；首个普通打开取开启列表第一项，专属快捷键直达优先，后续重开记忆当前开启页。旧defaultPage字段只兼容保留，不再决定首次页面，设置里移除旧选择器。
+需求明确，在 main 直接实现：PanelModel 持久化完整 `pageOrder` 及开启项 `cyclingPages`，排序去重并补齐缺项；首次普通打开取排序首个开启页，专属快捷键直达优先，后续重开记忆当前开启页。原 `defaultPage` 选择器和模型状态已移除；遗留 UserDefaults 值不读取。页面行左侧手柄与标题，右侧原生 Switch 后接快捷键框；Switch 开启、关闭颜色跟随系统外观。
 
 PanelView行布局：左侧手柄和标题，右侧原生Switch紧邻快捷键录制框；手柄注册ownProcess自定义类型，行接收同类型拖放，松手时更改顺序，取消不改变模型。Switch开关不重置排序，仍至少一个开启。Cmd+P按完整排序寻找下一开启页。
 
