@@ -184,7 +184,13 @@ struct PanelView: View {
     _ title: String, path: String, scheme: ColorScheme, action: @escaping () -> Void
   ) -> some View {
     HStack {
-      Text(title).font(.system(size: 13)).lineLimit(1)
+      VStack(alignment: .leading, spacing: 3) {
+        Text(title).font(.system(size: 13)).lineLimit(1)
+        Text(path).font(.system(size: 11))
+          .foregroundStyle(DesignTokens.textSecondary(scheme))
+          .lineLimit(1).truncationMode(.middle).help(path)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }.frame(maxWidth: .infinity, alignment: .leading)
       Spacer(minLength: 12)
       Button(action: action) {
         HStack(spacing: 6) {

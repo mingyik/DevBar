@@ -33,3 +33,7 @@ main，代码提交37d8afc、4840286。
 ℹ todo 0
 ℹ duration_ms 67.282666
 ```
+
+## 路径行补充
+
+左侧标题下增加11pt次要文字显示完整路径，单行中间省略并保留完整悬停提示。右侧按钮仍146×30，布局和样式未改。修改PanelView.storageLocation及UI基准。Scripts/check.sh通过（109 Swift、350 Web），构建与签名校验通过，已安装重启。外观待需求方查看。
