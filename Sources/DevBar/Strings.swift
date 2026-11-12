@@ -1,7 +1,9 @@
 import DevBarCore
 
 enum Strings {
-  static func historyLimit(_ count: Int) -> String { "历史记录上限：\(count) 条" }
+  static let historyLimitTitle = "历史记录上限"
+  static let historyLimitPlaceholder = "3-30"
+  static let systemSettingsButton = "系统设置"
   static let historyLimitHelp = "调小上限会删除超出的旧记录及文件"
   static let dataLocation = "数据存储位置"
   static let captureLocation = "截图保存位置"

@@ -24,7 +24,7 @@ public actor ClipboardStore {
     onImageTooLarge: @escaping @Sendable () -> Void = {},
     onCorruptHistory: @escaping @Sendable () -> Void = {}
   ) throws {
-    self.historyLimit = min(30, max(5, historyLimit))
+    self.historyLimit = min(30, max(3, historyLimit))
     self.directory = directory
     self.onImageTooLarge = onImageTooLarge
     let fm = FileManager.default
@@ -145,7 +145,7 @@ public actor ClipboardStore {
   }
 
   public func setHistoryLimit(_ value: Int) throws {
-    let bounded = min(30, max(5, value))
+    let bounded = min(30, max(3, value))
     let next = Array(items.prefix(bounded))
     try Self.persist(next, directory: directory)
     historyLimit = bounded

@@ -41,7 +41,7 @@ final class ClipboardController {
     defaults: UserDefaults = .standard
   ) {
     self.defaults = defaults
-    historyLimit = min(30, max(5, defaults.object(forKey: "clipboardHistoryLimit") as? Int ?? 10))
+    historyLimit = min(30, max(3, defaults.object(forKey: "clipboardHistoryLimit") as? Int ?? 10))
     monitor = ClipboardMonitor(reader: reader)
     card = ClipboardCard(theme: theme)
     do {
@@ -73,7 +73,7 @@ final class ClipboardController {
   }
 
   func setHistoryLimit(_ value: Int) async {
-    let bounded = min(30, max(5, value))
+    let bounded = min(30, max(3, value))
     do {
       try await store?.setHistoryLimit(bounded)
       historyLimit = bounded

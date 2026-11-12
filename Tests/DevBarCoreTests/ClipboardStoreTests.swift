@@ -371,9 +371,11 @@ private func addText(_ text: String, to store: ClipboardStore, date: Date = Date
   try await store.remove(item.id)
   let restored = try ClipboardStore(directory: root, historyLimit: 5)
   #expect(await restored.items.count == 4)
+  try await restored.setHistoryLimit(3)
+  #expect(await restored.items.count == 3)
   #expect(
     try FileManager.default.contentsOfDirectory(atPath: root.appending(path: "blobs").path).count
-      == 4)
+      == 3)
 }
 
 @Test func clipboardDeleteRemovesOriginalRepresentationsAndThumbnail() async throws {

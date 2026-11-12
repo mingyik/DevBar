@@ -155,17 +155,7 @@ struct PanelView: View {
           Toggle(Strings.autoImport, isOn: $model.autoImport)
           shortcut(Strings.shortcutToggle, .togglePanel, scheme)
           Text(Strings.clipboardGroup).font(.system(size: 13, weight: .semibold)).id("clipboard")
-          Stepper(
-            value: Binding(
-              get: { clipboard.historyLimit },
-              set: { value in
-                Task { await clipboard.setHistoryLimit(value) }
-              }), in: 5...30
-          ) {
-            Text(Strings.historyLimit(clipboard.historyLimit)).font(.system(size: 13))
-          }.disabled(storage.busy)
-          Text(Strings.historyLimitHelp).font(.system(size: 11)).foregroundStyle(
-            DesignTokens.textSecondary(scheme))
+          HistoryLimitRow(clipboard: clipboard, scheme: scheme).disabled(storage.busy)
           shortcut(Strings.shortcutOlder, .cycleOlder, scheme)
           directPasteAuthorization(scheme)
           Text(Strings.captureGroup).font(.system(size: 13, weight: .semibold)).id("capture")
@@ -194,15 +184,19 @@ struct PanelView: View {
     _ title: String, path: String, scheme: ColorScheme, action: @escaping () -> Void
   ) -> some View {
     HStack {
-      VStack(alignment: .leading, spacing: 3) {
-        Text(title).font(.system(size: 13))
-        Text(path).font(.system(size: 11)).lineLimit(1).truncationMode(.middle)
-          .foregroundStyle(DesignTokens.textSecondary(scheme)).help(path)
+      Text(title).font(.system(size: 13)).lineLimit(1)
+      Spacer(minLength: 12)
+      Button(action: action) {
+        HStack(spacing: 6) {
+          Image(systemName: "folder").font(.system(size: 12))
+          Text(URL(fileURLWithPath: path).lastPathComponent).lineLimit(1).truncationMode(.middle)
+          Spacer(minLength: 0)
+          Image(systemName: "chevron.down").font(.system(size: 9, weight: .medium))
+        }
+        .font(.system(size: 12)).padding(.horizontal, 10).frame(width: 146, height: 30)
       }
-      Spacer(minLength: 8)
-      Button(Strings.chooseLocation, action: action).font(.system(size: 11))
-        .padding(.horizontal, 8).frame(height: 26)
-        .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
+      .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
+      .help(path).accessibilityLabel(title).accessibilityValue(path)
     }
   }
 
@@ -216,10 +210,17 @@ struct PanelView: View {
         )
         .font(.system(size: 11)).foregroundStyle(DesignTokens.textSecondary(scheme))
       }
-      Spacer(minLength: 8)
-      Button(Strings.openSystemSettings) { clipboard.openAccessibilitySettings() }
-        .font(.system(size: 11)).padding(.horizontal, 8).frame(height: 26)
-        .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
+      Spacer(minLength: 12)
+      Button {
+        clipboard.openAccessibilitySettings()
+      } label: {
+        HStack(spacing: 6) {
+          Image(systemName: "gearshape").font(.system(size: 12))
+          Text(Strings.systemSettingsButton)
+          Spacer(minLength: 0)
+          Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .medium))
+        }.font(.system(size: 12)).padding(.horizontal, 10).frame(width: 146, height: 30)
+      }.buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
     }
   }
 
@@ -271,30 +272,56 @@ struct PanelChrome: View {
 
 }
 
+private struct HistoryLimitRow: View {
+  @Bindable var clipboard: ClipboardController
+  let scheme: ColorScheme
+  @State private var draft = ""
+  @FocusState private var focused: Bool
+  var body: some View {
+    HStack {
+      Text(Strings.historyLimitTitle).font(.system(size: 13))
+      Spacer(minLength: 12)
+      TextField(Strings.historyLimitPlaceholder, text: $draft)
+        .textFieldStyle(.plain).font(.system(size: 12)).multilineTextAlignment(.trailing)
+        .padding(.horizontal, 10).frame(width: 146, height: 30)
+        .background(DesignTokens.panelControl(scheme), in: RoundedRectangle(cornerRadius: 8))
+        .overlay {
+          RoundedRectangle(cornerRadius: 8).strokeBorder(
+            DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline
+          ).allowsHitTesting(false)
+        }
+        .focused($focused).onSubmit(commit)
+        .accessibilityLabel(Strings.historyLimitTitle)
+    }
+    .onAppear { draft = String(clipboard.historyLimit) }
+    .onChange(of: focused) { _, active in if !active { commit() } }
+    .onChange(of: clipboard.historyLimit) { _, value in if !focused { draft = String(value) } }
+  }
+  private func commit() {
+    guard let value = Int(draft.trimmingCharacters(in: .whitespaces)), (3...30).contains(value)
+    else {
+      draft = String(clipboard.historyLimit)
+      return
+    }
+    guard value != clipboard.historyLimit else { return }
+    Task {
+      await clipboard.setHistoryLimit(value)
+      if !focused { draft = String(clipboard.historyLimit) }
+    }
+  }
+}
+
 private struct ShortcutRow: View {
   let title: String
   let name: KeyboardShortcuts.Name
   let scheme: ColorScheme
-  @State private var shown = ""
-
   var body: some View {
     HStack {
-      Text(title)
-        .font(.system(size: 13))
-        .foregroundStyle(DesignTokens.textPrimary(scheme))
+      Text(title).font(.system(size: 13)).foregroundStyle(DesignTokens.textPrimary(scheme))
         .lineLimit(1)
-      Spacer(minLength: 8)
-      Text(shown.isEmpty ? Strings.shortcutUnset : shown)
-        .font(.system(size: 12, design: .monospaced))
-        .foregroundStyle(DesignTokens.textSecondary(scheme))
-        .lineLimit(1)
-      KeyboardShortcuts.Recorder(
-        for: name,
-        onChange: { shortcut in
-          shown = shortcut?.description ?? ""
-        })
+      Spacer(minLength: 12)
+      KeyboardShortcuts.Recorder(for: name)
     }
-    .onAppear { shown = KeyboardShortcuts.getShortcut(for: name)?.description ?? "" }
   }
 }
 
