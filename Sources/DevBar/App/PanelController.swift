@@ -444,9 +444,13 @@ final class PanelController {
       NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main ?? NSScreen.screens[0]
     let placed = PanelLayout.placement(
       anchor: lastAnchor, screens: screens, fallbackVisible: mouseScreen.visibleFrame)
+    var size = model.panelSize
+    if model.showsEnlarge, model.enlarged, !model.dropActive {
+      size.height = floor(placed.visible.height * 4 / 5)
+    }
     let frame = PanelLayout.frame(
       iconCenterX: placed.centerX, menuBarBottomY: placed.menuBottom,
-      size: model.panelSize, visibleFrame: placed.visible)
+      size: size, visibleFrame: placed.visible)
     guard animated, panel.isVisible else {
       panel.setFrame(frame, display: true)
       return
