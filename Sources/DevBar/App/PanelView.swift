@@ -186,7 +186,6 @@ struct PanelView: View {
           }
           Toggle(Strings.autoImport, isOn: $model.autoImport)
             .toggleStyle(.switch)
-            .tint(Color(nsColor: .systemGreen))  // devbar:allow-color
           shortcut(Strings.shortcutToggle, .togglePanel, scheme)
           settingsHeading(Strings.clipboardGroup, scheme: scheme).id("clipboard")
           HistoryLimitRow(clipboard: clipboard, scheme: scheme).disabled(storage.busy)
@@ -205,7 +204,6 @@ struct PanelView: View {
                   set: { model.setCycleParticipation(page, enabled: $0) })
               )
               .labelsHidden().toggleStyle(.switch).controlSize(.mini)
-              .tint(Color(nsColor: .systemGreen))  // devbar:allow-color
               .disabled(!model.canChangeCycleParticipation(page))
               .help(Strings.pageCycleSwitchHelp)
               shortcut(page.title, page.shortcutName, scheme)

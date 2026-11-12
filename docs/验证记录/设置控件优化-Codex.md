@@ -57,3 +57,7 @@ main，代码提交37d8afc、4840286。
 ## 原生绿色Switch
 
 设置页Toggle使用SwiftUI原生switch样式，tint为系统systemGreen；关闭灰色、禁用及浅深外观由系统绘制，不自定义轨道/滑块。同步AGENTS颜色例外与UI基准。完整check.sh通过（114 Swift、350 Web）。遵循需求方卸载并自行打包的决定：没有安装或打包，检查生成的.build/Web/dist已再次清除。
+
+## Switch颜色交给系统
+
+按需求方最终要求移除两处强制systemGreen tint，保留SwiftUI原生switch样式。系统强调色与DevBar当前外观决定开关颜色。同步AGENTS例外及UI基准。完整check.sh通过（114 Swift、350 Web），未安装/打包；检查生成的.build与Web/dist已清除。
