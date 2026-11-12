@@ -183,15 +183,15 @@ struct PanelView: View {
   private func storageLocation(
     _ title: String, path: String, scheme: ColorScheme, action: @escaping () -> Void
   ) -> some View {
-    HStack {
+    HStack(spacing: 0) {
       VStack(alignment: .leading, spacing: 3) {
         Text(title).font(.system(size: 13)).lineLimit(1)
         Text(path).font(.system(size: 11))
           .foregroundStyle(DesignTokens.textSecondary(scheme))
-          .lineLimit(1).truncationMode(.middle).help(path)
+          .lineLimit(1).truncationMode(.head).help(path)
           .frame(maxWidth: .infinity, alignment: .leading)
       }.frame(maxWidth: .infinity, alignment: .leading)
-      Spacer(minLength: 12)
+      Spacer(minLength: 32)
       Button(action: action) {
         HStack(spacing: 6) {
           Image(systemName: "folder").font(.system(size: 12))
