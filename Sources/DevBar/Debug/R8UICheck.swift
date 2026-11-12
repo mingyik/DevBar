@@ -64,8 +64,12 @@
         }
         if scenario == "drop" { panel.model.dropActive = true }
         if scenario == "doc" { panel.model.page = .doc }
-        if scenario == "clipboard-hover" {
-          for value in ["悬浮测试三：鼠标移开后恢复", "悬浮测试二：检查蓝色光晕", "悬浮测试一：这是一条隔离的测试记录"] {
+        if scenario == "clipboard-hover" || scenario == "clipboard-hover-long" {
+          let values =
+            scenario == "clipboard-hover-long"
+            ? ["短文本", String(repeating: "多行文字，检查连续悬浮切换的排版性能。\n", count: 2_000), "另一条短文本"]
+            : ["悬浮测试三：鼠标移开后恢复", "悬浮测试二：检查蓝色光晕", "悬浮测试一：这是一条隔离的测试记录"]
+          for value in values {
             if let capture = ClipboardCapture(payloads: [
               ClipboardPayload(
                 type: NSPasteboard.PasteboardType.string.rawValue, data: Data(value.utf8))
@@ -75,6 +79,48 @@
           }
           panel.model.page = .clipboard
           panel.show(anchor: nil)
+        }
+        if scenario == "clipboard-hover-long" {
+          var dispatchTimes: [Double] = []
+          var heartbeatTimes: [Double] = []
+          for _ in 0..<3 {
+            for item in panel.clipboard.items {
+              let started = ContinuousClock.now
+              panel.clipboard.setHovered(item.id, inside: true)
+              let dispatched = started.duration(to: .now).components
+              dispatchTimes.append(
+                Double(dispatched.seconds) * 1_000 + Double(dispatched.attoseconds) / 1e15)
+              try? await Task.sleep(for: .milliseconds(50))
+              let settled = started.duration(to: .now).components
+              heartbeatTimes.append(
+                Double(settled.seconds) * 1_000 + Double(settled.attoseconds) / 1e15)
+              panel.clipboard.setHovered(item.id, inside: false)
+            }
+          }
+          var previewSizes: [[Double]] = []
+          var documentHeights: [Double] = []
+          func textView(in view: NSView) -> NSTextView? {
+            if let text = view as? NSTextView { return text }
+            return view.subviews.lazy.compactMap { textView(in: $0) }.first
+          }
+          for item in panel.clipboard.items {
+            panel.clipboard.setHovered(item.id, inside: true)
+            try? await Task.sleep(for: .milliseconds(300))
+            if let preview = NSApp.windows.first(where: {
+              $0 is ClipboardPreviewPanel && $0.isVisible
+            }) {
+              previewSizes.append([preview.frame.width, preview.frame.height])
+              if let view = preview.contentView, let text = textView(in: view) {
+                documentHeights.append(
+                  Double(text.textLayoutManager?.usageBoundsForTextContainer.height ?? -1))
+              }
+            }
+            panel.clipboard.setHovered(item.id, inside: false)
+          }
+          measurements["previewSizes"] = previewSizes
+          measurements["naturalTextHeights"] = documentHeights
+          measurements["hoverDispatchMilliseconds"] = dispatchTimes
+          measurements["hoverHeartbeatMilliseconds"] = heartbeatTimes
         }
         if scenario.hasPrefix("settings") {
           panel.model.page = scenario == "settings" ? .clipboard : .json

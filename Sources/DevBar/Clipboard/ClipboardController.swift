@@ -10,6 +10,7 @@ final class ClipboardController {
   let card: ClipboardCard
   private(set) var items: [ClipItem] = []
   private(set) var originals: [UUID: [ClipboardPayload]] = [:]
+  private(set) var previewTexts: [UUID: String] = [:]
   private(set) var thumbnails: [UUID: NSImage] = [:]
   private(set) var cycler = ClipboardCycler()
   var detailID: UUID?
@@ -79,6 +80,19 @@ final class ClipboardController {
         images[item.id] = NSImage(data: data)
       }
     }
+    let previewPayloads = payloads
+    let plainTextType = NSPasteboard.PasteboardType.string.rawValue
+    let texts = await Task.detached(priority: .utility) {
+      var result: [UUID: String] = [:]
+      for (id, entries) in previewPayloads {
+        if let payload = entries.first(where: { $0.type == plainTextType }),
+          let text = String(data: payload.data, encoding: .utf8)
+        {
+          result[id] = text
+        }
+      }
+      return result
+    }.value
     guard generation == reloadGeneration else { return }
     if !updated.contains(where: { $0.id == detailID }) { detailID = nil }
     if let hoverID, !updated.contains(where: { $0.id == hoverID }) {
@@ -87,6 +101,7 @@ final class ClipboardController {
     }
     items = updated
     originals = payloads
+    previewTexts = texts
     thumbnails = images
     cycler.select(cycler.currentIndex, count: items.count)
     focusedIndex = min(focusedIndex, max(items.count - 1, 0))

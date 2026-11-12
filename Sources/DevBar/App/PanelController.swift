@@ -1,5 +1,6 @@
 import AppKit
 import DevBarCore
+import QuartzCore
 import SwiftUI
 import os
 
@@ -20,7 +21,9 @@ final class PanelController {
   private var clipboardPreviewItemID: UUID?
   private var clipboardPreviewState: ClipboardHoverPreviewState?
   private var clipboardPreviewHost: NSHostingView<ClipboardHoverPreview>?
+  private var clipboardPreviewScheme: ColorScheme?
   private var previewHeights: [UUID: (width: CGFloat, maximum: CGFloat, height: CGFloat)] = [:]
+  private var previewContents: [UUID: String] = [:]
   private var previewLoadTask: Task<Void, Never>?
   private var previewGeneration = UUID()
   private var previewPointerInside = false
@@ -93,6 +96,11 @@ final class PanelController {
         self?.handleOutsideClick()
       }
     }
+    model.onPageChange = { [weak self] in
+      guard let self else { return }
+      self.updateMaterial()
+      self.reposition(animated: false)
+    }
     watchSize()
   }
 
@@ -109,6 +117,9 @@ final class PanelController {
     if panel.isVisible, model.page == page {
       dismiss()
       return
+    }
+    if let anchor {
+      lastAnchor = anchor
     }
     model.page = page
     show(anchor: anchor)
@@ -147,11 +158,11 @@ final class PanelController {
   }
 
   func showSettings(anchor: CGRect?) {
+    if let anchor {
+      lastAnchor = anchor
+    }
     model.enterSettings()
     if panel.isVisible {
-      if let anchor {
-        lastAnchor = anchor
-      }
       reposition()
     } else {
       show(anchor: anchor)
@@ -202,17 +213,19 @@ final class PanelController {
     let visible = screen.visibleFrame
     let width = min(300, panel.frame.width - 20, visible.width)
     let maximum = visible.height * 2 / 3
+    let cachedContent =
+      item.kind == .image ? nil : previewContents[id] ?? clipboard.previewTexts[id]
     previewLoadTask?.cancel()
     let generation = UUID()
     previewGeneration = generation
-    let height =
-      previewHeights[id].flatMap {
-        $0.width == width && $0.maximum == maximum ? $0.height : nil
-      } ?? min(width, maximum)
+    let cachedHeight = previewHeights[id].flatMap {
+      $0.width == width && $0.maximum == maximum ? $0.height : nil
+    }
+    let height = cachedHeight ?? min(width, maximum)
     let frame = clipboardPreviewFrame(width: width, height: height, visible: visible)
     let state = clipboardPreviewState ?? ClipboardHoverPreviewState()
     clipboardPreviewState = state
-    state.begin(item: item)
+    state.begin(item: item, cachedContent: cachedContent, sizingComplete: cachedHeight != nil)
     let previewContent = ClipboardHoverPreview(
       state: state, scheme: theme.effective, theme: theme,
       onHoverChange: { [weak self] inside in
@@ -223,19 +236,32 @@ final class PanelController {
         } else {
           self.schedulePreviewHide()
         }
+      },
+      onContentHeightChange: { [weak self] contentHeight in
+        guard let self, let id = self.clipboardPreviewItemID,
+          let preview = self.clipboardPreview, preview.isVisible,
+          self.clipboardPreviewState?.item?.id == id,
+          let screen = self.panel.screen ?? NSScreen.main
+        else { return }
+        self.updateClipboardPreviewHeight(
+          contentHeight + 60, id: id,
+          width: preview.frame.width, maximum: screen.visibleFrame.height * 2 / 3,
+          visible: screen.visibleFrame)
       })
     let preview = clipboardPreview ?? ClipboardPreviewPanel(contentRect: frame)
     preview.appearance = theme.appearance()
     if let host = clipboardPreviewHost {
-      host.rootView = previewContent
+      if clipboardPreviewScheme != theme.effective { host.rootView = previewContent }
     } else {
       let host = NSHostingView(rootView: previewContent)
       clipboardPreviewHost = host
       preview.contentView = host
     }
+    clipboardPreviewScheme = theme.effective
     preview.setFrame(frame, display: true)
     clipboardPreview = preview
     preview.orderFrontRegardless()
+    if cachedContent != nil { return }
 
     let payloads = clipboard.originals[id] ?? []
     previewLoadTask = Task.detached(priority: .userInitiated) { [weak self] in
@@ -250,16 +276,50 @@ final class PanelController {
         else { return }
         self.clipboardPreviewState?.finish(
           itemID: id, content: prepared.content, image: prepared.image)
-        if self.previewHeights.count >= 20 { self.previewHeights.removeAll() }
-        self.previewHeights[id] = (width, maximum, prepared.height)
-        if abs(prepared.height - height) > 0.5 {
-          self.clipboardPreview?.setFrame(
-            self.clipboardPreviewFrame(
-              width: width, height: prepared.height, visible: visible),
-            display: true)
+        if item.kind != .image, prepared.content.utf8.count <= 128_000 {
+          if self.previewContents.count >= 20 { self.previewContents.removeAll() }
+          self.previewContents[id] = prepared.content
+        }
+        if let imageHeight = prepared.imageHeight {
+          self.updateClipboardPreviewHeight(
+            imageHeight, id: id, width: width,
+            maximum: maximum, visible: visible)
         }
       }
     }
+  }
+
+  private func updateClipboardPreviewHeight(
+    _ proposedHeight: CGFloat, id: UUID,
+    width: CGFloat, maximum: CGFloat, visible: NSRect
+  ) {
+    let height = min(maximum, max(width, proposedHeight))
+    if let cached = previewHeights[id], cached.width == width,
+      cached.maximum == maximum, abs(cached.height - height) <= 0.5
+    {
+      return
+    }
+    if previewHeights.count >= 20 { previewHeights.removeAll() }
+    previewHeights[id] = (width, maximum, height)
+    guard let preview = clipboardPreview, preview.isVisible else { return }
+    guard abs(preview.frame.height - height) > 0.5 else {
+      clipboardPreviewState?.finishSizing(itemID: id)
+      return
+    }
+    let generation = previewGeneration
+    let frame = clipboardPreviewFrame(width: width, height: height, visible: visible)
+    NSAnimationContext.runAnimationGroup(
+      { context in
+        context.duration = 0.16
+        context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        preview.animator().setFrame(frame, display: true)
+      },
+      completionHandler: { [weak self] in
+        Task { @MainActor in
+          guard let self, self.previewGeneration == generation else { return }
+          self.clipboardPreviewState?.finishSizing(itemID: id)
+        }
+      })
   }
 
   private func clipboardPreviewFrame(width: CGFloat, height: CGFloat, visible: NSRect) -> NSRect {
@@ -314,8 +374,7 @@ final class PanelController {
     withObservationTracking {
       _ = model.dropActive
       _ = model.autoImport
-      _ = model.enlarged
-      _ = model.page
+      _ = model.sizePreferences
       _ = theme.mode
       _ = theme.systemScheme
       _ = theme.increaseContrast
@@ -329,7 +388,7 @@ final class PanelController {
     }
   }
 
-  private func reposition() {
+  private func reposition(animated: Bool = true) {
     let screens = NSScreen.screens.map {
       PanelLayout.DisplaySlice(frame: $0.frame, visibleFrame: $0.visibleFrame)
     }
@@ -341,6 +400,10 @@ final class PanelController {
     let frame = PanelLayout.frame(
       iconCenterX: placed.centerX, menuBarBottomY: placed.menuBottom,
       size: model.panelSize, visibleFrame: placed.visible)
+    guard animated, panel.isVisible else {
+      panel.setFrame(frame, display: true)
+      return
+    }
     NSAnimationContext.runAnimationGroup(
       { context in
         context.duration = panel.isVisible ? 0.15 : 0

@@ -30,13 +30,12 @@ struct PanelView: View {
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .onDrop(of: [.fileURL], delegate: PanelFileDrop(model: model))
-      .transition(.opacity)
       if !model.dropActive && !model.toast.isEmpty {
         Text(model.toast).font(.system(size: 11))
           .foregroundStyle(DesignTokens.textSecondary(scheme)).lineLimit(1)
       }
     }
-    .animation(.easeInOut(duration: 0.15), value: model.page)
+    .animation(.easeInOut(duration: 0.15), value: model.dropActive)
     .padding(.horizontal, 10)
     .padding(.top, 12)
     .padding(.bottom, 10)

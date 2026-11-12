@@ -10,9 +10,12 @@ final class PanelModel {
   private let defaults: UserDefaults
   var page: Page {
     didSet {
+      guard oldValue != page else { return }
       if page != .settings { defaults.set(page.rawValue, forKey: "lastContentPage") }
+      onPageChange?()
     }
   }
+  @ObservationIgnored var onPageChange: (() -> Void)?
   var defaultPage: String {
     didSet { defaults.set(defaultPage, forKey: "defaultPage") }
   }
@@ -40,6 +43,9 @@ final class PanelModel {
     case .qr: CGSize(width: 360, height: 480)
     case .settings: CGSize(width: 420, height: 560)
     }
+  }
+  var sizePreferences: (dropActive: Bool, jsonEnlarged: Bool, docEnlarged: Bool) {
+    (dropActive, jsonEnlarged, docEnlarged)
   }
   var dropActive = false
   var dropDocument = false

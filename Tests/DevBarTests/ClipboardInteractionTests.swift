@@ -239,29 +239,38 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
   #expect(observed.last! == nil)
 }
 
-@MainActor @Test func clipboardHoverPreviewFitsContentWithSquareMinimum() async throws {
+@MainActor @Test func clipboardHoverPreviewShowsTextWhileLoadingAndPreservesFullContent()
+  async throws
+{
   _ = NSApplication.shared
   let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
   defer { try? FileManager.default.removeItem(at: directory) }
-  let theme = ThemeManager()
-  let controller = ClipboardController(theme: theme, directory: directory, startMonitoring: false)
-  func capture(_ text: String) -> ClipboardCapture {
+  let controller = ClipboardController(
+    theme: ThemeManager(), directory: directory, startMonitoring: false)
+  let fullText = String(repeating: "内容\n", count: 2_000)
+  let capture = try #require(
     ClipboardCapture(payloads: [
-      ClipboardPayload(type: NSPasteboard.PasteboardType.string.rawValue, data: Data(text.utf8))
-    ])!
-  }
-  await controller.record(capture("短内容"), source: nil)
-  let short = try #require(controller.items.first)
-  let shortHeight = ClipboardHoverContentLoader.prepare(
-    item: short, payloads: try #require(controller.originals[short.id]), width: 300, maximum: 800
-  ).height
-  #expect(shortHeight == 300)
-  await controller.record(capture(String(repeating: "内容\n", count: 500)), source: nil)
-  let long = try #require(controller.items.first)
-  let longHeight = ClipboardHoverContentLoader.prepare(
-    item: long, payloads: try #require(controller.originals[long.id]), width: 300, maximum: 800
-  ).height
-  #expect(longHeight == 800)
+      ClipboardPayload(type: NSPasteboard.PasteboardType.string.rawValue, data: Data(fullText.utf8))
+    ]))
+  await controller.record(capture, source: nil)
+  let item = try #require(controller.items.first)
+  let state = ClipboardHoverPreviewState()
+  state.begin(item: item, cachedContent: controller.previewTexts[item.id])
+  #expect(state.isSizing)
+  #expect(state.content == fullText)
+  let prepared = ClipboardHoverContentLoader.prepare(
+    item: item, payloads: try #require(controller.originals[item.id]), width: 300, maximum: 800)
+  #expect(prepared.imageHeight == nil)
+  #expect(prepared.content == fullText)
+  state.finish(itemID: item.id, content: prepared.content, image: prepared.image)
+  #expect(!state.isLoading)
+  #expect(state.content == fullText)
+  state.finishSizing(itemID: item.id)
+  #expect(!state.isSizing)
+  state.begin(item: item, cachedContent: fullText, sizingComplete: true)
+  #expect(!state.isLoading)
+  #expect(!state.isSizing)
+  #expect(state.content == fullText)
 }
 
 @MainActor @Test func clipboardPreviewPanelMatchesMainPanelActiveGlassLayers() {
