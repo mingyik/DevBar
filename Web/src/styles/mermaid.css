@@ -67,6 +67,12 @@
   width: auto;
   max-width: 100%;
 }
+.diagram-copy.icon-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
 .diagram-copy.icon-button .system-icon {
   width: 16px;
   height: 16px;
