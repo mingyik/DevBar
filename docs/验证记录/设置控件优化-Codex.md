@@ -45,3 +45,7 @@ main，代码提交37d8afc、4840286。
 ## 设置内容居中
 
 移除路径选择与系统设置按钮内部撑开元素，让图标/文字/箭头整体居中；数量输入框center对齐。控件尺寸和外部布局不变。修改PanelView及UI基准。完整check.sh通过（109 Swift、350 Web），debug构建及固定签名校验通过，已安装重启；外观待需求方查看。
+
+## 右侧控件宽度统一
+
+从锁定版本KeyboardShortcuts的RecorderCocoa.minimumWidth确认固有宽度为130pt。PanelView中新增共用宽度，路径/系统设置按钮、数量输入与快捷键录制框均用130pt，居中与路径省略规则保留。Scripts/check.sh通过（109 Swift、350 Web），构建/签名通过，已安装重启；外观待需求方确认。

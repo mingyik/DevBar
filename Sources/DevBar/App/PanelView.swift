@@ -3,6 +3,10 @@ import DevBarCore
 import KeyboardShortcuts
 import SwiftUI
 
+private enum SettingsControlLayout {
+  static let width: CGFloat = 130
+}
+
 struct PanelView: View {
   @Bindable var model: PanelModel
   @Bindable var theme: ThemeManager
@@ -198,7 +202,8 @@ struct PanelView: View {
           Text(URL(fileURLWithPath: path).lastPathComponent).lineLimit(1).truncationMode(.middle)
           Image(systemName: "chevron.down").font(.system(size: 9, weight: .medium))
         }
-        .font(.system(size: 12)).padding(.horizontal, 10).frame(width: 146, height: 30)
+        .font(.system(size: 12)).padding(.horizontal, 10).frame(
+          width: SettingsControlLayout.width, height: 30)
       }
       .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
       .help(path).accessibilityLabel(title).accessibilityValue(path)
@@ -223,7 +228,8 @@ struct PanelView: View {
           Image(systemName: "gearshape").font(.system(size: 12))
           Text(Strings.systemSettingsButton)
           Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .medium))
-        }.font(.system(size: 12)).padding(.horizontal, 10).frame(width: 146, height: 30)
+        }.font(.system(size: 12)).padding(.horizontal, 10).frame(
+          width: SettingsControlLayout.width, height: 30)
       }.buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
     }
   }
@@ -287,7 +293,7 @@ private struct HistoryLimitRow: View {
       Spacer(minLength: 12)
       TextField(Strings.historyLimitPlaceholder, text: $draft)
         .textFieldStyle(.plain).font(.system(size: 12)).multilineTextAlignment(.center)
-        .padding(.horizontal, 10).frame(width: 146, height: 30)
+        .padding(.horizontal, 10).frame(width: SettingsControlLayout.width, height: 30)
         .background(DesignTokens.panelControl(scheme), in: RoundedRectangle(cornerRadius: 8))
         .overlay {
           RoundedRectangle(cornerRadius: 8).strokeBorder(
@@ -324,7 +330,7 @@ private struct ShortcutRow: View {
       Text(title).font(.system(size: 13)).foregroundStyle(DesignTokens.textPrimary(scheme))
         .lineLimit(1)
       Spacer(minLength: 12)
-      KeyboardShortcuts.Recorder(for: name)
+      KeyboardShortcuts.Recorder(for: name).frame(width: SettingsControlLayout.width)
     }
   }
 }
