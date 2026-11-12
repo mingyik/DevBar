@@ -3,26 +3,38 @@ import Testing
 
 @Test func changedFrontmostApplicationDoesNotPaste() {
   #expect(DirectPasteDecision.action(for: input(currentPID: 2)) == .none)
+  #expect(DirectPasteDecision.action(for: input(currentPID: 2, isAuthorized: false)) == .none)
 }
 
 @Test func devBarTargetDoesNotPaste() {
   #expect(DirectPasteDecision.action(for: input(ownPID: 1)) == .none)
+  #expect(DirectPasteDecision.action(for: input(ownPID: 1, isAuthorized: false)) == .none)
 }
 
 @Test func untrustedAccessibilityRequiresAuthorizationNotice() {
   #expect(DirectPasteDecision.action(for: input(isAuthorized: false)) == .authorizationRequired)
 }
 
+@Test func accessibilityPromptIsOnlyRequestedOnceWhileUntrusted() {
+  #expect(DirectPastePromptPolicy.shouldRequest(isTrusted: false, wasRequested: false))
+  #expect(!DirectPastePromptPolicy.shouldRequest(isTrusted: false, wasRequested: true))
+  #expect(!DirectPastePromptPolicy.shouldRequest(isTrusted: true, wasRequested: false))
+  #expect(!DirectPastePromptPolicy.shouldRequest(isTrusted: true, wasRequested: true))
+}
+
 @Test func filesPasteAsPathsIntoTextField() {
-  #expect(DirectPasteDecision.action(for: input(isFile: true, focusRole: "AXTextField")) == .filePaths)
+  #expect(
+    DirectPasteDecision.action(for: input(isFile: true, focusRole: "AXTextField")) == .filePaths)
 }
 
 @Test func filesPasteAsPathsIntoTextArea() {
-  #expect(DirectPasteDecision.action(for: input(isFile: true, focusRole: "AXTextArea")) == .filePaths)
+  #expect(
+    DirectPasteDecision.action(for: input(isFile: true, focusRole: "AXTextArea")) == .filePaths)
 }
 
 @Test func filesPasteAsPathsIntoSearchField() {
-  #expect(DirectPasteDecision.action(for: input(isFile: true, focusRole: "AXSearchField")) == .filePaths)
+  #expect(
+    DirectPasteDecision.action(for: input(isFile: true, focusRole: "AXSearchField")) == .filePaths)
 }
 
 @Test func filesPasteOriginalRepresentationIntoFinder() {

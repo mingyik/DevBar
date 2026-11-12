@@ -13,6 +13,7 @@ import SwiftUI
   private var pointer: NSPoint?
   private var dismissal: Task<Void, Never>?
   private var shakeTask: Task<Void, Never>?
+  private(set) var isAuthorizationNoticeVisible = false
   private(set) var lastShowMilliseconds = 0.0
   init(theme: ThemeManager) {
     self.theme = theme
@@ -24,8 +25,9 @@ import SwiftUI
     panel.hasShadow = false
     temporaryKeys.onKey = { [weak self] key in
       if key == 36 || key == 76 {
-        self?.dismiss()
+        self?.dismiss(notifying: false)
         self?.onConfirm?()
+        self?.onDismiss?()
       } else if key == 53 {
         self?.dismiss()
       } else {
@@ -45,6 +47,7 @@ import SwiftUI
     let started = ContinuousClock.now
     dismissal?.cancel()
     shakeTask?.cancel()
+    isAuthorizationNoticeVisible = false
     let first = !panel.isVisible
     if first { pointer = NSEvent.mouseLocation }
     let image = DragCardImage.make(
@@ -52,20 +55,7 @@ import SwiftUI
       scheme: theme.effective, counter: "\(index+1) / \(count)", glass: true, footer: footer,
       multilineContent: multilineContent
     ).image
-    let view = NSImageView(frame: NSRect(origin: .zero, size: image.size))
-    view.image = image
-    let container = NSView(frame: view.frame)
-    let glass = NSVisualEffectView(frame: view.frame.insetBy(dx: 10, dy: 10))
-    glass.material = .popover
-    glass.blendingMode = .behindWindow
-    glass.state = .active
-    glass.wantsLayer = true
-    glass.layer?.cornerRadius = 10
-    glass.layer?.masksToBounds = true
-    container.addSubview(glass)
-    container.addSubview(view)
-    panel.contentView = container
-    panel.appearance = theme.appearance()
+    install(image)
     let anchor = pointer ?? NSEvent.mouseLocation
     if let screen = NSScreen.screens.first(where: { $0.frame.contains(anchor) }) ?? NSScreen.main {
       panel.setFrame(
@@ -93,13 +83,74 @@ import SwiftUI
       self.dismiss()
     }
   }
+
+  func showAuthorizationNotice(title: String, subtitle: String) {
+    dismissal?.cancel()
+    shakeTask?.cancel()
+    temporaryKeys.unregister()
+    isAuthorizationNoticeVisible = true
+    let image = DragCardImage.make(
+      title: title, subtitle: subtitle, fileCount: 0, thumbnail: nil, swatch: nil,
+      scheme: theme.effective, glass: true
+    ).image
+    let oldFrame = panel.frame
+    install(image)
+    let screen = NSScreen.screens.first(where: { $0.frame.intersects(oldFrame) }) ?? NSScreen.main
+    let visible = screen?.visibleFrame ?? oldFrame
+    let frame = Self.centeredFrame(
+      center: NSPoint(x: oldFrame.midX, y: oldFrame.midY), size: image.size, visible: visible)
+    panel.setFrame(frame, display: true)
+    panel.alphaValue = 1
+    panel.orderFrontRegardless()
+    dismissal = Task { [weak self] in
+      try? await Task.sleep(for: .milliseconds(2300))
+      guard !Task.isCancelled, let self else { return }
+      NSAnimationContext.runAnimationGroup(
+        { context in
+          context.duration = 0.2
+          self.panel.animator().alphaValue = 0
+        }, completionHandler: nil)
+      try? await Task.sleep(for: .milliseconds(200))
+      guard !Task.isCancelled else { return }
+      self.dismiss()
+    }
+  }
+
   func dismiss() {
+    dismiss(notifying: true)
+  }
+
+  private func dismiss(notifying: Bool) {
     dismissal?.cancel()
     shakeTask?.cancel()
     temporaryKeys.unregister()
     panel.orderOut(nil)
     pointer = nil
-    onDismiss?()
+    isAuthorizationNoticeVisible = false
+    if notifying { onDismiss?() }
+  }
+
+  private func install(_ image: NSImage) {
+    let view = NSImageView(frame: NSRect(origin: .zero, size: image.size))
+    view.image = image
+    let container = NSView(frame: view.frame)
+    let glass = NSVisualEffectView(frame: view.frame.insetBy(dx: 10, dy: 10))
+    glass.material = .popover
+    glass.blendingMode = .behindWindow
+    glass.state = .active
+    glass.wantsLayer = true
+    glass.layer?.cornerRadius = 10
+    glass.layer?.masksToBounds = true
+    container.addSubview(glass)
+    container.addSubview(view)
+    panel.contentView = container
+    panel.appearance = theme.appearance()
+  }
+
+  private static func centeredFrame(center: NSPoint, size: NSSize, visible: NSRect) -> NSRect {
+    let x = min(max(center.x - size.width / 2, visible.minX), visible.maxX - size.width)
+    let y = min(max(center.y - size.height / 2, visible.minY), visible.maxY - size.height)
+    return NSRect(x: x, y: y, width: size.width, height: size.height)
   }
   private func shake() {
     let origin = panel.frame.origin

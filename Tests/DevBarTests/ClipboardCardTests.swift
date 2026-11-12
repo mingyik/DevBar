@@ -21,6 +21,40 @@ import Testing
   #expect(confirmations == 1)
 }
 
+@Test @MainActor func clipboardCardConfirmationNotifiesDismissAfterCallback() {
+  _ = NSApplication.shared
+  let card = ClipboardCard(theme: ThemeManager())
+  var events: [String] = []
+  card.onConfirm = { events.append("confirm") }
+  card.onDismiss = { events.append("dismiss") }
+  card.show(
+    index: 0, count: 1, title: "测试", subtitle: "", thumbnail: nil, swatch: nil,
+    fileCount: 0, boundary: false)
+
+  card.temporaryKeys.onKey?(36)
+
+  #expect(events == ["confirm", "dismiss"])
+}
+
+@Test @MainActor func clipboardCardAuthorizationNoticeReusesTheSamePosition() {
+  _ = NSApplication.shared
+  let card = ClipboardCard(theme: ThemeManager())
+  card.show(
+    index: 0, count: 1, title: "测试", subtitle: "", thumbnail: nil, swatch: nil,
+    fileCount: 0, boundary: false)
+  let oldCenter = NSPoint(x: card.panel.frame.midX, y: card.panel.frame.midY)
+
+  card.showAuthorizationNotice(
+    title: "已复制，可按 ⌘V 粘贴", subtitle: "授权辅助功能后可直接粘贴")
+
+  #expect(card.panel.isVisible)
+  #expect(card.isAuthorizationNoticeVisible)
+  #expect(!card.temporaryKeys.isRegistered)
+  #expect(abs(card.panel.frame.midX - oldCenter.x) < 0.5)
+  #expect(abs(card.panel.frame.midY - oldCenter.y) < 0.5)
+  card.dismiss()
+}
+
 @Test @MainActor func imageClipboardCardShowsDimensionsInFullWidthBottomLine() {
   let card = DragCardImage.make(
     title: "", subtitle: "474 × 474", fileCount: 0,

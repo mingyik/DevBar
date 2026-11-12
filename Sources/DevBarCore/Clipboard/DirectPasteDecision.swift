@@ -47,3 +47,9 @@ public enum DirectPasteDecision {
     return .filePaths
   }
 }
+
+public enum DirectPastePromptPolicy {
+  public static func shouldRequest(isTrusted: Bool, wasRequested: Bool) -> Bool {
+    !isTrusted && !wasRequested
+  }
+}

@@ -7,6 +7,7 @@ import Synchronization
 
 @MainActor @Observable
 final class ClipboardController {
+  private static let directPastePromptKey = "directPasteAccessibilityPromptRequested"
   let monitor: ClipboardMonitor
   let card: ClipboardCard
   private(set) var items: [ClipItem] = []
@@ -22,16 +23,20 @@ final class ClipboardController {
   var copiedID: UUID?
   var message = ""
   private var store: ClipboardStore?
+  private let defaults: UserDefaults
   private var copyFeedback: Task<Void, Never>?
   private var reloadGeneration = 0
   private(set) var lastCycleMilliseconds = 0.0
   private var pasteTarget: pid_t?
+  private(set) var isDirectPasteAuthorized = false
   var currentIndex: Int { cycler.currentIndex }
 
   init(
     theme: ThemeManager, directory: URL? = nil,
-    reader: any PasteboardReading = SystemPasteboardReader(), startMonitoring: Bool = true
+    reader: any PasteboardReading = SystemPasteboardReader(), startMonitoring: Bool = true,
+    defaults: UserDefaults = .standard
   ) {
+    self.defaults = defaults
     monitor = ClipboardMonitor(reader: reader)
     card = ClipboardCard(theme: theme)
     do {
@@ -43,6 +48,7 @@ final class ClipboardController {
     } catch { message = Strings.historyReadFailed }
     card.onMove = { [weak self] older in self?.cycle(older: older) }
     card.onConfirm = { [weak self] in self?.pasteSelection() }
+    card.onDismiss = { [weak self] in self?.pasteTarget = nil }
     monitor.onCapture = { [weak self] capture, source in await self?.record(capture, source: source)
     }
     Task { [weak self] in
@@ -223,35 +229,76 @@ final class ClipboardController {
       target != ProcessInfo.processInfo.processIdentifier,
       NSWorkspace.shared.frontmostApplication?.processIdentifier == target
     else { return }
-    let options =
-      [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-    guard AXIsProcessTrustedWithOptions(options) else { return }
+    let selectedPayloads =
+      items.indices.contains(cycler.currentIndex)
+      ? originals[items[cycler.currentIndex].id] ?? [] : []
+    let isFile = selectedPayloads.contains {
+      $0.type == NSPasteboard.PasteboardType.fileURL.rawValue
+    }
+    let isTrusted = AXIsProcessTrusted()
+    isDirectPasteAuthorized = isTrusted
+    let initialFrontmost = NSWorkspace.shared.frontmostApplication
+    let targetIsFinder = initialFrontmost?.bundleIdentifier == "com.apple.finder"
+    let role =
+      isTrusted && isFile && !targetIsFinder
+        && initialFrontmost?.processIdentifier == target
+      ? focusedRole(of: target) : nil
+    let frontmost = NSWorkspace.shared.frontmostApplication
+    let action = DirectPasteDecision.action(
+      for: DirectPasteInput(
+        capturedPID: target,
+        currentPID: frontmost?.processIdentifier,
+        ownPID: ProcessInfo.processInfo.processIdentifier,
+        isAuthorized: isTrusted,
+        selectedItemIsFile: isFile,
+        focusedRole: role,
+        targetIsFinder: targetIsFinder
+      ))
+    if action == .authorizationRequired {
+      card.showAuthorizationNotice(
+        title: Strings.directPasteCopiedNotice, subtitle: Strings.directPasteAuthorizationHint)
+      if DirectPastePromptPolicy.shouldRequest(
+        isTrusted: isTrusted,
+        wasRequested: defaults.bool(forKey: Self.directPastePromptKey))
+      {
+        defaults.set(true, forKey: Self.directPastePromptKey)
+        let options =
+          [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
+      }
+      return
+    }
+    guard action != .none,
+      NSWorkspace.shared.frontmostApplication?.processIdentifier == target
+    else { return }
     guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 9, keyDown: true),
       let up = CGEvent(keyboardEventSource: nil, virtualKey: 9, keyDown: false)
     else { return }
-    if items.indices.contains(cycler.currentIndex),
-      let payloads = originals[items[cycler.currentIndex].id],
-      payloads.contains(where: { $0.type == NSPasteboard.PasteboardType.fileURL.rawValue })
-    {
-      guard let role = focusedRole(of: target),
-        NSWorkspace.shared.frontmostApplication?.processIdentifier == target
+    if action == .filePaths {
+      guard NSWorkspace.shared.frontmostApplication?.processIdentifier == target,
+        let paths = Self.filePaths(payloads: selectedPayloads)
       else { return }
-      if ["AXTextField", "AXTextArea", "AXSearchField"].contains(role) {
-        guard let paths = Self.filePaths(payloads: payloads) else { return }
-        let board = NSPasteboard.general
-        board.clearContents()
-        guard board.setString(paths, forType: .string) else { return }
-        monitor.markSelfWrite(board.changeCount)
-      } else if NSRunningApplication(processIdentifier: target)?.bundleIdentifier
-        != "com.apple.finder"
-      {
-        return
-      }
+      let board = NSPasteboard.general
+      board.clearContents()
+      guard board.setString(paths, forType: .string) else { return }
+      monitor.markSelfWrite(board.changeCount)
     }
     down.flags = .maskCommand
     up.flags = .maskCommand
     down.postToPid(target)
     up.postToPid(target)
+  }
+
+  func refreshDirectPasteAuthorization() {
+    isDirectPasteAuthorized = AXIsProcessTrusted()
+  }
+
+  func openAccessibilitySettings() {
+    guard
+      let url = URL(
+        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+    else { return }
+    NSWorkspace.shared.open(url)
   }
 
   func setDragging(_ active: Bool) {

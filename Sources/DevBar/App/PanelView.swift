@@ -1,3 +1,4 @@
+import AppKit
 import DevBarCore
 import KeyboardShortcuts
 import SwiftUI
@@ -144,6 +145,7 @@ struct PanelView: View {
           shortcut(Strings.shortcutToggle, .togglePanel, scheme)
           Text(Strings.clipboardGroup).font(.system(size: 13, weight: .semibold)).id("clipboard")
           shortcut(Strings.shortcutOlder, .cycleOlder, scheme)
+          directPasteAuthorization(scheme)
           Text(Strings.captureGroup).font(.system(size: 13, weight: .semibold)).id("capture")
           shortcut(Strings.shortcutCapture, .captureRegion, scheme)
           shortcut(Strings.shortcutLong, .captureScroll, scheme)
@@ -158,7 +160,28 @@ struct PanelView: View {
       }.task(id: model.settingsGroup) {
         try? await Task.sleep(for: .milliseconds(80))
         proxy.scrollTo(model.settingsGroup, anchor: .top)
+        while !Task.isCancelled {
+          if NSApp.isActive { clipboard.refreshDirectPasteAuthorization() }
+          try? await Task.sleep(for: .seconds(1))
+        }
       }
+    }
+  }
+
+  private func directPasteAuthorization(_ scheme: ColorScheme) -> some View {
+    HStack {
+      VStack(alignment: .leading, spacing: 3) {
+        Text(Strings.directPaste).font(.system(size: 13))
+        Text(
+          clipboard.isDirectPasteAuthorized
+            ? Strings.directPasteAuthorized : Strings.directPasteUnauthorized
+        )
+        .font(.system(size: 11)).foregroundStyle(DesignTokens.textSecondary(scheme))
+      }
+      Spacer(minLength: 8)
+      Button(Strings.openSystemSettings) { clipboard.openAccessibilitySettings() }
+        .font(.system(size: 11)).padding(.horizontal, 8).frame(height: 26)
+        .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
     }
   }
 
