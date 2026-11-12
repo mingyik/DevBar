@@ -15,7 +15,7 @@ struct ClipboardListView: View {
       } else {
         ScrollViewReader { proxy in
           ReadOnlyScrollView(
-            scheme: scheme, contentTrailingInset: 6, indicatorTrailingInset: 0,
+            scheme: scheme, contentTrailingInset: 6, indicatorTrailingInset: -1,
             indicatorWidth: 2
           ) {
             LazyVStack(spacing: 10) {

@@ -37,9 +37,9 @@ struct PanelView: View {
       }
     }
     .animation(.easeInOut(duration: 0.15), value: model.page)
-    .padding(.horizontal, model.page == .clipboard ? 8 : 16)
+    .padding(.horizontal, 10)
     .padding(.top, 12)
-    .padding(.bottom, model.page == .clipboard ? 8 : 16)
+    .padding(.bottom, 10)
     .background { PanelChrome(theme: theme, scheme: scheme) }
     .clipShape(panelShape)
     .environment(\.colorScheme, scheme)
