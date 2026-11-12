@@ -355,3 +355,47 @@ private func addText(_ text: String, to store: ClipboardStore, date: Date = Date
   let text = try await addText("no thumbnail", to: store)
   #expect(try await store.thumbnail(for: text.id) == nil)
 }
+
+@Test func clipboardConfiguredLimitAndDeleteRemoveFilesAndSurviveReopen() async throws {
+  let root = try temporaryClipboardDirectory()
+  defer { try? FileManager.default.removeItem(at: root) }
+  let store = try ClipboardStore(directory: root, historyLimit: 30)
+  for index in 0..<32 { _ = try await addText("item \(index)", to: store) }
+  #expect(await store.items.count == 30)
+  try await store.setHistoryLimit(5)
+  #expect(await store.items.count == 5)
+  #expect(
+    try FileManager.default.contentsOfDirectory(atPath: root.appending(path: "blobs").path).count
+      == 5)
+  let item = try #require(await store.items.first)
+  try await store.remove(item.id)
+  let restored = try ClipboardStore(directory: root, historyLimit: 5)
+  #expect(await restored.items.count == 4)
+  #expect(
+    try FileManager.default.contentsOfDirectory(atPath: root.appending(path: "blobs").path).count
+      == 4)
+}
+
+@Test func clipboardDeleteRemovesOriginalRepresentationsAndThumbnail() async throws {
+  let root = try temporaryClipboardDirectory()
+  defer { try? FileManager.default.removeItem(at: root) }
+  let store = try ClipboardStore(directory: root)
+  let result = try await store.add(
+    kind: .image, preview: "1 x 1",
+    representations: [
+      ClipboardPayload(type: "public.png", data: Data([1, 2, 3])),
+      ClipboardPayload(type: "public.tiff", data: Data([4, 5, 6])),
+    ], thumbnail: Data([7]))
+  guard case .inserted(let item) = result else {
+    Issue.record("not inserted")
+    return
+  }
+  let reopened = try ClipboardStore(directory: root)
+  #expect(try await reopened.payloads(for: item.id).count == 2)
+  try await reopened.remove(item.id)
+  for folder in ["blobs", "thumbs"] {
+    #expect(
+      try FileManager.default.contentsOfDirectory(atPath: root.appending(path: folder).path).isEmpty
+    )
+  }
+}

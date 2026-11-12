@@ -13,15 +13,18 @@ public actor ClipboardStore {
   }
 
   public private(set) var items: [ClipItem]
+  private var historyLimit: Int
   private let directory: URL
   private let onImageTooLarge: @Sendable () -> Void
   public static let imageByteLimit = 20 * 1024 * 1024
 
   public init(
     directory: URL = URL.applicationSupportDirectory.appendingPathComponent("DevBar/clipboard"),
+    historyLimit: Int = 10,
     onImageTooLarge: @escaping @Sendable () -> Void = {},
     onCorruptHistory: @escaping @Sendable () -> Void = {}
   ) throws {
+    self.historyLimit = min(30, max(5, historyLimit))
     self.directory = directory
     self.onImageTooLarge = onImageTooLarge
     let fm = FileManager.default
@@ -60,7 +63,7 @@ public actor ClipboardStore {
             && fm.fileExists(atPath: directory.appendingPathComponent("blobs/" + $0.blob).path)
         }
     }
-    items = Array(valid.prefix(10))
+    items = Array(valid.prefix(self.historyLimit))
     try Self.persist(items, directory: directory)
     Self.cleanup(items, directory: directory)
     if restarted { onCorruptHistory() }
@@ -113,7 +116,7 @@ public actor ClipboardStore {
       let item = ClipItem(
         id: id, kind: kind, createdAt: createdAt, sourceBundleID: sourceBundleID,
         preview: summary, representations: stored, contentHash: hash, byteSize: size)
-      let next = Array(([item] + items).prefix(10))
+      let next = Array(([item] + items).prefix(historyLimit))
       try Self.persist(next, directory: directory)
       items = next
       Self.cleanup(next, directory: directory)
@@ -129,7 +132,8 @@ public actor ClipboardStore {
     return try item.representations.map {
       ClipboardPayload(
         type: $0.type,
-        data: try Data(contentsOf: directory.appendingPathComponent("blobs/" + $0.blob)))
+        data: try Data(
+          contentsOf: directory.appendingPathComponent("blobs/" + $0.blob), options: .mappedIfSafe))
     }
   }
 
@@ -138,6 +142,15 @@ public actor ClipboardStore {
     let path = directory.appendingPathComponent("thumbs/\(id).png")
     guard FileManager.default.fileExists(atPath: path.path) else { return nil }
     return try Data(contentsOf: path)
+  }
+
+  public func setHistoryLimit(_ value: Int) throws {
+    let bounded = min(30, max(5, value))
+    let next = Array(items.prefix(bounded))
+    try Self.persist(next, directory: directory)
+    historyLimit = bounded
+    items = next
+    Self.cleanup(next, directory: directory)
   }
 
   public func remove(_ id: UUID) throws {
