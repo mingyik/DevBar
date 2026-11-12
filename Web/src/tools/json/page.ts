@@ -1,5 +1,4 @@
 import { EditorView } from "@codemirror/view";
-import { StreamLanguage } from "@codemirror/language";
 import {
   PageShell,
   element,
@@ -18,6 +17,7 @@ import { encodeComponent, preview as urlPreview } from "../url";
 import { decode as decodeBase64 } from "../base64";
 import { detect } from "../detect";
 import { renderTree } from "../../tree/render";
+import { jsonFoldingExtension } from "./folding";
 
 export class JsonPage {
   readonly shell: PageShell;
@@ -35,19 +35,7 @@ export class JsonPage {
     this.shell = shell;
     shell.addExtensions([
       errorMarks,
-      StreamLanguage.define({
-        token(stream) {
-          if (stream.eatSpace()) return null;
-          if (stream.match(/"(?:[^"\\]|\\.)*"(?=\s*:)/))
-            return "def propertyName";
-          if (stream.match(/"(?:[^"\\]|\\.)*"/)) return "string";
-          if (stream.match(/-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?/))
-            return "number";
-          if (stream.match(/true|false|null/)) return "atom";
-          stream.next();
-          return "punctuation";
-        },
-      }),
+      jsonFoldingExtension(),
       EditorView.updateListener.of((update) => {
         if (
           update.transactions.some(
