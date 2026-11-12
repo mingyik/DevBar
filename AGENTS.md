@@ -56,7 +56,7 @@ cd Web && npm run build          # 只构建前端
 node Scripts/gen-tokens.ts       # 由 design/tokens.json 重新生成各端变量（以实际脚本运行方式为准）
 ```
 
-签名：设置环境变量 `DEVBAR_SIGN_IDENTITY` 为本机的 Apple Development 证书名，权限才不会每次构建后失效。
+签名：`DEVBAR_SIGN_IDENTITY` 显式指定优先；未指定且本机只有一张有效 Apple Development 证书时，构建脚本自动复用它。无证书或多张时退回 ad-hoc并警告。固定签名用于保持应用身份，不能覆盖系统菜单栏可见性开关。
 
 ## 代码约定
 

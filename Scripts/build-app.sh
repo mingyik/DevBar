@@ -71,6 +71,15 @@ printf 'APPL????' > "$app/Contents/PkgInfo"
 xattr -cr "$app"
 
 identity="${DEVBAR_SIGN_IDENTITY:-}"
+# 本机自用优先复用唯一的开发证书，避免每次 ad-hoc 重建都改变系统识别的身份。
+# 多个开发证书时不猜测，仍由 DEVBAR_SIGN_IDENTITY 明确指定。
+if [[ -z "$identity" ]]; then
+  development_identities="$(security find-identity -v -p codesigning 2>/dev/null | sed -n 's/.*"\(Apple Development:.*\)".*/\1/p' || true)"
+  if [[ -n "$development_identities" && "$development_identities" != *$'\n'* ]]; then
+    identity="$development_identities"
+    echo "使用本机 Apple Development 固定签名"
+  fi
+fi
 if [[ -n "$identity" ]]; then
   sign_args=(--force --sign "$identity" --strip-disallowed-xattrs)
   if [[ "$config" == "release" && "$identity" == *"Developer ID"* ]]; then
