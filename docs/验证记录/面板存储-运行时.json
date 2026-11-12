@@ -1,0 +1,19 @@
+{
+  "frame": [
+    516,
+    308,
+    480,
+    600
+  ],
+  "large": false,
+  "measurements": {
+    "hiddenPreviewReleased": true,
+    "jsonPreviewReleased": true,
+    "jsonRestoredExactly": true,
+    "restoredAfterNativePage": true
+  },
+  "processID": 23213,
+  "scenario": "storage",
+  "theme": "dark",
+  "windowNumber": 2534
+}
