@@ -196,7 +196,6 @@ struct PanelView: View {
         HStack(spacing: 6) {
           Image(systemName: "folder").font(.system(size: 12))
           Text(URL(fileURLWithPath: path).lastPathComponent).lineLimit(1).truncationMode(.middle)
-          Spacer(minLength: 0)
           Image(systemName: "chevron.down").font(.system(size: 9, weight: .medium))
         }
         .font(.system(size: 12)).padding(.horizontal, 10).frame(width: 146, height: 30)
@@ -223,7 +222,6 @@ struct PanelView: View {
         HStack(spacing: 6) {
           Image(systemName: "gearshape").font(.system(size: 12))
           Text(Strings.systemSettingsButton)
-          Spacer(minLength: 0)
           Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .medium))
         }.font(.system(size: 12)).padding(.horizontal, 10).frame(width: 146, height: 30)
       }.buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
@@ -288,7 +286,7 @@ private struct HistoryLimitRow: View {
       Text(Strings.historyLimitTitle).font(.system(size: 13))
       Spacer(minLength: 12)
       TextField(Strings.historyLimitPlaceholder, text: $draft)
-        .textFieldStyle(.plain).font(.system(size: 12)).multilineTextAlignment(.trailing)
+        .textFieldStyle(.plain).font(.system(size: 12)).multilineTextAlignment(.center)
         .padding(.horizontal, 10).frame(width: 146, height: 30)
         .background(DesignTokens.panelControl(scheme), in: RoundedRectangle(cornerRadius: 8))
         .overlay {
