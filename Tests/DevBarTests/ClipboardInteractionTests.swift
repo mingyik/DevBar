@@ -252,15 +252,16 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
   }
   await controller.record(capture("短内容"), source: nil)
   let short = try #require(controller.items.first)
-  let shortView = ClipboardHoverPreview(
-    item: short, payloads: try #require(controller.originals[short.id]), scheme: .light,
-    theme: theme)
-  #expect(shortView.preferredHeight(width: 300, maximum: 800) == 300)
+  let shortHeight = ClipboardHoverContentLoader.prepare(
+    item: short, payloads: try #require(controller.originals[short.id]), width: 300, maximum: 800
+  ).height
+  #expect(shortHeight == 300)
   await controller.record(capture(String(repeating: "内容\n", count: 500)), source: nil)
   let long = try #require(controller.items.first)
-  let longView = ClipboardHoverPreview(
-    item: long, payloads: try #require(controller.originals[long.id]), scheme: .dark, theme: theme)
-  #expect(longView.preferredHeight(width: 300, maximum: 800) == 800)
+  let longHeight = ClipboardHoverContentLoader.prepare(
+    item: long, payloads: try #require(controller.originals[long.id]), width: 300, maximum: 800
+  ).height
+  #expect(longHeight == 800)
 }
 
 @MainActor @Test func clipboardPreviewPanelMatchesMainPanelActiveGlassLayers() {

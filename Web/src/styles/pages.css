@@ -15,9 +15,10 @@
   position: relative;
   flex: 1;
   min-height: 0;
-  background: var(--panel-inset);
+  background: var(--panel-card);
   border-radius: 14px;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 .source,
 .preview {
@@ -41,7 +42,9 @@
 }
 .preview {
   padding: 12px 22px 12px 12px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: none;
   font:
     13px ui-monospace,
     monospace;
@@ -87,6 +90,17 @@
   height: 28px;
   flex: 0 0 28px;
   min-width: 0;
+  z-index: 3;
+}
+.page-toolbar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -8px;
+  height: var(--stroke-hairline);
+  background: var(--line-divider);
+  pointer-events: none;
 }
 .page-actions {
   flex: 1;
@@ -110,26 +124,26 @@ select {
     12px -apple-system,
     sans-serif;
   color: var(--text-primary);
-  border: none;
-  background: none;
   cursor: pointer;
   white-space: nowrap;
 }
-.pill {
-  border-radius: 8px;
+button:not(.tree-toggle) {
+  border: var(--stroke-hairline) solid var(--line-border);
+  border-radius: var(--radius-small);
   background: var(--panel-control);
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+button:not(.tree-toggle):hover:not(:disabled) {
+  box-shadow: 0 0 0 0.5px var(--line-border);
+}
+.pill {
   height: 28px;
   padding: 0 12px;
   flex: none;
   min-width: 48px;
-}
-.pill.primary {
-  background: var(--text-primary);
-  color: var(--selection-text);
-}
-.pill:hover,
-.icon-button:hover {
-  background: var(--panel-control);
 }
 button:active {
   transform: scale(0.97);
@@ -148,7 +162,6 @@ button:disabled {
   width: 24px;
   height: 24px;
   flex: none;
-  border-radius: 8px;
 }
 .icon-button svg {
   width: 14px;
@@ -162,10 +175,12 @@ button:disabled {
 }
 .codec-segment button {
   padding: 4px;
-  border-radius: 6px;
+}
+.codec-segment button:not(.selected) {
+  color: var(--text-secondary);
 }
 .codec-segment .selected {
-  background: var(--panel-control);
+  font-weight: 600;
 }
 .page-error {
   text-decoration: underline wavy var(--text-primary);
@@ -205,9 +220,31 @@ button:disabled {
   white-space: nowrap;
 }
 .tree-toggle {
+  display: grid;
+  place-items: center;
   flex: 0 0 16px;
   width: 16px;
+  height: 24px;
   padding: 0;
+  color: var(--text-tertiary);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.tree-toggle:hover:not(:disabled) {
+  background: var(--panel-control);
+}
+.tree-chevron {
+  display: block;
+  width: 10px;
+  height: 10px;
+  transition: transform 120ms ease;
+}
+.tree-toggle[aria-expanded="true"] .tree-chevron {
+  transform: rotate(90deg);
+}
+.tree-toggle:disabled .tree-chevron {
+  visibility: hidden;
 }
 .tree-key {
   font-weight: 600;
@@ -290,5 +327,4 @@ button:disabled {
   justify-content: center;
   width: 28px;
   height: 28px;
-  background: var(--panel-control);
 }

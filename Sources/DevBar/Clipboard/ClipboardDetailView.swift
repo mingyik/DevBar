@@ -10,8 +10,13 @@ struct ClipboardDetailView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
       HStack {
-        Button(Strings.backToList) { controller.detailID = nil }
-          .buttonStyle(DevBarCapsuleStyle(scheme: scheme))
+        Button {
+          controller.detailID = nil
+        } label: {
+          Text(Strings.backToList).font(.system(size: 12))
+            .padding(.horizontal, 12).frame(height: 28)
+        }
+        .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
         Spacer()
         Button {
           if let index = controller.items.firstIndex(where: { $0.id == item.id }) {
@@ -19,8 +24,10 @@ struct ClipboardDetailView: View {
           }
         } label: {
           Label(
-            Strings.copy, systemImage: controller.copiedID == item.id ? "checkmark" : "doc.on.doc")
-        }.buttonStyle(DevBarCapsuleStyle(scheme: scheme))
+            Strings.copy, systemImage: controller.copiedID == item.id ? "checkmark" : "doc.on.doc"
+          )
+          .font(.system(size: 12)).padding(.horizontal, 12).frame(height: 28)
+        }.buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
       }
       ReadOnlyScrollView(scheme: scheme) {
         VStack(alignment: .leading, spacing: 8) {

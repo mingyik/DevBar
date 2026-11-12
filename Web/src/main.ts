@@ -1,7 +1,6 @@
 export const entryName = "DevBar";
 import { decodeEnvelope, type JSONValue } from "./bridge/envelope";
 import { refreshTreeTheme } from "./editor/library-theme";
-import { strings } from "./strings";
 import { post } from "./bridge/client";
 import { startTransform } from "./tools/json/client";
 import { routeImport } from "./tools/json/actions";
@@ -54,15 +53,6 @@ const bridge = {
       case "screen.show": {
         const value = payload.page ?? payload.screen;
         await show(value === "qr" ? "qr" : value === "doc" ? "doc" : "json");
-        break;
-      }
-      case "tools.importClipboard": {
-        const generation = beginImport("json");
-        const reply = await post("clipboard.readText");
-        if (generation !== importGenerations.get("json")) break;
-        if (reply.status === "ok" && typeof reply.text === "string")
-          await importText("json", reply.text, false, null);
-        else pages.get("json")?.updateInfo(strings.clipboardUnavailable);
         break;
       }
       case "tools.import": {

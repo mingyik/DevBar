@@ -45,12 +45,6 @@ final class PanelModel {
   var dropDocument = false
   @ObservationIgnored var fileDrop: FileDropCoordinator?
   var toast = ""
-  var recordSystemAudio: Bool {
-    didSet { defaults.set(recordSystemAudio, forKey: "recordSystemAudio") }
-  }
-  var recordMicrophone: Bool {
-    didSet { defaults.set(recordMicrophone, forKey: "recordMicrophone") }
-  }
   #if DEBUG
     var showsWebViewForSelfCheck =
       CommandLine.arguments.contains("--devbar-selfcheck")
@@ -71,8 +65,6 @@ final class PanelModel {
       Page.contentPages.contains(where: { $0.rawValue == preferred }) ? preferred : "last"
     jsonEnlarged = defaults.bool(forKey: "enlarged.json")
     docEnlarged = defaults.bool(forKey: "enlarged.doc")
-    recordSystemAudio = defaults.bool(forKey: "recordSystemAudio")
-    recordMicrophone = defaults.bool(forKey: "recordMicrophone")
   }
 
   func enterSettings() {

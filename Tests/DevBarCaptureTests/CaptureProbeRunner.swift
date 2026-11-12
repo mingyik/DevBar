@@ -21,8 +21,6 @@
           let args = CommandLine.arguments
           if args.contains("--request-permission") {
             print("permission=\(CGRequestScreenCaptureAccess())")
-          } else if args.contains("--record") || args.contains("--record-interrupt") {
-            try await recording(seconds: args.contains("--record-interrupt") ? 60 : 10)
           } else {
             try await screenshot(interactive: args.contains("--interactive"))
           }
@@ -36,22 +34,6 @@
           exit(1)
         }
       }
-    }
-
-    private func recording(seconds: Double) async throws {
-      guard let screen = NSScreen.main,
-        let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
-      else { throw CapturePrototypeError.displayUnavailable }
-      let output = URL(fileURLWithPath: "/tmp/devbar-v5-\(UUID().uuidString).mov")
-      print("V5 recording_seconds=\(seconds) output=\(output.path)")
-      fflush(stdout)
-      let report = try await RecordingOutputPrototype().record(
-        displayID: id.uint32Value, seconds: seconds, outputURL: output)
-      print("V5 events=\(report.events.joined(separator: ","))")
-      print(
-        "V5 finished=\(report.finished) failed=\(report.failed) timeout=\(report.timedOut) playable=\(report.playable) duration=\(report.duration) bytes=\(report.bytes) tracks=\(report.videoTracks) decoded=\(report.decodedFirstFrame)"
-      )
-      if !report.playable || report.timedOut { exit(2) }
     }
 
     private func screenshot(interactive: Bool) async throws {

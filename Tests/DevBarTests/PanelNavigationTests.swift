@@ -16,7 +16,6 @@ import Testing
   #expect(PanelModel(defaults: defaults).page == .json)
   model.cyclePage()
   #expect(model.page == .qr)
-  #expect(!model.recordSystemAudio && !model.recordMicrophone)
 }
 
 @MainActor @Test func fourPagesCycleInOrderAndDefaultOnlyAppliesToOrdinaryOpen() {

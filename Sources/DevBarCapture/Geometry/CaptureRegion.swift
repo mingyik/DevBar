@@ -4,7 +4,7 @@
 
 import CoreGraphics
 
-/// V4 prototype: extracted coordinate/snapping math, without recorder/UI dependencies.
+/// V4 prototype: extracted coordinate math, without selection UI dependencies.
 public struct CaptureRegion: Equatable, Sendable {
   public let displayID: CGDirectDisplayID
   /// Display-local points, top-left origin (not Cocoa global coordinates).
@@ -35,8 +35,7 @@ public struct CaptureRegion: Equatable, Sendable {
       x: (clipped.minX - screenFrame.minX) * scale,
       y: (screenFrame.maxY - clipped.maxY) * scale,
       width: clipped.width * scale, height: clipped.height * scale)
-    // Unlike the recorder's 32px minimum, this spike rejects tiny selections rather
-    // than expanding beyond the user's gesture. Even dimensions remain encoder-safe.
+    // Reject tiny selections rather than expanding beyond the user's gesture.
     let width = floor(raw.width / 2) * 2
     let height = floor(raw.height / 2) * 2
     guard width >= 2, height >= 2 else { throw CapturePrototypeError.invalidRegion }

@@ -15,7 +15,8 @@ struct ClipboardListView: View {
       } else {
         ScrollViewReader { proxy in
           ReadOnlyScrollView(
-            scheme: scheme, contentTrailingInset: 12, indicatorTrailingInset: 0.5
+            scheme: scheme, contentTrailingInset: 6, indicatorTrailingInset: 0,
+            indicatorWidth: 2
           ) {
             LazyVStack(spacing: 10) {
               ForEach(Array(controller.items.enumerated()), id: \.element.id) { index, item in
@@ -23,8 +24,9 @@ struct ClipboardListView: View {
                   .id(item.id)
               }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 10)
+            .padding(.leading, 2)
+            .padding(.trailing, 0)
+            .padding(.vertical, 2)
           }
           .onAppear {
             if controller.items.indices.contains(controller.focusedIndex) {
@@ -42,7 +44,6 @@ struct ClipboardListView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
-        .padding(.trailing, -8)
       }
       if !controller.message.isEmpty {
         Text(controller.message).font(.system(size: 11))
@@ -68,6 +69,8 @@ struct ClipboardListView: View {
         HStack {
           if monitor.pending {
             Button(Strings.clipboardPending) { Task { await monitor.poll(userInitiated: true) } }
+              .padding(.horizontal, 8).frame(height: 24)
+              .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
               .disabled(monitor.waiting)
           }
           Spacer(minLength: 4)
@@ -78,7 +81,9 @@ struct ClipboardListView: View {
               NSWorkspace.shared.open(url)
             }
           }
-        }.font(.system(size: 11)).buttonStyle(.plain).lineLimit(1)
+          .padding(.horizontal, 8).frame(height: 24)
+          .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
+        }.font(.system(size: 11)).lineLimit(1)
       }.padding(.vertical, 8)
       Rectangle().fill(DesignTokens.lineDivider(scheme)).frame(height: 0.7)
     }
@@ -132,6 +137,10 @@ private struct ClipboardRow: View {
           scheme: scheme,
           onClick: { controller.select(index) },
           onDelete: { Task { await controller.remove(item.id) } },
+          onHover: { inside in
+            hovered = inside
+            controller.setHovered(item.id, inside: inside && !dragging)
+          },
           onDragging: { isDragging in
             dragging = isDragging
             controller.setDragging(isDragging)
@@ -145,25 +154,19 @@ private struct ClipboardRow: View {
       Text(kindLabel).font(.system(size: 11))
         .foregroundStyle(DesignTokens.textTertiary(scheme)).lineLimit(1)
     }
-    .padding(.horizontal, 12).frame(height: 56)
+    .padding(.horizontal, 8).frame(height: 56)
     .background {
       ZStack {
         if hovered && !dragging {
-          ClipboardOuterGlow(cornerRadius: 10)
+          let glow = Color.blue  // devbar:allow-color
+          rowShape.stroke(glow.opacity(0.35), lineWidth: 1.2)
+            .blur(radius: 2.5)
+            .shadow(color: glow.opacity(0.25), radius: 5)
+            .allowsHitTesting(false)
         }
         rowShape.fill(
           selected ? DesignTokens.panelControl(scheme) : DesignTokens.panelCard(scheme)
         )
-      }
-    }
-    .overlay {
-      if hovered && !dragging {
-        rowShape
-          .strokeBorder(
-            Color(red: 0.22, green: 0.58, blue: 1.0, opacity: 0.72),  // devbar:allow-color
-            lineWidth: 1
-          )
-          .allowsHitTesting(false)
       }
     }
     .overlay(alignment: .leading) {
@@ -179,7 +182,7 @@ private struct ClipboardRow: View {
         .allowsHitTesting(false)
       }
     }
-    .opacity(dragging ? 0.4 : 1)
+    .opacity(dragging ? 0 : 1)
     .animation(reduceMotion || dragging ? nil : .easeOut(duration: 0.16), value: dragging)
     .contentShape(Rectangle()).onTapGesture { controller.select(index) }
     .onHover { inside in
@@ -221,33 +224,5 @@ private struct ClipboardRow: View {
     case .image: Strings.clipboardImageType
     case .files: Strings.clipboardFileType
     }
-  }
-}
-
-private struct ClipboardOuterGlow: View {
-  let cornerRadius: CGFloat
-
-  var body: some View {
-    let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-    let primaryGlow = Color(  // devbar:allow-color
-      red: 0.15, green: 0.55, blue: 1.0, opacity: 0.75)
-    let secondaryGlow = Color(  // devbar:allow-color
-      red: 0.25, green: 0.65, blue: 1.0, opacity: 0.45)
-    shape
-      .fill(Color.black)  // devbar:allow-color
-      .shadow(color: primaryGlow, radius: 7, x: 0, y: 0)
-      .shadow(color: secondaryGlow, radius: 12, x: 0, y: 0)
-      .padding(-20)
-      .compositingGroup()
-      .mask {
-        ZStack {
-          Rectangle().fill(Color.white)  // devbar:allow-color
-          shape.fill(Color.black).padding(20)  // devbar:allow-color
-        }
-        .compositingGroup()
-        .luminanceToAlpha()
-      }
-      .padding(20)
-      .allowsHitTesting(false)
   }
 }

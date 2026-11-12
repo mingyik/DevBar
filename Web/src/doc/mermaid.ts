@@ -2,6 +2,8 @@ import type { MermaidConfig } from "mermaid";
 import type { Theme } from "./highlight";
 export const LAYOUT = "dagre" as const;
 export const SYSTEM_FONT = "-apple-system, BlinkMacSystemFont, sans-serif";
+const WIDE_DIAGRAM_RATIO = 2;
+const WIDE_DIAGRAM_SCALE = 0.5;
 let library: Promise<(typeof import("mermaid"))["default"]> | undefined;
 let queue: Promise<unknown> = Promise.resolve();
 let nonce = 0;
@@ -117,13 +119,32 @@ export function renderMermaid(source: string, theme: Theme): Promise<string> {
   queue = result.catch(() => {});
   return result;
 }
-export async function renderMermaidElements(root: HTMLElement, theme: Theme) {
+export async function renderMermaidElements(
+  root: HTMLElement,
+  theme: Theme,
+  availableWidth = Number.POSITIVE_INFINITY,
+) {
   for (const element of Array.from(
     root.querySelectorAll<HTMLElement>(".mmd[data-src]"),
   )) {
     const source = element.dataset.src ?? "";
     try {
       element.innerHTML = await renderMermaid(source, theme);
+      const svg = element.querySelector("svg");
+      const naturalWidth = Number(svg?.getAttribute("width"));
+      const scroller = element.ownerDocument.createElement("div");
+      scroller.className = "mmd-scroll";
+      if (svg) scroller.append(svg);
+      element.replaceChildren(scroller);
+      const isWide =
+        availableWidth > 0 &&
+        naturalWidth > availableWidth * WIDE_DIAGRAM_RATIO;
+      scroller.dataset.wide = String(isWide);
+      if (isWide)
+        scroller.style.setProperty(
+          "--mmd-svg-width",
+          `${naturalWidth * WIDE_DIAGRAM_SCALE}px`,
+        );
       element.classList.remove("mmd-error");
     } catch (error) {
       element.replaceChildren();

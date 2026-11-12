@@ -170,7 +170,7 @@ export class DocPage {
       "pure-mermaid",
       this.mode === "mermaid",
     );
-    const key = `${this.theme()}:${this.mode}:${this.shell.text}`;
+    const key = `${this.theme()}:${this.mode}:${this.shell.preview.clientWidth}:${this.shell.text}`;
     if (key === this.renderKey) return this.pending;
     this.renderKey = key;
     this.pending = renderDocument(this.shell.preview, this.text(), {

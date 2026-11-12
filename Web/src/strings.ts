@@ -1,6 +1,5 @@
 export const strings = {
   previewFailed: "预览失败",
-  clipboardUnavailable: "无法带入剪贴板，请检查读取授权",
   json: "JSON",
   qr: "二维码",
   edit: "编辑",
@@ -23,6 +22,8 @@ export const strings = {
   more: (n: number) => `再显示 200 个（剩余 ${n}）`,
   copyValue: "复制值",
   copyPath: "复制路径",
+  expandNode: "展开",
+  collapseNode: "折叠",
   items: "项",
   protocol: "协议",
   userinfo: "用户信息",

@@ -234,7 +234,7 @@ final class ClipboardController {
 
   func setHovered(_ id: UUID, inside: Bool) {
     if inside {
-      guard !isDragging else { return }
+      guard !isDragging, hoverID != id else { return }
       hoverID = id
       onHoverPreview?(id)
     } else if hoverID == id {

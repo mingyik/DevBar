@@ -17,6 +17,12 @@ final class PanelController {
   private var dismissing = false
   private var lastAnchor: CGRect?
   private var clipboardPreview: NSPanel?
+  private var clipboardPreviewItemID: UUID?
+  private var clipboardPreviewState: ClipboardHoverPreviewState?
+  private var clipboardPreviewHost: NSHostingView<ClipboardHoverPreview>?
+  private var previewHeights: [UUID: (width: CGFloat, maximum: CGFloat, height: CGFloat)] = [:]
+  private var previewLoadTask: Task<Void, Never>?
+  private var previewGeneration = UUID()
   private var previewPointerInside = false
   private var previewHideTask: Task<Void, Never>?
   private let logger = Logger(subsystem: "local.devbar.app", category: "panel")
@@ -135,8 +141,7 @@ final class PanelController {
     dismissing = true
     panel.orderOut(nil)
     previewHideTask?.cancel()
-    previewPointerInside = false
-    clipboardPreview?.orderOut(nil)
+    hideClipboardPreview()
     webHost.panelVisible = false
     dismissing = false
   }
@@ -166,7 +171,7 @@ final class PanelController {
         guard let self else { return }
         if self.clipboard.hoverID != nil { return }
         if !self.previewPointerInside && !self.isMouseInPreview {
-          self.clipboardPreview?.orderOut(nil)
+          self.hideClipboardPreview()
           return
         }
         try? await Task.sleep(for: .milliseconds(120))
@@ -177,8 +182,7 @@ final class PanelController {
   private func showClipboardPreview(_ id: UUID?) {
     guard panel.isVisible, model.page == .clipboard, !clipboard.isDragging else {
       previewHideTask?.cancel()
-      previewPointerInside = false
-      clipboardPreview?.orderOut(nil)
+      hideClipboardPreview()
       return
     }
     guard let id else {
@@ -188,15 +192,29 @@ final class PanelController {
     guard let item = clipboard.items.first(where: { $0.id == id }),
       let screen = panel.screen ?? NSScreen.main
     else {
-      clipboardPreview?.orderOut(nil)
+      hideClipboardPreview()
       return
     }
     previewHideTask?.cancel()
     previewPointerInside = false
+    if clipboardPreviewItemID == id, clipboardPreview?.isVisible == true { return }
+    clipboardPreviewItemID = id
     let visible = screen.visibleFrame
     let width = min(300, panel.frame.width - 20, visible.width)
+    let maximum = visible.height * 2 / 3
+    previewLoadTask?.cancel()
+    let generation = UUID()
+    previewGeneration = generation
+    let height =
+      previewHeights[id].flatMap {
+        $0.width == width && $0.maximum == maximum ? $0.height : nil
+      } ?? min(width, maximum)
+    let frame = clipboardPreviewFrame(width: width, height: height, visible: visible)
+    let state = clipboardPreviewState ?? ClipboardHoverPreviewState()
+    clipboardPreviewState = state
+    state.begin(item: item)
     let previewContent = ClipboardHoverPreview(
-      item: item, payloads: clipboard.originals[id] ?? [], scheme: theme.effective, theme: theme,
+      state: state, scheme: theme.effective, theme: theme,
       onHoverChange: { [weak self] inside in
         guard let self else { return }
         self.previewPointerInside = inside
@@ -206,18 +224,59 @@ final class PanelController {
           self.schedulePreviewHide()
         }
       })
-    let height = previewContent.preferredHeight(width: width, maximum: visible.height * 2 / 3)
+    let preview = clipboardPreview ?? ClipboardPreviewPanel(contentRect: frame)
+    preview.appearance = theme.appearance()
+    if let host = clipboardPreviewHost {
+      host.rootView = previewContent
+    } else {
+      let host = NSHostingView(rootView: previewContent)
+      clipboardPreviewHost = host
+      preview.contentView = host
+    }
+    preview.setFrame(frame, display: true)
+    clipboardPreview = preview
+    preview.orderFrontRegardless()
+
+    let payloads = clipboard.originals[id] ?? []
+    previewLoadTask = Task.detached(priority: .userInitiated) { [weak self] in
+      let prepared = ClipboardHoverContentLoader.prepare(
+        item: item, payloads: payloads, width: width, maximum: maximum)
+      guard !Task.isCancelled else { return }
+      await MainActor.run {
+        guard let self,
+          self.previewGeneration == generation,
+          self.clipboardPreviewItemID == id,
+          self.clipboardPreview?.isVisible == true
+        else { return }
+        self.clipboardPreviewState?.finish(
+          itemID: id, content: prepared.content, image: prepared.image)
+        if self.previewHeights.count >= 20 { self.previewHeights.removeAll() }
+        self.previewHeights[id] = (width, maximum, prepared.height)
+        if abs(prepared.height - height) > 0.5 {
+          self.clipboardPreview?.setFrame(
+            self.clipboardPreviewFrame(
+              width: width, height: prepared.height, visible: visible),
+            display: true)
+        }
+      }
+    }
+  }
+
+  private func clipboardPreviewFrame(width: CGFloat, height: CGFloat, visible: NSRect) -> NSRect {
     let left = panel.frame.minX - width - 6
     let right = panel.frame.maxX + 6
     let x = left >= visible.minX ? left : min(right, visible.maxX - width)
     let y = min(max(panel.frame.maxY - height, visible.minY), visible.maxY - height)
-    let frame = NSRect(x: x, y: y, width: width, height: height)
-    let preview = clipboardPreview ?? ClipboardPreviewPanel(contentRect: frame)
-    preview.appearance = theme.appearance()
-    preview.contentView = NSHostingView(rootView: previewContent)
-    preview.setFrame(frame, display: true)
-    clipboardPreview = preview
-    preview.orderFrontRegardless()
+    return NSRect(x: x, y: y, width: width, height: height)
+  }
+
+  private func hideClipboardPreview() {
+    previewLoadTask?.cancel()
+    previewLoadTask = nil
+    previewGeneration = UUID()
+    clipboardPreviewItemID = nil
+    previewPointerInside = false
+    clipboardPreview?.orderOut(nil)
   }
 
   private func installChrome() {
@@ -237,8 +296,7 @@ final class PanelController {
   private func updateMaterial() {
     if model.page != .clipboard {
       previewHideTask?.cancel()
-      previewPointerInside = false
-      clipboardPreview?.orderOut(nil)
+      hideClipboardPreview()
     }
     panel.appearance = theme.appearance()
     webHost.panelVisible = panel.isVisible

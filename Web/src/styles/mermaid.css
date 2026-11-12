@@ -1,6 +1,5 @@
 .prose .mmd {
-  overflow-x: auto;
-  overflow-y: hidden;
+  min-width: 0;
   border: none;
   border-radius: var(--radius-small);
   padding: 8px;
@@ -12,11 +11,22 @@
   color: var(--text-secondary);
   font-size: 0.92em;
 }
-.prose .mmd > svg {
-  max-width: none;
+.prose .mmd-scroll {
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  text-align: center;
+}
+.prose .mmd-scroll > svg {
+  max-width: 100%;
   height: auto;
   display: block;
   margin-inline: auto;
+}
+.prose .mmd-scroll[data-wide="true"] > svg {
+  width: var(--mmd-svg-width);
+  max-width: none;
 }
 .prose .mmd-error {
   text-align: left;
@@ -50,10 +60,13 @@
   background: var(--snapshot-background);
   overflow: visible;
 }
-.snapshot-root.prose .mmd > svg {
+.snapshot-root.prose .mmd-scroll {
+  overflow: visible;
+}
+.snapshot-root.prose .mmd-scroll > svg {
+  width: auto;
   max-width: 100%;
 }
-
 .diagram-copy.icon-button .system-icon {
   width: 16px;
   height: 16px;
@@ -70,9 +83,9 @@
   opacity: 1;
 }
 /* Dense date axes retain readable labels in the diagram's horizontal scroller. */
-.prose .mmd svg[aria-roledescription="gantt"] {
+.prose .mmd-scroll svg[aria-roledescription="gantt"] {
   min-width: 800px;
 }
-.snapshot-root.prose .mmd svg[aria-roledescription="gantt"] {
+.snapshot-root.prose .mmd-scroll svg[aria-roledescription="gantt"] {
   min-width: 0;
 }

@@ -19,6 +19,7 @@ final class DevBarPanel: NSPanel {
     isOpaque = false
     backgroundColor = .clear
     hidesOnDeactivate = false
+    isMovableByWindowBackground = false
     animationBehavior = .none
   }
 

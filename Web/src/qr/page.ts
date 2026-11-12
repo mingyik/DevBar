@@ -17,7 +17,6 @@ export class QRPage {
     this.toggle = pill(strings.preview, () => {
       void this.togglePreview();
     });
-    this.toggle.classList.add("primary");
     shell.actions.append(this.toggle);
     const copy = iconButton("copy", () => {
       void this.copy().then(() => {

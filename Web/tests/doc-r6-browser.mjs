@@ -194,7 +194,7 @@ try {
   });
   await page.goto("http://127.0.0.1:5173/dev/r6-preview.html?mode=mermaid");
   await page.waitForFunction(() => window.ready, {}, { timeout: 120000 });
-  assert.equal(await page.locator(".mmd > svg").count(), 1);
+  assert.equal(await page.locator(".mmd > .mmd-scroll > svg").count(), 1);
   writeFileSync(
     "../Samples/R6-browser-results.json",
     JSON.stringify(results, null, 2) + "\n",

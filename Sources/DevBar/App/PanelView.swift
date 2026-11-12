@@ -37,9 +37,9 @@ struct PanelView: View {
       }
     }
     .animation(.easeInOut(duration: 0.15), value: model.page)
-    .padding(.horizontal, 16)
+    .padding(.horizontal, model.page == .clipboard ? 8 : 16)
     .padding(.top, 12)
-    .padding(.bottom, 16)
+    .padding(.bottom, model.page == .clipboard ? 8 : 16)
     .background { PanelChrome(theme: theme, scheme: scheme) }
     .clipShape(panelShape)
     .environment(\.colorScheme, scheme)
@@ -109,7 +109,7 @@ struct PanelView: View {
   private func content(_ scheme: ColorScheme) -> some View {
     switch model.page {
     case .clipboard:
-      ClipboardListView(controller: clipboard, scheme: scheme)
+      ClipboardListView(controller: clipboard, scheme: scheme).padding(.horizontal, -4)
     case .json, .qr, .doc:
       WebViewBox(host: webHost).id(webHost.generation)
     case .settings:
@@ -143,15 +143,11 @@ struct PanelView: View {
           }
           Toggle(Strings.autoImport, isOn: $model.autoImport)
           shortcut(Strings.shortcutToggle, .togglePanel, scheme)
-          shortcut(Strings.shortcutTools, .openTools, scheme)
           Text(Strings.clipboardGroup).font(.system(size: 13, weight: .semibold)).id("clipboard")
           shortcut(Strings.shortcutOlder, .cycleOlder, scheme)
           Text(Strings.captureGroup).font(.system(size: 13, weight: .semibold)).id("capture")
-          Toggle(Strings.recordSystemAudio, isOn: $model.recordSystemAudio)
-          Toggle(Strings.recordMicrophone, isOn: $model.recordMicrophone)
           shortcut(Strings.shortcutCapture, .captureRegion, scheme)
           shortcut(Strings.shortcutLong, .captureScroll, scheme)
-          shortcut(Strings.shortcutRecord, .recordToggle, scheme)
           Text(Strings.pageShortcuts).font(.system(size: 13, weight: .semibold)).id("shortcuts")
           ForEach(PanelModel.Page.contentPages, id: \.self) { page in
             shortcut(page.title, page.shortcutName, scheme)
@@ -247,8 +243,6 @@ private struct ActionIcon: View {
   let label: String
   let scheme: ColorScheme
   let action: () -> Void
-  @State private var hovered = false
-
   private var icon: Image {
     symbol == "devbar.settings" ? Image(nsImage: AppIcons.settings) : Image(systemName: symbol)
   }
@@ -259,15 +253,8 @@ private struct ActionIcon: View {
         .font(.system(size: 13, weight: .regular))
         .frame(width: 24, height: 24)
         .foregroundStyle(DesignTokens.textSecondary(scheme))
-        .background {
-          if hovered {
-            RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
-              .fill(DesignTokens.panelControl(scheme))
-          }
-        }
     }
-    .buttonStyle(.plain)
-    .onHover { hovered = $0 }
+    .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
     .help(label)
     .accessibilityLabel(label)
   }

@@ -12,9 +12,12 @@ struct PlaceholderPage: View {
         .foregroundStyle(DesignTokens.textSecondary(scheme))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
       HStack {
-        Button(Strings.documentPreview) {}
-          .buttonStyle(DevBarCapsuleStyle(scheme: scheme))
-          .disabled(true)
+        Button {
+        } label: {
+          Text(Strings.documentPreview).padding(.horizontal, 12).frame(height: 28)
+        }
+        .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
+        .disabled(true)
         Spacer()
         placeholderAction("viewfinder.rectangular", label: Strings.documentCapture)
         placeholderAction("eraser", label: Strings.clearContent)
@@ -34,52 +37,48 @@ struct PlaceholderPage: View {
         .font(.system(size: 16))
         .frame(width: 28, height: 28)
         .foregroundStyle(DesignTokens.textSecondary(scheme))
-        .background(DesignTokens.panelControl(scheme), in: RoundedRectangle(cornerRadius: 8))
-    }.buttonStyle(.plain).disabled(true).accessibilityLabel(label).help(label)
+    }.buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme)).disabled(true)
+      .accessibilityLabel(label).help(label)
   }
 
 }
 
-struct DevBarCapsuleStyle: ButtonStyle {
+struct DevBarSurfaceButtonStyle: ButtonStyle {
   let scheme: ColorScheme
-  var prominent = false
   func makeBody(configuration: Configuration) -> some View {
-    CapsuleBody(configuration: configuration, scheme: scheme, prominent: prominent)
+    SurfaceBody(configuration: configuration, scheme: scheme)
   }
 
-  private struct CapsuleBody: View {
+  private struct SurfaceBody: View {
     let configuration: ButtonStyle.Configuration
     let scheme: ColorScheme
-    let prominent: Bool
     @State private var hovered = false
     @Environment(\.isFocused) private var focused
+    private var shape: RoundedRectangle {
+      RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
+    }
     var body: some View {
-      configuration.label.font(.system(size: 12)).lineLimit(1)
-        .padding(.horizontal, 12).frame(height: 28)
-        .foregroundStyle(
-          prominent ? DesignTokens.selectionText(scheme) : DesignTokens.textPrimary(scheme)
-        )
+      configuration.label
+        .foregroundStyle(DesignTokens.textPrimary(scheme))
+        .lineLimit(1)
         .background {
-          RoundedRectangle(cornerRadius: DesignTokens.radiusSmall)
-            .fill(
-              prominent ? DesignTokens.selectionFill(scheme) : DesignTokens.panelControl(scheme)
-            )
-            .overlay {
-              if hovered {
-                RoundedRectangle(cornerRadius: DesignTokens.radiusSmall).fill(
-                  DesignTokens.panelControl(scheme))
-              }
-            }
+          shape.fill(DesignTokens.panelControl(scheme))
+        }
+        .overlay {
+          shape.strokeBorder(
+            DesignTokens.lineBorder(scheme).opacity(hovered ? 1.35 : 1),
+            lineWidth: DesignTokens.strokeHairline)
         }
         .overlay {
           if focused {
-            RoundedRectangle(cornerRadius: DesignTokens.radiusSmall).strokeBorder(
+            shape.strokeBorder(
               DesignTokens.textPrimary(scheme), lineWidth: 1.5)
           }
         }
         .focusEffectDisabled()
         .scaleEffect(configuration.isPressed ? 0.97 : 1)
         .onHover { hovered = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovered)
     }
   }
 }

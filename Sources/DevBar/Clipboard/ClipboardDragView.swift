@@ -13,6 +13,7 @@ struct ClipboardDragView: NSViewRepresentable {
   let scheme: ColorScheme
   let onClick: () -> Void
   let onDelete: () -> Void
+  let onHover: (Bool) -> Void
   let onDragging: (Bool) -> Void
 
   func makeNSView(context: Context) -> DragSource { DragSource() }
@@ -26,6 +27,7 @@ struct ClipboardDragView: NSViewRepresentable {
     view.scheme = scheme
     view.onClick = onClick
     view.onDelete = onDelete
+    view.onHover = onHover
     view.onDragging = onDragging
   }
 
@@ -39,6 +41,7 @@ struct ClipboardDragView: NSViewRepresentable {
     var scheme: ColorScheme = .light
     var onClick: (() -> Void)?
     var onDelete: (() -> Void)?
+    var onHover: ((Bool) -> Void)?
     var onDragging: ((Bool) -> Void)?
     private var origin: NSPoint?
     private var dragging = false
@@ -47,6 +50,17 @@ struct ClipboardDragView: NSViewRepresentable {
     private var deleteHover = false
     // Keep the provider alive after drag end while Finder receives its promised file.
     private var promisedFile: ClipboardDragFile?
+
+    override func updateTrackingAreas() {
+      super.updateTrackingAreas()
+      for area in trackingAreas { removeTrackingArea(area) }
+      addTrackingArea(
+        NSTrackingArea(
+          rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+          owner: self, userInfo: nil))
+    }
+    override func mouseEntered(with event: NSEvent) { onHover?(true) }
+    override func mouseExited(with event: NSEvent) { onHover?(false) }
 
     override func mouseDown(with event: NSEvent) {
       origin = event.locationInWindow
@@ -89,8 +103,7 @@ struct ClipboardDragView: NSViewRepresentable {
       }
       showDeleteZones()
       let session = beginDraggingSession(with: items, event: event, source: self)
-      session.animatesToStartingPositionsOnCancelOrFail =
-        !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+      session.animatesToStartingPositionsOnCancelOrFail = false
     }
 
     private func showDeleteZones() {
@@ -152,7 +165,46 @@ struct ClipboardDragView: NSViewRepresentable {
       deleteHover = false
       dragging = false
       // Finder can request the promised file after the drag session has ended.
-      onDragging?(false)
+      if operation.isEmpty && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+        let window
+      {
+        let target = window.convertToScreen(convert(bounds, to: nil))
+        let card = DragCardImage.make(
+          title: title, subtitle: subtitle, fileCount: fileCount, thumbnail: thumbnail,
+          swatch: swatch, scheme: scheme)
+        let pointer = NSEvent.mouseLocation
+        let start = NSRect(
+          x: pointer.x - card.hotspot.x, y: pointer.y - card.hotspot.y,
+          width: card.image.size.width, height: card.image.size.height)
+        let ghost = NSPanel(
+          contentRect: start, styleMask: [.borderless, .nonactivatingPanel],
+          backing: .buffered, defer: false)
+        ghost.level = .popUpMenu
+        ghost.backgroundColor = .clear
+        ghost.isOpaque = false
+        ghost.hasShadow = false
+        ghost.ignoresMouseEvents = true
+        ghost.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+        let image = NSImageView(frame: NSRect(origin: .zero, size: start.size))
+        image.image = card.image
+        image.imageScaling = .scaleAxesIndependently
+        image.autoresizingMask = [.width, .height]
+        ghost.contentView = image
+        ghost.orderFrontRegardless()
+        NSAnimationContext.runAnimationGroup { context in
+          context.duration = 0.2
+          context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+          ghost.animator().setFrame(target, display: true)
+          ghost.animator().alphaValue = 0
+        } completionHandler: { [weak self] in
+          Task { @MainActor in
+            ghost.orderOut(nil)
+            self?.onDragging?(false)
+          }
+        }
+      } else {
+        onDragging?(false)
+      }
     }
   }
 }
@@ -211,7 +263,7 @@ enum DragCardImage {
       path.fill()
     }
     NSShadow().set()
-    path.lineWidth = 1.5
+    path.lineWidth = 0.5
     if glass {
       NSColor(DesignTokens.textPrimary(scheme)).setStroke()
     } else if deleteHover {

@@ -19,12 +19,35 @@ export function renderTree(
       depth === 0 ? "tree-node tree-root" : "tree-node",
     );
     const row = element("div", "tree-row");
-    const toggle = element(
-      "button",
-      "tree-toggle",
-      container(value) ? "▸" : "",
+    const hasChildren = container(value);
+    const toggle = element("button", "tree-toggle");
+    const chevron = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "svg",
     );
-    toggle.disabled = !container(value);
+    chevron.setAttribute("viewBox", "0 0 12 12");
+    chevron.setAttribute("class", "tree-chevron");
+    chevron.setAttribute("aria-hidden", "true");
+    const chevronPath = document.createElementNS(
+      "http://www.w3.org/2000/svg",
+      "path",
+    );
+    chevronPath.setAttribute("d", "M4 2.5 L7.5 6 L4 9.5");
+    chevronPath.setAttribute("fill", "none");
+    chevronPath.setAttribute("stroke", "currentColor");
+    chevronPath.setAttribute("stroke-width", "1.25");
+    chevronPath.setAttribute("stroke-linecap", "round");
+    chevronPath.setAttribute("stroke-linejoin", "round");
+    chevron.append(chevronPath);
+    toggle.append(chevron);
+    toggle.disabled = !hasChildren;
+    if (hasChildren) {
+      toggle.setAttribute("aria-expanded", "false");
+      toggle.setAttribute("aria-label", strings.expandNode);
+      toggle.title = strings.expandNode;
+    } else {
+      toggle.setAttribute("aria-hidden", "true");
+    }
     const keyNode = element("span", "tree-key", key === null ? "" : `${key}:`);
     keyNode.dataset.libraryToken = "key";
     const type = container(value)
@@ -63,12 +86,12 @@ export function renderTree(
       if (!container(value)) return;
       if (children) {
         children.hidden = !children.hidden;
-        toggle.textContent = children.hidden ? "▸" : "▾";
+        setExpanded(!children.hidden);
         return;
       }
       children = element("div", "tree-children");
       block.append(children);
-      toggle.textContent = "▾";
+      setExpanded(true);
       const keys = Object.keys(value);
       let loaded = 0;
       const batch = () => {
@@ -103,6 +126,12 @@ export function renderTree(
         }
       };
       batch();
+    }
+    function setExpanded(expanded: boolean): void {
+      toggle.setAttribute("aria-expanded", String(expanded));
+      const label = expanded ? strings.collapseNode : strings.expandNode;
+      toggle.setAttribute("aria-label", label);
+      toggle.title = label;
     }
     toggle.onclick = expand;
     if (container(value) && depth < 2) expand();

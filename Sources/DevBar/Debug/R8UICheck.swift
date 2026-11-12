@@ -5,7 +5,6 @@
 
   /// Synthetic fixtures with isolated defaults and history; no user clipboard reads.
   @MainActor enum R8UICheck {
-    private static var inputWindow: NSWindow?
     static func runIfRequested(panel: PanelController) {
       let args = CommandLine.arguments
       guard let index = args.firstIndex(of: "--devbar-r8check"), index + 3 < args.count else {
@@ -65,6 +64,18 @@
         }
         if scenario == "drop" { panel.model.dropActive = true }
         if scenario == "doc" { panel.model.page = .doc }
+        if scenario == "clipboard-hover" {
+          for value in ["悬浮测试三：鼠标移开后恢复", "悬浮测试二：检查蓝色光晕", "悬浮测试一：这是一条隔离的测试记录"] {
+            if let capture = ClipboardCapture(payloads: [
+              ClipboardPayload(
+                type: NSPasteboard.PasteboardType.string.rawValue, data: Data(value.utf8))
+            ]) {
+              await panel.clipboard.record(capture, source: nil)
+            }
+          }
+          panel.model.page = .clipboard
+          panel.show(anchor: nil)
+        }
         if scenario.hasPrefix("settings") {
           panel.model.page = scenario == "settings" ? .clipboard : .json
           panel.model.enterSettings()
@@ -79,28 +90,8 @@
               ])!, source: nil)
           }
           panel.dismiss()
-          let input = NSWindow(
-            contentRect: panel.panel.frame, styleMask: [.titled], backing: .buffered, defer: false)
-          input.title = "合成输入区域（仅用于验收截图）"
-          let editor = NSTextView(frame: NSRect(origin: .zero, size: input.contentLayoutRect.size))
-          editor.string = "这是合成的输入区域。\n\n切换卡片出现在鼠标上方；卡片不接管输入焦点。"
-          editor.font = .systemFont(ofSize: 15)
-          editor.textColor = NSColor(DesignTokens.textPrimary(panel.theme.effective))
-          editor.backgroundColor = NSColor(DesignTokens.opaqueBackdrop(panel.theme.effective))
-          input.contentView = editor
-          input.makeKeyAndOrderFront(nil)
-          NSApp.activate()
-          try? await Task.sleep(for: .milliseconds(150))
-          input.makeFirstResponder(editor)
-          measurements["inputWasKeyBeforeCard"] = input.isKeyWindow
           measurements["frontmostBeforeCard"] =
             NSWorkspace.shared.frontmostApplication?.processIdentifier
-          inputWindow = input
-          let original = NSEvent.mouseLocation
-          let point = NSPoint(x: input.frame.midX, y: input.frame.midY)
-          let desktopTop = NSScreen.screens.map(\.frame.maxY).max() ?? 0
-          CGWarpMouseCursorPosition(CGPoint(x: point.x, y: desktopTop - point.y))
-          try? await Task.sleep(for: .milliseconds(100))
           let board = NSPasteboard.withUniqueName()
           var timings: [Double] = []
           for index in 0..<15 {
@@ -108,10 +99,9 @@
             timings.append(panel.clipboard.lastCycleMilliseconds)
           }
           board.releaseGlobally()
-          CGWarpMouseCursorPosition(CGPoint(x: original.x, y: desktopTop - original.y))
           measurements["cycleToOrderFrontMilliseconds"] = timings
           measurements["mainPanelRemainsHidden"] = !panel.panel.isVisible
-          measurements["inputRemainsKey"] = input.isKeyWindow
+          measurements["cardRemainsVisible"] = panel.clipboard.card.panel.isVisible
           measurements["frontmostAfterCard"] =
             NSWorkspace.shared.frontmostApplication?.processIdentifier
           measurements["temporaryKeysRegistered"] = panel.clipboard.card.temporaryKeys.isRegistered
@@ -119,7 +109,8 @@
           try? await Task.sleep(for: .milliseconds(650))
         }
         let frame =
-          scenario == "card" ? (inputWindow?.frame ?? panel.panel.frame) : panel.panel.frame
+          scenario == "card" ? panel.clipboard.card.panel.frame : panel.panel.frame
+        measurements["windowNumber"] = panel.panel.windowNumber
         measurements["processID"] = ProcessInfo.processInfo.processIdentifier
         measurements["frame"] = [frame.minX, frame.minY, frame.width, frame.height]
         measurements["scenario"] = scenario

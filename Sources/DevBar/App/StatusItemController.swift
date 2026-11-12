@@ -45,7 +45,6 @@ final class StatusItemController: NSObject {
     menu.autoenablesItems = false
     for (title, symbol) in [
       (Strings.shortcutCapture, "viewfinder"), (Strings.shortcutLong, "rectangle.stack"),
-      (Strings.startRecording, "record.circle"),
     ] {
       let entry = NSMenuItem(title: title, action: nil, keyEquivalent: "")
       entry.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)

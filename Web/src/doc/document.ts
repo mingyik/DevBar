@@ -34,7 +34,19 @@ export async function renderDocument(
     staged.innerHTML = await preview.renderAsync(text, options.theme);
   }
   if (revisions.get(root) !== revision) return;
-  await renderMermaidElements(staged, options.theme);
+  const rootStyle = root.ownerDocument.defaultView?.getComputedStyle(root);
+  const parsePixels = (value: string | undefined) => {
+    const parsed = Number.parseFloat(value ?? "");
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  const availableDiagramWidth = Math.max(
+    0,
+    root.clientWidth -
+      parsePixels(rootStyle?.paddingLeft) -
+      parsePixels(rootStyle?.paddingRight) -
+      16,
+  );
+  await renderMermaidElements(staged, options.theme, availableDiagramWidth);
   if (revisions.get(root) === revision)
     root.replaceChildren(...Array.from(staged.childNodes));
 }

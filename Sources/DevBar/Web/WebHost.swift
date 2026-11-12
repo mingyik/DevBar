@@ -41,8 +41,6 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     Task { await start() }
   }
 
-  func importClipboard() { send(type: "tools.importClipboard", payload: [:]) }
-
   func importFile(text: String, name: String, docMode: String? = nil, document: Bool) {
     var payload: [String: BridgeJSON] = [
       "text": .string(text), "fileName": .string(name), "mode": .string("replace"),
