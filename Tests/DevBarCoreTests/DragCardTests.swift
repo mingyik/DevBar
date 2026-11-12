@@ -13,6 +13,8 @@ import Testing
 @Test func dragCardUsesFirstNonEmptyLineAndFileCount() {
   #expect(DragCard.firstLine("\n  \nhello\nworld") == "hello")
   #expect(DragCard.firstLine("   ") == "")
+  #expect(DragCard.previewText("first line\nsecond line") == "first line\nsecond line")
+  #expect(DragCard.previewText(String(repeating: "字", count: 400)).count == 321)
   #expect(DragCard.textSubtitle(characters: 120) == "120 字符")
   #expect(DragCard.fileSubtitle(names: ["first.txt", "second.txt"]) == "first.txt 等 2 个文件")
   #expect(DragCard.fileSubtitle(names: ["only.txt"]) == "only.txt")

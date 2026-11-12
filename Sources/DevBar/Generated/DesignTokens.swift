@@ -148,6 +148,17 @@ enum DesignTokens {
     }
   }
 
+  static func clipboardIndex(_ scheme: ColorScheme) -> Color {
+    switch scheme {
+    case .light:
+      return Color(red: 96.0 / 255, green: 119.0 / 255, blue: 140.0 / 255, opacity: 1)
+    case .dark:
+      return Color(red: 135.0 / 255, green: 153.0 / 255, blue: 170.0 / 255, opacity: 1)
+    @unknown default:
+      return Color(red: 96.0 / 255, green: 119.0 / 255, blue: 140.0 / 255, opacity: 1)
+    }
+  }
+
   static func syntaxKeyword(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:

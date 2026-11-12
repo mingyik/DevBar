@@ -2,6 +2,7 @@ import AppKit
 @preconcurrency import ApplicationServices
 import DevBarCore
 import Observation
+import SwiftUI
 import Synchronization
 
 @MainActor @Observable
@@ -158,19 +159,33 @@ final class ClipboardController {
     let files = payloads.filter { $0.type == NSPasteboard.PasteboardType.fileURL.rawValue }
       .compactMap { String(data: $0.data, encoding: .utf8) }.compactMap(URL.init(string:)).map(
         \.lastPathComponent)
-    let subtitle =
-      item.kind == .text
-      ? DragCard.textSubtitle(characters: source.count)
-      : item.kind == .files ? DragCard.fileSubtitle(names: files) : item.preview
+    let textMode = item.kind == .text
+    let subtitle: String
+    if textMode {
+      subtitle = ""
+    } else if item.kind == .files {
+      subtitle = DragCard.fileSubtitle(names: files)
+    } else {
+      subtitle = item.preview
+    }
+    let footer = textMode ? DragCard.textSubtitle(characters: source.count) : nil
     let color = ClipboardColor.parse(item.preview)
     let swatch = color.map {
       NSColor(  // devbar:allow-color
         srgbRed: $0.red, green: $0.green, blue: $0.blue, alpha: $0.alpha)
     }
+    let title: String
+    if item.kind == .image {
+      title = ""
+    } else if textMode {
+      title = DragCard.previewText(source)
+    } else {
+      title = DragCard.firstLine(source)
+    }
     card.show(
-      index: cycler.currentIndex, count: items.count, title: DragCard.firstLine(source),
+      index: cycler.currentIndex, count: items.count, title: title,
       subtitle: subtitle, thumbnail: thumbnails[item.id], swatch: swatch, fileCount: files.count,
-      boundary: boundary)
+      boundary: boundary, footer: footer, multilineContent: textMode)
     let elapsed = started.duration(to: .now).components
     lastCycleMilliseconds = Double(elapsed.seconds) * 1000 + Double(elapsed.attoseconds) / 1e15
   }
@@ -288,10 +303,28 @@ final class ClipboardController {
     let selected = items.indices.contains(currentIndex) ? items[currentIndex].id : nil
     do {
       try await store.remove(id)
-      await reload()
-      if let index = items.firstIndex(where: { $0.id == selected }) {
-        cycler.select(index, count: items.count)
+      reloadGeneration += 1
+      let updated = await store.items
+      if detailID == id { detailID = nil }
+      if hoverID == id {
+        hoverID = nil
+        onHoverPreview?(nil)
       }
+      if copiedID == id { copiedID = nil }
+      originals[id] = nil
+      previewTexts[id] = nil
+      thumbnails[id] = nil
+      withAnimation(
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? nil : .easeOut(duration: 0.18)
+      ) {
+        items = updated
+      }
+      let selectedIndex =
+        selected.flatMap { id in
+          updated.firstIndex { $0.id == id }
+        } ?? min(cycler.currentIndex, max(updated.count - 1, 0))
+      cycler.select(selectedIndex, count: updated.count)
+      focusedIndex = min(focusedIndex, max(updated.count - 1, 0))
     } catch { message = Strings.historyWriteFailed }
   }
 

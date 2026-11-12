@@ -1,4 +1,5 @@
 import AppKit
+import DevBarCore
 import KeyboardShortcuts
 import Testing
 
@@ -18,6 +19,29 @@ import Testing
     boundary: false)
   card.temporaryKeys.onKey?(36)
   #expect(confirmations == 1)
+}
+
+@Test @MainActor func imageClipboardCardShowsDimensionsInFullWidthBottomLine() {
+  let card = DragCardImage.make(
+    title: "", subtitle: "474 × 474", fileCount: 0,
+    thumbnail: NSImage(size: NSSize(width: 40, height: 40)),
+    swatch: nil, scheme: .light, counter: "3 / 10", glass: true)
+  #expect(card.image.size.width == DragCard.minWidth + 20)
+  #expect(card.image.size.width <= DragCard.maxWidth + 20)
+}
+
+@Test @MainActor func floatingTextPreviewUsesAtMostTwoLines() {
+  let font = NSFont.systemFont(ofSize: 12)
+  let oneLine = DragCardImage.previewLines(
+    "短文本", firstLineWidth: 120, secondLineWidth: 70, font: font)
+  #expect(oneLine.first == "短文本")
+  #expect(oneLine.second == nil)
+
+  let twoLines = DragCardImage.previewLines(
+    "这是一段需要换行的长文本", firstLineWidth: 72, secondLineWidth: 62, font: font)
+  #expect(!twoLines.first.isEmpty)
+  #expect(twoLines.second?.isEmpty == false)
+  #expect(twoLines.second?.hasSuffix("…") == true)
 }
 
 @Test @MainActor func clipboardShortcutMigratesRetiredDefaultsButKeepsCustomBindings() {

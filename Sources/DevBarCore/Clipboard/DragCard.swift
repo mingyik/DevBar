@@ -24,10 +24,20 @@ public enum DragCard: Sendable {
     return result.trimmingCharacters(in: .whitespaces)
   }
 
-  public static func width(title: String, hasThumb: Bool) -> CGFloat {
+  /// Keep a small multiline sample for the floating clipboard card.
+  public static func previewText(_ text: String, maxCharacters: Int = 320) -> String {
+    let sample = String(text.prefix(maxCharacters + 1))
+    guard sample.count > maxCharacters else { return sample }
+    return String(sample.prefix(maxCharacters)) + "…"
+  }
+
+  public static func width(
+    title: String, hasThumb: Bool, trailingAccessoryWidth: CGFloat = 0
+  ) -> CGFloat {
     let text = CGFloat(title.count) * 7.2
     let thumb: CGFloat = hasThumb ? 48 : 0
-    return min(maxWidth, max(minWidth, (24 + thumb + text).rounded(.up)))
+    return min(
+      maxWidth, max(minWidth, (24 + thumb + text + trailingAccessoryWidth).rounded(.up)))
   }
 
   public static func textSubtitle(characters: Int) -> String { "\(characters) 字符" }

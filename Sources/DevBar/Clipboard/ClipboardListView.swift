@@ -159,9 +159,9 @@ private struct ClipboardRow: View {
       ZStack {
         if hovered && !dragging {
           let glow = Color.blue  // devbar:allow-color
-          rowShape.stroke(glow.opacity(0.35), lineWidth: 1.2)
+          rowShape.stroke(glow.opacity(0.4), lineWidth: 1.2)
             .blur(radius: 2.5)
-            .shadow(color: glow.opacity(0.25), radius: 5)
+            .shadow(color: glow.opacity(0.3), radius: 5)
             .allowsHitTesting(false)
         }
         rowShape.fill(

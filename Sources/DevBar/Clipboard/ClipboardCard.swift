@@ -40,7 +40,7 @@ import SwiftUI
   }
   func show(
     index: Int, count: Int, title: String, subtitle: String, thumbnail: NSImage?, swatch: NSColor?,
-    fileCount: Int, boundary: Bool
+    fileCount: Int, boundary: Bool, footer: String? = nil, multilineContent: Bool = false
   ) {
     let started = ContinuousClock.now
     dismissal?.cancel()
@@ -49,7 +49,8 @@ import SwiftUI
     if first { pointer = NSEvent.mouseLocation }
     let image = DragCardImage.make(
       title: title, subtitle: subtitle, fileCount: fileCount, thumbnail: thumbnail, swatch: swatch,
-      scheme: theme.effective, counter: "\(index+1) / \(count)", glass: true
+      scheme: theme.effective, counter: "\(index+1) / \(count)", glass: true, footer: footer,
+      multilineContent: multilineContent
     ).image
     let view = NSImageView(frame: NSRect(origin: .zero, size: image.size))
     view.image = image
