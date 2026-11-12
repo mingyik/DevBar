@@ -14,6 +14,7 @@ struct PanelView: View {
   var clipboard: ClipboardController
   @Bindable var storage: StorageSettings
   @State private var titleHovered = false
+  @State private var titleShortcut: String?
 
   var body: some View {
     let scheme = theme.effective
@@ -48,6 +49,19 @@ struct PanelView: View {
     .background { PanelChrome(theme: theme, scheme: scheme) }
     .clipShape(panelShape)
     .environment(\.colorScheme, scheme)
+    .onAppear(perform: refreshTitleShortcut)
+    .onChange(of: model.page) { _, _ in refreshTitleShortcut() }
+    .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+      refreshTitleShortcut()
+    }
+  }
+
+  private func refreshTitleShortcut() {
+    guard model.page != .settings else {
+      titleShortcut = nil
+      return
+    }
+    titleShortcut = KeyboardShortcuts.getShortcut(for: model.page.shortcutName)?.description
   }
 
   private var panelShape: RoundedRectangle {
@@ -76,8 +90,10 @@ struct PanelView: View {
                   Rectangle().fill(DesignTokens.textPrimary(scheme)).frame(height: 0.7)
                 }
               }
-            Text("⌘P").font(.system(size: 11))
-              .foregroundStyle(DesignTokens.textTertiary(scheme))
+            if let titleShortcut {
+              Text(titleShortcut).font(.system(size: 11))
+                .foregroundStyle(DesignTokens.textTertiary(scheme))
+            }
           }.lineLimit(1)
         }.buttonStyle(.plain).onHover { titleHovered = $0 }
       }
