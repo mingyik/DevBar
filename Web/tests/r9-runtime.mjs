@@ -1,10 +1,14 @@
 /* global window, document, performance, setTimeout, KeyboardEvent, crypto, Image, requestAnimationFrame, TextEncoder */
 export default async function run(scenario, fixture) {
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-  const until = async (predicate) => {
+  const until = async (predicate, description = "condition") => {
     const end = performance.now() + 60000;
     while (!predicate()) {
-      if (performance.now() > end) throw Error("Timed out");
+      if (performance.now() > end)
+        throw Error(
+          "Timed out waiting for " +
+            (typeof description === "function" ? description() : description),
+        );
       await delay(10);
     }
   };
@@ -247,6 +251,7 @@ export default async function run(scenario, fixture) {
       () =>
         !document.querySelector("#doc .preview").hidden &&
         document.querySelector("#doc .preview").textContent.length > 0,
+      "document preview text",
     );
     result.firstTextMilliseconds = performance.now() - started;
     await until(
@@ -255,6 +260,15 @@ export default async function run(scenario, fixture) {
           (node) =>
             !node.querySelector("svg") && !node.classList.contains("mmd-error"),
         ),
+      () =>
+        `Mermaid render (${Array.from(document.querySelectorAll("#doc .mmd"))
+          .filter(
+            (node) =>
+              !node.querySelector("svg") &&
+              !node.classList.contains("mmd-error"),
+          )
+          .map((node) => node.dataset.src?.slice(0, 40).replace(/\s+/g, " "))
+          .join(" | ")})`,
     );
     await new Promise(requestAnimationFrame);
     result.completeMilliseconds = performance.now() - started;
@@ -368,7 +382,10 @@ export default async function run(scenario, fixture) {
             .textContent.includes("已保存并复制") ||
           document
             .querySelector("#doc .page-info")
-            .textContent.includes("无法生成"),
+            .textContent.includes("无法生成") ||
+          document
+            .querySelector("#doc .page-info")
+            .textContent.includes("长图生成失败"),
       );
       result.exportMilliseconds = performance.now() - exportStarted;
       result.exportMessage =

@@ -44,15 +44,23 @@ export function mermaidOptions(theme: Theme): MermaidConfig {
     ],
   };
 }
-/** Only fixes labels found unreadable in the official themes; palettes stay official. */
+/** Only fixes unreadable parts found in the official themes; palettes stay official. */
 export function textContrastKind(
   source: string,
   theme: Theme,
-): "journey" | "c4" | "sankey" | null {
+):
+  | "journey"
+  | "c4"
+  | "sankey"
+  | "darkMindmap"
+  | "lightMindmap"
+  | "darkTimeline"
+  | null {
   if (
     /\$\w*Color\s*=|Update(?:Element|Rel)Style\s*\(|^\s*(?:classDef|style)\s/m.test(
       source,
-    )
+    ) ||
+    /%%\{\s*init\b[\s\S]*?themeVariables\s*:/m.test(source)
   )
     return null;
   if (theme === "light" && /^\s*journey\b/m.test(source)) return "journey";
@@ -63,7 +71,60 @@ export function textContrastKind(
     return "c4";
   if (theme === "dark" && /^\s*sankey(?:-beta)?\b/m.test(source))
     return "sankey";
+  if (/^\s*mindmap\b/m.test(source))
+    return theme === "dark" ? "darkMindmap" : "lightMindmap";
+  if (theme === "dark" && /^\s*timeline\b/m.test(source)) return "darkTimeline";
   return null;
+}
+function correctKnownContrast(
+  svg: string,
+  kind: NonNullable<ReturnType<typeof textContrastKind>>,
+  themeVariables: MermaidConfig["themeVariables"],
+) {
+  const template = document.createElement("template");
+  template.innerHTML = svg;
+  const textColor = themeVariables?.textColor;
+  const lineColor = themeVariables?.lineColor;
+  if (typeof lineColor === "string") {
+    if (kind === "darkMindmap" || kind === "lightMindmap") {
+      for (const edge of Array.from(
+        template.content.querySelectorAll<SVGElement>("path.edge"),
+      ))
+        edge.style.setProperty("stroke", lineColor, "important");
+    }
+    if (kind === "darkTimeline") {
+      const fillColor = themeVariables?.secondaryColor;
+      for (const block of Array.from(
+        template.content.querySelectorAll<SVGElement>(
+          ".timeline-node .node-bkg",
+        ),
+      )) {
+        if (typeof fillColor === "string")
+          block.style.setProperty("fill", fillColor, "important");
+        block.style.setProperty("stroke", lineColor, "important");
+        block.style.setProperty("stroke-width", "1", "important");
+      }
+    }
+  }
+  if (kind === "darkMindmap" && typeof textColor === "string") {
+    for (const label of Array.from(
+      template.content.querySelectorAll<SVGElement>(
+        ".section-root text, .section-root tspan, .section-root span",
+      ),
+    )) {
+      label.style.setProperty("fill", textColor, "important");
+      label.style.setProperty("color", textColor, "important");
+    }
+  } else if (
+    (kind === "journey" || kind === "c4" || kind === "sankey") &&
+    typeof textColor === "string"
+  ) {
+    for (const label of Array.from(
+      template.content.querySelectorAll<SVGElement>("text,tspan"),
+    ))
+      label.style.setProperty("fill", textColor, "important");
+  }
+  return template.innerHTML;
 }
 export function normalizeSvg(svg: string): string {
   const template = document.createElement("template");
@@ -100,16 +161,13 @@ async function generate(source: string, theme: Theme): Promise<string> {
   await m.parse(source);
   const { svg } = await m.render("mmd-" + ++nonce, source);
   let normalized = normalizeSvg(svg);
-  const textColor = m.mermaidAPI.getConfig().themeVariables?.textColor;
-  if (textContrastKind(source, theme) && typeof textColor === "string") {
-    const template = document.createElement("template");
-    template.innerHTML = normalized;
-    for (const label of Array.from(
-      template.content.querySelectorAll<SVGElement>("text,tspan"),
-    ))
-      label.style.setProperty("fill", textColor, "important");
-    normalized = template.innerHTML;
-  }
+  const contrastKind = textContrastKind(source, theme);
+  if (contrastKind)
+    normalized = correctKnownContrast(
+      normalized,
+      contrastKind,
+      m.mermaidAPI.getConfig().themeVariables,
+    );
   if (cache.size >= 64) cache.delete(cache.keys().next().value!);
   cache.set(key, normalized);
   return normalized;

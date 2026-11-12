@@ -41,7 +41,7 @@ it("PNG checks the actual 2x allocation and finite edges", () => {
   ])
     expect(() => pngDimensions(w, h)).toThrow();
 });
-it("only known unreadable library labels get a local text contrast correction", async () => {
+it("only known unreadable library parts get a local contrast correction", async () => {
   const { textContrastKind } = await import("../src/doc/mermaid");
   expect(textContrastKind("journey\n title Reading", "light")).toBe("journey");
   expect(textContrastKind("journey\n title Reading", "dark")).toBeNull();
@@ -56,5 +56,36 @@ it("only known unreadable library labels get a local text contrast correction", 
     ),
   ).toBeNull();
   expect(textContrastKind("sankey-beta\n A,B,5", "dark")).toBe("sankey");
+  expect(textContrastKind("mindmap\n root((工具))\n  文稿", "dark")).toBe(
+    "darkMindmap",
+  );
+  expect(textContrastKind("mindmap\n root((工具))\n  文稿", "light")).toBe(
+    "lightMindmap",
+  );
+  expect(textContrastKind("mindmap\n root((工具))", "dark")).not.toBe(
+    "lightMindmap",
+  );
+  expect(
+    textContrastKind("timeline\n title 开发\n section 第一阶段", "dark"),
+  ).toBe("darkTimeline");
+  expect(textContrastKind("timeline\n title 开发", "light")).toBeNull();
+  expect(
+    textContrastKind(
+      "mindmap\n root((工具))\n  文稿:::custom\nclassDef custom fill:#fff",
+      "dark",
+    ),
+  ).toBeNull();
+  expect(
+    textContrastKind(
+      '%%{init: { themeVariables: { primaryColor: "red" } }}%%\nmindmap\n root((工具))',
+      "dark",
+    ),
+  ).toBeNull();
+  expect(
+    textContrastKind(
+      "timeline\n title 开发\n section 第一阶段\n style X fill:#fff",
+      "dark",
+    ),
+  ).toBeNull();
   expect(textContrastKind("flowchart LR\n A --> B", "dark")).toBeNull();
 });
