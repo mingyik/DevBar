@@ -18,16 +18,16 @@ import Testing
   #expect(model.page == .qr)
 }
 
-@MainActor @Test func fourPagesCycleInOrderAndDefaultOnlyAppliesToOrdinaryOpen() {
+@MainActor @Test func fourPagesCycleInOrderAndFirstOpenUsesFirstEnabledPage() {
   let defaults = UserDefaults(suiteName: "local.devbar.test.fivepages.\(UUID())")!
   let model = PanelModel(defaults: defaults)
   for expected in [PanelModel.Page.json, .qr, .doc, .clipboard] {
     model.cyclePage()
     #expect(model.page == expected)
   }
-  model.defaultPage = "qr"
+  model.defaultPage = "qr"  // Legacy preference no longer overrides the ordered startup page.
   model.prepareToOpen()
-  #expect(model.page == .qr)
+  #expect(model.page == .clipboard)
   #expect(PanelModel(defaults: defaults).defaultPage == "qr")
   model.page = .json
   #expect(model.showsEnlarge)
@@ -43,6 +43,7 @@ import Testing
 @MainActor @Test func reopeningAfterSettingsReturnsToRememberedContentPage() {
   let defaults = UserDefaults(suiteName: "local.devbar.test.reopen.\(UUID())")!
   let model = PanelModel(defaults: defaults)
+  model.prepareToOpen()
   model.page = .json
   model.page = .settings
   model.prepareToOpen()
@@ -188,4 +189,48 @@ import Testing
   #expect(panel.performKeyEquivalent(with: event))
   #expect(modeCalls == 1)
   #expect(cycleCalls == 0)
+}
+
+@MainActor @Test func customPageOrderControlsStartupAndEnabledCycleAndPersists() {
+  let defaults = UserDefaults(suiteName: "devbar.ordered.\(UUID())")!
+  let model = PanelModel(defaults: defaults)
+  model.movePage(.doc, to: .clipboard)
+  model.setCycleParticipation(.json, enabled: false)
+  #expect(model.pageOrder == [.doc, .clipboard, .json, .qr])
+  #expect(model.cyclingPages == [.doc, .clipboard, .qr])
+  model.prepareToOpen()
+  #expect(model.page == .doc)
+  for next in [PanelModel.Page.clipboard, .qr, .doc] {
+    model.cyclePage()
+    #expect(model.page == next)
+  }
+  model.page = .qr
+  let restored = PanelModel(defaults: defaults)
+  restored.prepareToOpen()
+  #expect(restored.page == .doc)
+  #expect(restored.pageOrder == model.pageOrder)
+  restored.setCycleParticipation(.json, enabled: true)
+  #expect(restored.cyclingPages == restored.pageOrder)
+}
+
+@MainActor @Test func pageOrderMovesDownAndDirectOpeningDoesNotResetToStartup() {
+  let defaults = UserDefaults(suiteName: "devbar.ordered.direct.\(UUID())")!
+  let model = PanelModel(defaults: defaults)
+  model.movePage(.clipboard, to: .doc)
+  #expect(model.pageOrder == [.json, .qr, .doc, .clipboard])
+  model.prepareToOpen(page: .doc)
+  model.prepareToOpen()
+  #expect(model.page == .doc)
+  model.setCycleParticipation(.json, enabled: false)
+  model.page = .clipboard
+  model.cyclePage()
+  #expect(model.page == .qr)
+}
+
+@MainActor @Test func malformedPageOrderIsCompletedWithoutDuplicates() {
+  let defaults = UserDefaults(suiteName: "devbar.ordered.repair.\(UUID())")!
+  defaults.set(["doc", "doc", "settings", "unknown"], forKey: "pageOrder")
+  let model = PanelModel(defaults: defaults)
+  #expect(model.pageOrder == [.doc, .clipboard, .json, .qr])
+  #expect(model.cyclingPages == model.pageOrder)
 }

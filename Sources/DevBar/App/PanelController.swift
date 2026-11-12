@@ -148,7 +148,7 @@ final class PanelController {
     if let anchor {
       lastAnchor = anchor
     }
-    model.page = page
+    model.prepareToOpen(page: page)
     show(anchor: anchor)
   }
 

@@ -2,6 +2,7 @@ import AppKit
 import DevBarCore
 import KeyboardShortcuts
 import SwiftUI
+import UniformTypeIdentifiers
 
 private enum SettingsControlLayout {
   static let width: CGFloat = 130
@@ -13,6 +14,7 @@ struct PanelView: View {
   var webHost: WebHost
   var clipboard: ClipboardController
   @Bindable var storage: StorageSettings
+  @State private var draggedPage: PanelModel.Page?
   @State private var titleHovered = false
   @State private var titleShortcut: String?
 
@@ -163,17 +165,6 @@ struct PanelView: View {
             }.pickerStyle(.segmented).labelsHidden().controlSize(.small)
               .frame(width: SettingsControlLayout.width)
           }
-          HStack {
-            Text(Strings.defaultPage).font(.system(size: 13)).lineLimit(1)
-            Spacer(minLength: 12)
-            Picker(Strings.defaultPage, selection: $model.defaultPage) {
-              Text(Strings.lastPage).tag("last")
-              ForEach(model.cyclingPages, id: \.self) { page in
-                Text(page.title).tag(page.rawValue)
-              }
-            }.pickerStyle(.menu).labelsHidden().controlSize(.small)
-              .frame(width: SettingsControlLayout.width)
-          }
           storageLocation(Strings.dataLocation, path: storage.dataPath, scheme: scheme) {
             storage.chooseDataLocation()
           }.disabled(storage.busy)
@@ -195,8 +186,27 @@ struct PanelView: View {
           shortcut(Strings.shortcutCapture, .captureRegion, scheme)
           shortcut(Strings.shortcutLong, .captureScroll, scheme)
           settingsHeading(Strings.pageShortcuts, scheme: scheme).id("shortcuts")
-          ForEach(PanelModel.Page.contentPages, id: \.self) { page in
+          ForEach(model.pageOrder, id: \.self) { page in
             HStack(spacing: 10) {
+              Image(systemName: "line.3.horizontal")
+                .font(.system(size: 12)).foregroundStyle(DesignTokens.textTertiary(scheme))
+                .frame(width: 18, height: 28).contentShape(Rectangle())
+                .help(Strings.reorderPages)
+                .accessibilityLabel(Strings.reorderPages + " " + page.title)
+                .onDrag {
+                  draggedPage = page
+                  let provider = NSItemProvider()
+                  let data = Data(page.rawValue.utf8)
+                  provider.registerDataRepresentation(
+                    forTypeIdentifier: PageOrderDrop.type.identifier, visibility: .ownProcess
+                  ) { completion in
+                    completion(data, nil)
+                    return nil
+                  }
+                  return provider
+                }
+              Text(page.title).font(.system(size: 13)).lineLimit(1)
+              Spacer(minLength: 8)
               Toggle(
                 page.title,
                 isOn: Binding(
@@ -206,8 +216,13 @@ struct PanelView: View {
               .labelsHidden().toggleStyle(.switch).controlSize(.mini)
               .disabled(!model.canChangeCycleParticipation(page))
               .help(Strings.pageCycleSwitchHelp)
-              shortcut(page.title, page.shortcutName, scheme)
+              KeyboardShortcuts.Recorder(for: page.shortcutName).frame(
+                width: SettingsControlLayout.width)
             }
+            .contentShape(Rectangle())
+            .onDrop(
+              of: [PageOrderDrop.type],
+              delegate: PageOrderDrop(model: model, target: page, dragged: $draggedPage))
           }
           Text(Strings.aboutBody).font(.system(size: 11)).foregroundStyle(
             DesignTokens.textSecondary(scheme))
@@ -327,6 +342,23 @@ struct PanelChrome: View {
       )
   }
 
+}
+
+private struct PageOrderDrop: DropDelegate {
+  static let type = UTType(exportedAs: "local.devbar.page-order")
+  let model: PanelModel
+  let target: PanelModel.Page
+  @Binding var dragged: PanelModel.Page?
+  func validateDrop(info: DropInfo) -> Bool {
+    dragged != nil && info.hasItemsConforming(to: [Self.type])
+  }
+  func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+  func performDrop(info: DropInfo) -> Bool {
+    guard let source = dragged, info.hasItemsConforming(to: [Self.type]) else { return false }
+    model.movePage(source, to: target)
+    dragged = nil
+    return true
+  }
 }
 
 private struct HistoryLimitRow: View {

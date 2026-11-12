@@ -8,6 +8,8 @@ final class PanelModel {
   }
 
   private let defaults: UserDefaults
+  private(set) var pageOrder: [Page]
+  private var hasOpened = false
   private(set) var cyclingPages: [Page]
   func participatesInCycle(_ page: Page) -> Bool { cyclingPages.contains(page) }
   func canChangeCycleParticipation(_ page: Page) -> Bool {
@@ -16,12 +18,25 @@ final class PanelModel {
   func setCycleParticipation(_ page: Page, enabled: Bool) {
     guard Page.contentPages.contains(page) else { return }
     guard enabled || canChangeCycleParticipation(page) else { return }
-    cyclingPages = Page.contentPages.filter { candidate in
+    cyclingPages = pageOrder.filter { candidate in
       candidate == page ? enabled : cyclingPages.contains(candidate)
     }
     defaults.set(cyclingPages.map(\.rawValue), forKey: "cyclingPages")
     if !enabled, defaultPage == page.rawValue { defaultPage = "last" }
   }
+  func movePage(_ source: Page, to target: Page) {
+    guard source != target, let from = pageOrder.firstIndex(of: source),
+      let destination = pageOrder.firstIndex(of: target)
+    else { return }
+    var order = pageOrder
+    order.remove(at: from)
+    order.insert(source, at: min(destination, order.count))
+    pageOrder = order
+    cyclingPages = order.filter { cyclingPages.contains($0) }
+    defaults.set(order.map(\.rawValue), forKey: "pageOrder")
+    defaults.set(cyclingPages.map(\.rawValue), forKey: "cyclingPages")
+  }
+
   var page: Page {
     didSet {
       guard oldValue != page else { return }
@@ -73,11 +88,19 @@ final class PanelModel {
 
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
+    var order: [Page] = []
+    for raw in defaults.stringArray(forKey: "pageOrder") ?? [] {
+      if let page = Page(rawValue: raw), Page.contentPages.contains(page), !order.contains(page) {
+        order.append(page)
+      }
+    }
+    order.append(contentsOf: Page.contentPages.filter { !order.contains($0) })
+    pageOrder = order
     if let saved = defaults.stringArray(forKey: "cyclingPages") {
-      let selected = Page.contentPages.filter { saved.contains($0.rawValue) }
-      cyclingPages = selected.isEmpty ? [.clipboard] : selected
+      let selected = order.filter { saved.contains($0.rawValue) }
+      cyclingPages = selected.isEmpty ? [order[0]] : selected
     } else {
-      cyclingPages = Page.contentPages
+      cyclingPages = order
     }
     autoImport = defaults.object(forKey: "autoImport") as? Bool ?? true
     let raw = defaults.string(forKey: "lastContentPage") ?? ""
@@ -101,9 +124,15 @@ final class PanelModel {
 
   func leaveSettings() { page = settingsOrigin }
 
-  func prepareToOpen() {
-    if let fixed = Page(rawValue: defaultPage), cyclingPages.contains(fixed) {
-      page = fixed
+  func prepareToOpen(page requested: Page? = nil) {
+    if let requested, Page.contentPages.contains(requested) {
+      hasOpened = true
+      page = requested
+      return
+    }
+    if !hasOpened {
+      hasOpened = true
+      page = cyclingPages[0]
     } else if page == .settings {
       let remembered = Page(rawValue: defaults.string(forKey: "lastContentPage") ?? "")
       page = remembered.flatMap { cyclingPages.contains($0) ? $0 : nil } ?? cyclingPages[0]
@@ -115,7 +144,7 @@ final class PanelModel {
   func cyclePage(backwards: Bool = false) {
     let remembered = Page(rawValue: defaults.string(forKey: "lastContentPage") ?? "") ?? .clipboard
     let origin = page == .settings ? remembered : page
-    let all = Page.contentPages
+    let all = pageOrder
     let current = all.firstIndex(of: origin) ?? 0
     for distance in 1...all.count {
       let offset = backwards ? all.count - distance : distance
