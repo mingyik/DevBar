@@ -24,10 +24,10 @@ DevBar 是一个 macOS 菜单栏小工具（内部自用），四个大块：剪
 **分工、轮次、工作目录、分支、谁审核，见 `docs/分工与轮次.md`。**
 
 1. 只做分配给你的这一轮任务（`docs/分工与轮次.md` §4），任务内容按 `docs/实现规格.md` §10。
-2. **只在自己的工作目录和分支上工作**（Codex：`~/Desktop/DevBar-codex`；Claude「菜单工具」：`~/Desktop/DevBar-claude`）。不在 `~/Desktop/DevBar` 里改代码，不自己合并进 `main`。
+2. **【2026-11-12 需求方决定】Codex 直接在 `~/Desktop/DevBar` 的 `main` 上工作并提交**，不再走分支和合并；每个提交只做一件事，工作区不要长时间留着未提交的改动。Claude「审核」会话只改文档，提交时只提交自己改的文件，不碰别人未提交的改动。
 3. 只改本轮任务涉及的目录；需要改公共文件时在回报里单独列出。
 4. 做完运行 `Scripts/check.sh`，提交时逐个列出文件（不用 `git add -A` / `git add .`），不修改 git 作者配置。按 `docs/实现规格.md` §11 的格式回报，开头写明轮次、分支名、提交号。
-5. 回报后停下，**审核通过、合并进 `main` 前不开始下一轮**。
+5. **审核改为事后审核**：一批工作做完后写回报（放 `docs/验证记录/`），由 Claude「审核」会话对照 main 上的提交范围审核；审核提出的 P1 必须先修，P2 / P3 排进下一批。
 6. 上一轮审核记录里「并入下一轮」的小问题，在你的下一轮里一并处理。
 7. 规格有歧义或做不到：停下来，在回报的「与规格的差异」里写清楚，不要自行扩展或删减功能。
 
@@ -35,7 +35,7 @@ DevBar 是一个 macOS 菜单栏小工具（内部自用），四个大块：剪
 
 1. **不加功能。** （例外：方案第 12 版补充的「JSON / 文稿预览长图」是需求方要求的，按方案做。）不加回已删或已取消的功能：树编辑、JSON 查询 / 排序 / 表格视图、文件打开保存、导出、独立编辑窗口、搜索剪贴板、置顶、窗口截图、全屏截图、标注、录屏、录屏剪辑、GIF、自动滚动长图、直接粘贴（模拟按键，红线 7 所列的剪贴板卡片 Enter 例外除外）。
 2. **不联网。** Swift 不发外部请求；Web 不用 `fetch` / `XMLHttpRequest` / `WebSocket` / `EventSource`。
-3. **只有黑白。** 业务代码不写字面颜色值，只用 `design/tokens.json` 生成的变量。彩色例外：剪贴板里颜色值的色块；**代码高亮、JSON 树、Mermaid 图用库自带的彩色主题**（R8 需求方决定：CodeMirror defaultHighlightStyle / One Dark，Shiki github-light / github-dark，Mermaid default / dark；颜色来自库主题，业务代码仍不得写字面颜色）。面板本身、按钮、排版仍只有黑白。识别颜色文本、必须写颜色字面量或颜色正则时，同一行加上 `// devbar:allow-color`，字面颜色检查会跳过该行。
+3. **只有黑白。** 业务代码不写字面颜色值，只用 `design/tokens.json` 生成的变量。彩色例外：剪贴板里颜色值的色块；**代码高亮、JSON 树、Mermaid 图用库自带的彩色主题**（R8 需求方决定：CodeMirror defaultHighlightStyle / One Dark，Shiki github-light / github-dark，Mermaid default / dark；颜色来自库主题，业务代码仍不得写字面颜色）。**剪贴板序号的蓝灰色**（设计变量 `clipboard.index`）和**拖到菜单栏顶部删除时的系统红色提示**（需求方 2026-11-12 确认，红色所在行加 `// devbar:allow-color`）。除这些以外，面板本身、按钮、排版仍只有黑白，不得新增其他颜色。识别颜色文本、必须写颜色字面量或颜色正则时，同一行加上 `// devbar:allow-color`，字面颜色检查会跳过该行。
 4. **不猜改内容。** 自动行为不覆盖、不改写用户内容：不合法的 JSON 不自动修复；编辑区有内容时不自动导入；数字识别只用于排版。
 5. **JSON 数字无损。** `Web/src/tools/`、`Web/src/tree/` 禁止原生 `JSON.parse` / `JSON.stringify`，只用 lossless-json。JSON 正文跨桥只作为字符串，Swift 不解析。
 6. **安全设置不放宽。** CSP 不加 `unsafe-eval` / `wasm-unsafe-eval`；不用 `eval` / `new Function`；Mermaid 保持 `securityLevel: "strict"`。
