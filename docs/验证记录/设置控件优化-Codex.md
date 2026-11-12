@@ -53,3 +53,7 @@ main，代码提交37d8afc、4840286。
 ## 通用选择控件与分组细线
 
 外观、默认页面改为左标签右选择控件，右侧统一130pt；通用分组顶部增加5pt，各分组标题上方加0.5pt细线，使用主题line.divider变量、左右沿内容边距。仅修改PanelView及UI基准。Scripts/check.sh通过（109 Swift、350 Web），debug构建与固定签名校验通过，已安装重启。浅深外观由需求方确认，未声明视觉验收通过。
+
+## 原生绿色Switch
+
+设置页Toggle使用SwiftUI原生switch样式，tint为系统systemGreen；关闭灰色、禁用及浅深外观由系统绘制，不自定义轨道/滑块。同步AGENTS颜色例外与UI基准。完整check.sh通过（114 Swift、350 Web）。遵循需求方卸载并自行打包的决定：没有安装或打包，检查生成的.build/Web/dist已再次清除。
