@@ -81,6 +81,10 @@ const bridge = {
         );
         break;
       }
+      case "doc.toggleMode":
+        await transitions.catch(() => {});
+        if (current === "doc") await doc.togglePreview();
+        break;
       case "doc.import": {
         const admission = await post("input.check", {
           bytes: new TextEncoder().encode(

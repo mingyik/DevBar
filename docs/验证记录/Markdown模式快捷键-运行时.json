@@ -1,0 +1,20 @@
+{
+  "frame": [
+    516,
+    308,
+    480,
+    600
+  ],
+  "large": false,
+  "measurements": {
+    "buttonOffersEdit": true,
+    "buttonOffersPreview": true,
+    "firstTogglePreviews": true,
+    "secondToggleEdits": true,
+    "startsInEditor": true
+  },
+  "processID": 32175,
+  "scenario": "markdown-mode",
+  "theme": "dark",
+  "windowNumber": 3711
+}

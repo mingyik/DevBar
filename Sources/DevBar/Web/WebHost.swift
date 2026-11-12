@@ -92,6 +92,8 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     send(type: document ? "doc.import" : "tools.import", payload: payload)
   }
 
+  func toggleDocumentMode() { send(type: "doc.toggleMode", payload: [:]) }
+
   func hideScreen() { send(type: "screen.hide", payload: [:]) }
 
   func showScreen(_ screen: String) {

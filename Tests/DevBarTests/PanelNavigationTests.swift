@@ -170,3 +170,22 @@ import Testing
   #expect(panel.performKeyEquivalent(with: ordinary))
   #expect(calls == 1)
 }
+
+@MainActor @Test func shiftCommandPDispatchesDocumentModeInsteadOfPageCycle() throws {
+  let panel = DevBarPanel()
+  var modeCalls = 0
+  var cycleCalls = 0
+  panel.onDocumentMode = {
+    modeCalls += 1
+    return true
+  }
+  panel.onCyclePage = { _ in cycleCalls += 1 }
+  let event = try #require(
+    NSEvent.keyEvent(
+      with: .keyDown, location: .zero, modifierFlags: [.command, .shift], timestamp: 0,
+      windowNumber: 0, context: nil, characters: "P", charactersIgnoringModifiers: "p",
+      isARepeat: false, keyCode: 35))
+  #expect(panel.performKeyEquivalent(with: event))
+  #expect(modeCalls == 1)
+  #expect(cycleCalls == 0)
+}

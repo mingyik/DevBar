@@ -24,6 +24,25 @@ export default async function run(scenario, fixture) {
       new KeyboardEvent("keydown", { key: "e", metaKey: true, bubbles: true }),
     );
   const result = {};
+  if (scenario === "markdown-mode") {
+    await receive("screen.show", { page: "doc" });
+    await receive("doc.import", {
+      text: "# Mode test\n\nSynthetic paragraph.",
+      docMode: "markdown",
+    });
+    result.startsInEditor = document.querySelector("#doc .preview").hidden;
+    await receive("doc.toggleMode", {});
+    result.firstTogglePreviews =
+      !document.querySelector("#doc .preview").hidden &&
+      !!document.querySelector("#doc .preview h1");
+    result.buttonOffersEdit =
+      document.querySelector("#doc .pill").textContent === "编辑";
+    await receive("doc.toggleMode", {});
+    result.secondToggleEdits = document.querySelector("#doc .preview").hidden;
+    result.buttonOffersPreview =
+      document.querySelector("#doc .pill").textContent === "预览";
+    return result;
+  }
   if (scenario === "storage") {
     await receive("screen.show", { page: "json" });
     await receive("tools.import", {

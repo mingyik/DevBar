@@ -91,6 +91,11 @@ final class PanelController {
       }
       dismiss()
     }
+    panel.onDocumentMode = { [weak self] in
+      guard let self, self.model.page == .doc else { return false }
+      self.webHost.toggleDocumentMode()
+      return true
+    }
     panel.onCyclePage = { [weak self] backwards in
       self?.model.cyclePage(backwards: backwards)
     }
