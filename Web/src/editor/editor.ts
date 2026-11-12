@@ -1,3 +1,4 @@
+import { post } from "../bridge/client";
 import {
   defaultKeymap,
   history,
@@ -39,6 +40,27 @@ export function createEditor(
 
 export function editorExtensions() {
   return [
+    EditorView.domEventHandlers({
+      paste(event, view) {
+        const text = event.clipboardData?.getData("text/plain");
+        if (text === undefined) return false;
+        event.preventDefault();
+        admitText(view, text, "input.paste");
+        return true;
+      },
+      drop(event, view) {
+        if (event.dataTransfer?.files.length) return false;
+        const text = event.dataTransfer?.getData("text/plain");
+        if (!text) return false;
+        event.preventDefault();
+        const position = view.posAtCoords({
+          x: event.clientX,
+          y: event.clientY,
+        });
+        admitText(view, text, "input.drop", position ?? undefined);
+        return true;
+      },
+    }),
     history(),
     drawSelection(),
     highlightSpecialChars(),
@@ -88,4 +110,28 @@ export function restore(
   });
   view.setState(next);
   view.scrollDOM.scrollTop = state.scrollTop;
+}
+
+function admitText(
+  view: EditorView,
+  text: string,
+  event: string,
+  position?: number,
+): void {
+  const state = view.state;
+  void post("input.check", {
+    bytes: text.length * 3,
+  }).then((reply) => {
+    if (
+      reply.allowed === false ||
+      view.state !== state ||
+      !view.dom.isConnected
+    )
+      return;
+    view.dispatch(
+      position === undefined
+        ? { ...view.state.replaceSelection(text), userEvent: event }
+        : { changes: { from: position, insert: text }, userEvent: event },
+    );
+  });
 }

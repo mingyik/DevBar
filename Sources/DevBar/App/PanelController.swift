@@ -10,6 +10,7 @@ final class PanelController {
   let theme: ThemeManager
   let panel: DevBarPanel
   let webHost: WebHost
+  let storage = StorageSettings()
   let clipboard: ClipboardController
   private let host: NSHostingView<PanelView>
   private var outsideMonitor: Any?
@@ -17,6 +18,7 @@ final class PanelController {
   private var resignObserver: NSObjectProtocol?
   private var dismissing = false
   private var lastAnchor: CGRect?
+  private var previousPage: PanelModel.Page?
   private var clipboardPreview: NSPanel?
   private var clipboardPreviewItemID: UUID?
   private var clipboardPreviewState: ClipboardHoverPreviewState?
@@ -40,7 +42,7 @@ final class PanelController {
           path: "clipboard"),
         reader: SelfCheckEnvironment.isActive
           ? SelfCheckPasteboardReader() as any PasteboardReading : SystemPasteboardReader(),
-        startMonitoring: !SelfCheckEnvironment.isActive)
+        startMonitoring: !SelfCheckEnvironment.isActive, defaults: SelfCheckEnvironment.defaults)
     #else
       let model = PanelModel()
       let clipboard = ClipboardController(theme: theme)
@@ -52,7 +54,17 @@ final class PanelController {
     self.webHost = webHost
     panel = DevBarPanel()
     host = NSHostingView(
-      rootView: PanelView(model: model, theme: theme, webHost: webHost, clipboard: clipboard))
+      rootView: PanelView(
+        model: model, theme: theme, webHost: webHost, clipboard: clipboard, storage: storage))
+    storage.clipboard = clipboard
+    storage.saveState = { [weak webHost] in
+      guard let webHost else { throw WebHost.StateError.saveFailed }
+      try await webHost.saveState()
+    }
+    storage.relocate = { [weak webHost] destination in
+      guard let webHost else { throw WebHost.StateError.saveFailed }
+      try await webHost.relocateStorage(to: destination)
+    }
     clipboard.onHoverPreview = { [weak self] id in
       self?.showClipboardPreview(id)
     }
@@ -99,9 +111,18 @@ final class PanelController {
     }
     model.onPageChange = { [weak self] in
       guard let self else { return }
+      if self.previousPage == .clipboard, self.model.page != .clipboard {
+        self.releaseClipboardVisualCaches()
+      }
+      self.previousPage = self.model.page
+      if self.model.page == .clipboard, self.clipboard.needsVisualCacheReload {
+        Task { await self.clipboard.restoreVisualCaches() }
+      }
       self.updateMaterial()
       self.reposition(animated: false)
     }
+    previousPage = model.page
+    clipboard.releaseVisualCaches()
     watchSize()
   }
 
@@ -142,7 +163,9 @@ final class PanelController {
       panel.orderFrontRegardless()
     }
     Task {
-      if clipboard.needsVisualCacheReload { await clipboard.reload() }
+      if model.page == .clipboard, clipboard.needsVisualCacheReload {
+        await clipboard.restoreVisualCaches()
+      }
       await clipboard.monitor.poll()
     }
     let elapsed = started.duration(to: .now)
@@ -345,6 +368,10 @@ final class PanelController {
 
   private func releaseHiddenVisualCaches() {
     guard !panel.isVisible else { return }
+    releaseClipboardVisualCaches()
+  }
+
+  private func releaseClipboardVisualCaches() {
     previewHideTask?.cancel()
     hideClipboardPreview()
     clipboardPreviewState?.releaseMemory()
@@ -385,6 +412,8 @@ final class PanelController {
       webHost.showScreen(model.page.rawValue)
     } else if model.page == .doc {
       webHost.showScreen("doc")
+    } else {
+      webHost.hideScreen()
     }
   }
 

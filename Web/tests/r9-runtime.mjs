@@ -24,6 +24,33 @@ export default async function run(scenario, fixture) {
       new KeyboardEvent("keydown", { key: "e", metaKey: true, bubbles: true }),
     );
   const result = {};
+  if (scenario === "storage") {
+    await receive("screen.show", { page: "json" });
+    await receive("tools.import", {
+      page: "json",
+      mode: "replace",
+      text: '{"n":12345678901234567890,"f":0.1000}',
+    });
+    const original = text("tools");
+    metaE();
+    await until(() => !!document.querySelector("#tools .tree-root"));
+    await receive("screen.show", { page: "qr" });
+    result.jsonPreviewReleased =
+      document.querySelector("#tools .preview").childElementCount === 0;
+    await receive("screen.show", { page: "json" });
+    await until(() => !!document.querySelector("#tools .tree-root"));
+    result.jsonRestoredExactly =
+      text("tools") === original &&
+      original.includes("12345678901234567890") &&
+      original.includes("0.1000");
+    await receive("screen.hide", {});
+    result.hiddenPreviewReleased =
+      document.querySelector("#tools .preview").childElementCount === 0;
+    await receive("screen.show", { page: "json" });
+    await until(() => !!document.querySelector("#tools .tree-root"));
+    result.restoredAfterNativePage = text("tools") === original;
+    return result;
+  }
   if (scenario === "limit") {
     await receive("screen.show", { page: "doc" });
     await receive("doc.import", {

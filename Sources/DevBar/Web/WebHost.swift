@@ -61,13 +61,38 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     }
   }
 
+  enum StateError: Error { case saveFailed }
+  func relocateStorage(to destination: URL) async throws {
+    try await store.relocate(to: destination)
+  }
+
+  func saveState() async throws {
+    guard ready else {
+      if webViewReleased { return }
+      throw StateError.saveFailed
+    }
+    let envelope = BridgeEnvelope(v: 1, id: UUID().uuidString, type: "state.flush", payload: [:])
+      .encoded()
+    let saved = try await webView.callAsyncJavaScript(
+      "return (await window.__devbar.receive(env)).ok === true", arguments: ["env": envelope],
+      in: nil,
+      contentWorld: .page)
+    guard saved as? Bool == true else { throw StateError.saveFailed }
+  }
+
   func importFile(text: String, name: String, docMode: String? = nil, document: Bool) {
+    guard MemoryBudget.allows(bytes: text.utf8.count) else {
+      onToast?(Strings.insufficientMemory)
+      return
+    }
     var payload: [String: BridgeJSON] = [
       "text": .string(text), "fileName": .string(name), "mode": .string("replace"),
     ]
     if let docMode { payload["docMode"] = .string(docMode) }
     send(type: document ? "doc.import" : "tools.import", payload: payload)
   }
+
+  func hideScreen() { send(type: "screen.hide", payload: [:]) }
 
   func showScreen(_ screen: String) {
     send(type: "screen.show", payload: ["page": .string(screen)])
@@ -179,7 +204,23 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       flushPending()
       applyContrast()
       return reply
+    case "input.check":
+      let bytes: Int
+      if case .number(let value) = payload["bytes"], value.isFinite, value >= 0,
+        value < Double(Int.max)
+      {
+        bytes = Int(value)
+      } else {
+        return #"{"allowed":false}"#
+      }
+      let allowed = MemoryBudget.allows(bytes: bytes)
+      if !allowed { onToast?(Strings.insufficientMemory) }
+      return allowed ? #"{"allowed":true}"# : #"{"allowed":false}"#
     case "clipboard.readText":
+      guard MemoryBudget.allows(bytes: 0) else {
+        onToast?(Strings.insufficientMemory)
+        return #"{"status":"memory"}"#
+      }
       return PasteboardBridge.readText()
     case "clipboard.writeText":
       PasteboardBridge.writeText(payload["text"]?.stringValue ?? "")
@@ -209,7 +250,8 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
         html: payload["html"]?.stringValue ?? "",
         css: payload["css"]?.stringValue ?? "",
         theme: payload["theme"]?.stringValue ?? "light",
-        background: payload["background"]?.stringValue ?? "", directory: exportDirectory,
+        background: payload["background"]?.stringValue ?? "",
+        directory: exportDirectory ?? DataLocations.captures,
         host: webView.window?.contentView)
       if result.contains("\"saved\"") { onClipboardWrite?(NSPasteboard.general.changeCount) }
       return result
@@ -220,7 +262,8 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       return QRGenerator.reply(text: payload["text"]?.stringValue ?? "")
     case "state.save":
       if let screen = payload["screen"]?.stringValue, let state = payload["state"] {
-        await store.save(screen: screen, json: state.canonical())
+        let saved = await store.save(screen: screen, json: state.canonical())
+        return saved ? #"{"ok":true}"# : #"{"ok":false}"#
       }
       return #"{"ok":true}"#
     case "state.load":
@@ -272,22 +315,26 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
 
   private func deliver(_ envelope: String) {
     Task {
-      _ = try? await webView.callAsyncJavaScript(
-        "return await window.__devbar.receive(env)",
-        arguments: ["env": envelope],
-        in: nil,
-        contentWorld: .page
-      )
+      do {
+        _ = try await webView.callAsyncJavaScript(
+          "return await window.__devbar.receive(env)",
+          arguments: ["env": envelope],
+          in: nil,
+          contentWorld: .page
+        )
+      } catch { onToast?(Strings.stateSaveFailed) }
     }
     logger.notice("bridgeOut bytes=\(envelope.utf8.count, privacy: .public)")
   }
 
   private func installMemoryWatch() {
     let source = DispatchSource.makeMemoryPressureSource(
-      eventMask: [.warning, .critical], queue: .main)
+      eventMask: [.normal, .warning, .critical], queue: .main)
     source.setEventHandler { [weak self] in
       MainActor.assumeIsolated {
-        self?.handleMemoryPressure()
+        guard let self else { return }
+        MemoryBudget.critical = self.memorySource?.data.contains(.critical) == true
+        if self.memorySource?.data.contains(.normal) != true { self.handleMemoryPressure() }
       }
     }
     source.resume()
@@ -320,6 +367,11 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       ).encoded()
       let replied = await requestMemoryFlush(envelope)
       logger.notice("memoryFlushReply=\(replied, privacy: .public)")
+      guard replied else {
+        onToast?(Strings.stateSaveFailed)
+        scheduleHiddenMemoryFlush()
+        return
+      }
     }
     guard !panelVisible else { return }
     onMemoryFlush?()
@@ -334,13 +386,13 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       let request = Task { @MainActor in
         let success: Bool
         do {
-          _ = try await view.callAsyncJavaScript(
-            "return await window.__devbar.receive(env)",
+          let reply = try await view.callAsyncJavaScript(
+            "return (await window.__devbar.receive(env)).ok === true",
             arguments: ["env": envelope],
             in: nil,
             contentWorld: .page
           )
-          success = true
+          success = reply as? Bool == true
         } catch {
           success = false
         }

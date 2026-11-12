@@ -1,4 +1,5 @@
 export const strings = {
+  saveFailed: "保存失败，内容已保留，请检查存储位置",
   previewFailed: "预览失败",
   json: "JSON",
   qr: "二维码",

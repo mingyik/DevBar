@@ -313,3 +313,34 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
   #expect(!previewSignature.isEmpty)
   #expect(previewSignature == mainSignature)
 }
+
+@MainActor @Test func clipboardReleasedPayloadsReloadFromDiskForSelection() async throws {
+  let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: root) }
+  let defaults = UserDefaults(suiteName: "devbar-storage-test-\(UUID())")!
+  let controller = ClipboardController(
+    theme: ThemeManager(defaults: defaults), directory: root, startMonitoring: false,
+    defaults: defaults)
+  let capture = try #require(
+    ClipboardCapture(payloads: [
+      ClipboardPayload(
+        type: NSPasteboard.PasteboardType.string.rawValue, data: Data("saved text".utf8))
+    ]))
+  await controller.record(capture, source: nil)
+  #expect(controller.items.count == 1)
+  controller.releaseVisualCaches()
+  #expect(controller.originals.isEmpty)
+  #expect(controller.items.count == 1)
+  // Background capture updates disk/index without repopulating released original caches.
+  await controller.record(capture, source: nil)
+  #expect(controller.originals.isEmpty)
+  let board = NSPasteboard.withUniqueName()
+  defer { board.releaseGlobally() }
+  controller.select(0, board: board)
+  for _ in 0..<100 {
+    if board.string(forType: .string) == "saved text" { break }
+    try await Task.sleep(for: .milliseconds(10))
+  }
+  #expect(board.string(forType: .string) == "saved text")
+  #expect(controller.items.count == 1)
+}

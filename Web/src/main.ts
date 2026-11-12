@@ -1,3 +1,4 @@
+import { strings } from "./strings";
 export const entryName = "DevBar";
 import { decodeEnvelope, type JSONValue } from "./bridge/envelope";
 import { refreshTreeTheme } from "./editor/library-theme";
@@ -20,6 +21,7 @@ import "./theme/tokens.css";
 
 type Page = "json" | "qr" | "doc";
 let current: Page = "json";
+let transitions: Promise<void> = Promise.resolve();
 let autoImport = true;
 const pages = new Map<Page, PageShell>();
 const importGenerations = new Map<Page, number>();
@@ -52,9 +54,23 @@ const bridge = {
         break;
       case "screen.show": {
         const value = payload.page ?? payload.screen;
-        await show(value === "qr" ? "qr" : value === "doc" ? "doc" : "json");
+        const next = value === "qr" ? "qr" : value === "doc" ? "doc" : "json";
+        transitions = transitions.catch(() => {}).then(() => show(next));
+        await transitions;
         break;
       }
+      case "screen.hide":
+        transitions = transitions
+          .catch(() => {})
+          .then(async () => {
+            await save();
+            for (const shell of pages.values()) shell.root.hidden = true;
+            json.releaseMemory();
+            qr.releaseMemory();
+            await doc.releaseMemory();
+          });
+        await transitions;
+        break;
       case "tools.import": {
         const page = payload.page === "qr" ? "qr" : "json";
         await importText(
@@ -65,7 +81,13 @@ const bridge = {
         );
         break;
       }
-      case "doc.import":
+      case "doc.import": {
+        const admission = await post("input.check", {
+          bytes: new TextEncoder().encode(
+            typeof payload.text === "string" ? payload.text : "",
+          ).length,
+        });
+        if (admission.allowed === false) break;
         doc.import(
           typeof payload.text === "string" ? payload.text : "",
           typeof payload.fileName === "string" ? payload.fileName : null,
@@ -77,11 +99,21 @@ const bridge = {
         );
         scheduleSave();
         break;
-      case "memory.flush":
+      }
+      case "state.flush":
+        await transitions.catch(() => {});
         await save();
-        json.releaseMemory();
-        qr.releaseMemory();
-        await doc.releaseMemory();
+        return { ok: true };
+      case "memory.flush":
+        transitions = transitions
+          .catch(() => {})
+          .then(async () => {
+            await save();
+            json.releaseMemory();
+            qr.releaseMemory();
+            await doc.releaseMemory();
+          });
+        await transitions;
         return { ok: true };
     }
     return {};
@@ -125,6 +157,12 @@ async function start(): Promise<void> {
       (reply.settings as Record<string, unknown>).autoImport !== false;
 }
 async function show(page: Page): Promise<void> {
+  if (current !== page) {
+    await save();
+    if (current === "json") json.releaseMemory();
+    if (current === "qr") qr.releaseMemory();
+    if (current === "doc") await doc.releaseMemory();
+  }
   current = page;
   for (const [name, shell] of pages) shell.root.hidden = name !== page;
   const shell = pages.get(page)!;
@@ -155,6 +193,10 @@ async function importText(
 ): Promise<void> {
   const shell = pages.get(page);
   if (!shell || (ifEmpty && shell.text !== "")) return;
+  const admission = await post("input.check", {
+    bytes: new TextEncoder().encode(text).length,
+  });
+  if (admission.allowed === false) return;
   const revision = shell.revision;
   const generation = beginImport(page);
   let incoming = text;
@@ -178,19 +220,24 @@ async function importText(
 function scheduleSave(): void {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    void save();
+    void save().catch(() => post("ui.toast", { text: strings.saveFailed }));
   }, 1000);
 }
 async function save(): Promise<void> {
   for (const [screen, shell] of pages)
-    await post("state.save", {
-      screen,
-      state: (screen === "json"
-        ? json.state()
-        : screen === "doc"
-          ? doc.state()
-          : shell.state()) as unknown as JSONValue,
-    });
+    if (
+      (
+        await post("state.save", {
+          screen,
+          state: (screen === "json"
+            ? json.state()
+            : screen === "doc"
+              ? doc.state()
+              : shell.state()) as unknown as JSONValue,
+        })
+      ).ok === false
+    )
+      throw new Error("state save failed");
 }
 export function activePage(): string {
   return current;

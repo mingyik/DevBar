@@ -11,6 +11,8 @@ final class ClipboardMonitor {
   private(set) var pending = false
   private(set) var waiting = false
   private(set) var busy = false
+  var suspended = false
+  var onMemoryRejected: (() -> Void)?
   var onCapture: ((ClipboardCapture, String?) async -> Void)?
 
   init(reader: any PasteboardReading = SystemPasteboardReader()) { self.reader = reader }
@@ -36,7 +38,7 @@ final class ClipboardMonitor {
   }
 
   func poll(userInitiated: Bool = false) async {
-    guard !busy else { return }
+    guard !busy, !suspended else { return }
     let metadata = reader.metadata()
     access = metadata.access
     guard userInitiated || metadata.count != observedCount || (pending && access == .allow) else {
@@ -54,6 +56,10 @@ final class ClipboardMonitor {
     }
     guard access == .allow || userInitiated else {
       pending = true
+      return
+    }
+    guard MemoryBudget.allows(bytes: 0) else {
+      onMemoryRejected?()
       return
     }
     busy = true
@@ -74,6 +80,12 @@ final class ClipboardMonitor {
     }.value
     // A UI write while the detached read was in flight must also invalidate it.
     if reader.metadata().count == expectedCount, let capture {
+      guard MemoryBudget.allows(bytes: capture.payloads.reduce(0) { $0 + $1.data.count }) else {
+        busy = false
+        waiting = false
+        onMemoryRejected?()
+        return
+      }
       await onCapture?(capture, source)
     }
     busy = false

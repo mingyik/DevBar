@@ -54,6 +54,11 @@ import UniformTypeIdentifiers
     openedForDrag = false
   }
   func receive(_ urls: [URL], document: Bool? = nil) {
+    guard MemoryBudget.allows(bytes: 0) else {
+      panel.model.dropActive = false
+      panel.model.toast = Strings.insufficientMemory
+      return
+    }
     cancellation?.cancel()
     let target: Bool? =
       document
@@ -70,6 +75,10 @@ import UniformTypeIdentifiers
       switch result {
       case .failure(let reason): panel.model.toast = Strings.fileDropError(reason)
       case .success(let file):
+        guard MemoryBudget.allows(bytes: file.text.utf8.count) else {
+          panel.model.toast = Strings.insufficientMemory
+          return
+        }
         let isDoc =
           target
           ?? {

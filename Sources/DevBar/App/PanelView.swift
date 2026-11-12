@@ -8,6 +8,7 @@ struct PanelView: View {
   @Bindable var theme: ThemeManager
   var webHost: WebHost
   var clipboard: ClipboardController
+  @Bindable var storage: StorageSettings
   @State private var titleHovered = false
 
   var body: some View {
@@ -141,9 +142,30 @@ struct PanelView: View {
               Text(page.title).tag(page.rawValue)
             }
           }
+          storageLocation(Strings.dataLocation, path: storage.dataPath, scheme: scheme) {
+            storage.chooseDataLocation()
+          }.disabled(storage.busy)
+          storageLocation(Strings.captureLocation, path: storage.capturePath, scheme: scheme) {
+            storage.chooseCaptureLocation()
+          }.disabled(storage.busy)
+          if !storage.message.isEmpty {
+            Text(storage.message).font(.system(size: 11)).foregroundStyle(
+              DesignTokens.textSecondary(scheme))
+          }
           Toggle(Strings.autoImport, isOn: $model.autoImport)
           shortcut(Strings.shortcutToggle, .togglePanel, scheme)
           Text(Strings.clipboardGroup).font(.system(size: 13, weight: .semibold)).id("clipboard")
+          Stepper(
+            value: Binding(
+              get: { clipboard.historyLimit },
+              set: { value in
+                Task { await clipboard.setHistoryLimit(value) }
+              }), in: 5...30
+          ) {
+            Text(Strings.historyLimit(clipboard.historyLimit)).font(.system(size: 13))
+          }.disabled(storage.busy)
+          Text(Strings.historyLimitHelp).font(.system(size: 11)).foregroundStyle(
+            DesignTokens.textSecondary(scheme))
           shortcut(Strings.shortcutOlder, .cycleOlder, scheme)
           directPasteAuthorization(scheme)
           Text(Strings.captureGroup).font(.system(size: 13, weight: .semibold)).id("capture")
@@ -165,6 +187,22 @@ struct PanelView: View {
           try? await Task.sleep(for: .seconds(1))
         }
       }
+    }
+  }
+
+  private func storageLocation(
+    _ title: String, path: String, scheme: ColorScheme, action: @escaping () -> Void
+  ) -> some View {
+    HStack {
+      VStack(alignment: .leading, spacing: 3) {
+        Text(title).font(.system(size: 13))
+        Text(path).font(.system(size: 11)).lineLimit(1).truncationMode(.middle)
+          .foregroundStyle(DesignTokens.textSecondary(scheme)).help(path)
+      }
+      Spacer(minLength: 8)
+      Button(Strings.chooseLocation, action: action).font(.system(size: 11))
+        .padding(.horizontal, 8).frame(height: 26)
+        .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
     }
   }
 

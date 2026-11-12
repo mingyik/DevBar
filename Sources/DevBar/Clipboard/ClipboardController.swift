@@ -10,6 +10,7 @@ final class ClipboardController {
   private static let directPastePromptKey = "directPasteAccessibilityPromptRequested"
   let monitor: ClipboardMonitor
   let card: ClipboardCard
+  private(set) var historyLimit: Int
   private(set) var items: [ClipItem] = []
   private(set) var originals: [UUID: [ClipboardPayload]] = [:]
   private(set) var previewTexts: [UUID: String] = [:]
@@ -27,6 +28,8 @@ final class ClipboardController {
   private let defaults: UserDefaults
   private var copyFeedback: Task<Void, Never>?
   private var reloadGeneration = 0
+  private var retainVisualCaches = true
+  private var visualReloadTask: Task<Void, Never>?
   private(set) var lastCycleMilliseconds = 0.0
   private var pasteTarget: pid_t?
   private(set) var isDirectPasteAuthorized = false
@@ -38,6 +41,7 @@ final class ClipboardController {
     defaults: UserDefaults = .standard
   ) {
     self.defaults = defaults
+    historyLimit = min(30, max(5, defaults.object(forKey: "clipboardHistoryLimit") as? Int ?? 10))
     monitor = ClipboardMonitor(reader: reader)
     card = ClipboardCard(theme: theme)
     do {
@@ -45,9 +49,11 @@ final class ClipboardController {
       let root = directory ?? DataLocations.root.appending(path: "Paste")
       let corrupt = Mutex(false)
       store = try ClipboardStore(
-        directory: root, onCorruptHistory: { corrupt.withLock { $0 = true } })
+        directory: root, historyLimit: historyLimit,
+        onCorruptHistory: { corrupt.withLock { $0 = true } })
       if corrupt.withLock({ $0 }) { message = Strings.historyRestarted }
     } catch { message = Strings.historyReadFailed }
+    monitor.onMemoryRejected = { [weak self] in self?.message = Strings.insufficientMemory }
     card.onMove = { [weak self] older in self?.cycle(older: older) }
     card.onConfirm = { [weak self] in self?.pasteSelection() }
     card.onDismiss = { [weak self] in self?.pasteTarget = nil }
@@ -60,9 +66,20 @@ final class ClipboardController {
   }
 
   func reopenStorage() async throws {
-    let replacement = try ClipboardStore(directory: DataLocations.root.appending(path: "Paste"))
+    let replacement = try ClipboardStore(
+      directory: DataLocations.root.appending(path: "Paste"), historyLimit: historyLimit)
     store = replacement
     await reload()
+  }
+
+  func setHistoryLimit(_ value: Int) async {
+    let bounded = min(30, max(5, value))
+    do {
+      try await store?.setHistoryLimit(bounded)
+      historyLimit = bounded
+      defaults.set(bounded, forKey: "clipboardHistoryLimit")
+      await reload()
+    } catch { message = Strings.historyWriteFailed }
   }
 
   func record(_ capture: ClipboardCapture, source: String?) async {
@@ -88,7 +105,7 @@ final class ClipboardController {
     let updated = await store.items
     var payloads: [UUID: [ClipboardPayload]] = [:]
     var images: [UUID: NSImage] = [:]
-    for item in updated {
+    for item in updated where retainVisualCaches {
       payloads[item.id] = try? await store.payloads(for: item.id)
       if payloads[item.id] == nil { message = Strings.historyReadFailed }
       if item.kind == .image, let data = try? await store.thumbnail(for: item.id) {
@@ -101,6 +118,7 @@ final class ClipboardController {
       var result: [UUID: String] = [:]
       for (id, entries) in previewPayloads {
         if let payload = entries.first(where: { $0.type == plainTextType }),
+          payload.data.count <= 128_000,
           let text = String(data: payload.data, encoding: .utf8)
         {
           result[id] = text
@@ -118,18 +136,47 @@ final class ClipboardController {
     originals = payloads
     previewTexts = texts
     thumbnails = images
-    needsVisualCacheReload = false
+    needsVisualCacheReload = !retainVisualCaches
     cycler.select(cycler.currentIndex, count: items.count)
     focusedIndex = min(focusedIndex, max(items.count - 1, 0))
   }
 
+  func restoreVisualCaches() async {
+    retainVisualCaches = true
+    await ensureVisualCaches()
+  }
+
+  private func ensureVisualCaches() async {
+    retainVisualCaches = true
+    if let task = visualReloadTask {
+      await task.value
+      return
+    }
+    let task = Task { await reload() }
+    visualReloadTask = task
+    await task.value
+    visualReloadTask = nil
+  }
+
   func releaseVisualCaches() {
+    retainVisualCaches = false
+    reloadGeneration += 1
+    originals.removeAll(keepingCapacity: false)
     thumbnails.removeAll(keepingCapacity: false)
     previewTexts.removeAll(keepingCapacity: false)
     needsVisualCacheReload = true
   }
 
   func select(_ index: Int, board: NSPasteboard = .general) {
+    if needsVisualCacheReload {
+      guard items.indices.contains(index) else { return }
+      let id = items[index].id
+      Task {
+        await ensureVisualCaches()
+        if let current = items.firstIndex(where: { $0.id == id }) { select(current, board: board) }
+      }
+      return
+    }
     guard items.indices.contains(index), let payloads = originals[items[index].id] else { return }
     let entries = Self.pasteboardItems(payloads: payloads)
     board.clearContents()
@@ -164,6 +211,13 @@ final class ClipboardController {
   }
 
   func cycle(older: Bool, board: NSPasteboard = .general) {
+    if needsVisualCacheReload {
+      Task {
+        await ensureVisualCaches()
+        cycle(older: older, board: board)
+      }
+      return
+    }
     guard !items.isEmpty else { return }
     if !card.panel.isVisible {
       pasteTarget = NSWorkspace.shared.frontmostApplication?.processIdentifier

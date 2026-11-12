@@ -14,6 +14,12 @@ actor ScreenStateStore {
     #endif
   }
 
+  func relocate(to destination: URL) throws {
+    guard explicitDirectory == nil else { throw DataLocations.LocationError.occupiedDestination }
+    try DataLocations.move(from: directory, to: destination)
+    UserDefaults.standard.set(destination.path, forKey: DataLocations.dataKey)
+  }
+
   @discardableResult
   func save(screen: String, json: String) -> Bool {
     guard let file = fileURL(screen), let data = json.data(using: .utf8) else { return false }

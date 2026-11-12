@@ -32,3 +32,19 @@ import Testing
   #expect(FileManager.default.fileExists(atPath: target.path))
   #expect(DataLocations.destination(in: target) == target)
 }
+
+@Test func memoryBudgetUsesCurrentHeadroomAndRejectsOversizedInput() {
+  let gib: UInt64 = 1024 * 1024 * 1024
+  #expect(MemoryBudget.permits(incoming: 2 * 1024 * 1024, available: 10 * gib, total: 16 * gib))
+  #expect(!MemoryBudget.permits(incoming: 1, available: 128 * 1024 * 1024, total: 16 * gib))
+  #expect(!MemoryBudget.permits(incoming: gib, available: 2 * gib, total: 16 * gib))
+}
+
+@Test func stateSaveFailureIsReportedAndDoesNotClaimSuccess() async throws {
+  let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: root) }
+  try Data("occupied".utf8).write(to: root)
+  let store = ScreenStateStore(directory: root)
+  #expect(await store.save(screen: "json", json: "{}") == false)
+  #expect(try String(contentsOf: root, encoding: .utf8) == "occupied")
+}

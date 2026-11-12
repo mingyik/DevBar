@@ -1,6 +1,16 @@
 import DevBarCore
 
 enum Strings {
+  static func historyLimit(_ count: Int) -> String { "历史记录上限：\(count) 条" }
+  static let historyLimitHelp = "调小上限会删除超出的旧记录及文件"
+  static let dataLocation = "数据存储位置"
+  static let captureLocation = "截图保存位置"
+  static let chooseLocation = "选择…"
+  static let storageMoving = "正在迁移数据…"
+  static let storageMoved = "数据已迁移"
+  static let storageMoveFailed = "无法迁移，请检查文件夹权限及目标 DevBar 文件夹是否已存在"
+  static let stateSaveFailed = "保存失败，内容已保留，请检查存储位置"
+  static let insufficientMemory = "内存不足，清理后再试。"
   static let appName = "DevBar"
   static let documentPreview = "预览"
   static let documentCapture = "截全图"
@@ -30,8 +40,8 @@ enum Strings {
   static let result = "结果"
   static let backToList = "返回列表"
   static let copy = "复制"
-  static let pageJSON = "JSON"
-  static let pageQR = "二维码"
+  static let pageJSON = "Json"
+  static let pageQR = "QrCode"
   static let defaultPage = "打开面板时显示"
   static let lastPage = "上次停留的页"
   static let pageShortcuts = "页面快捷键"
@@ -57,9 +67,9 @@ enum Strings {
 
   static let statusItemAccessibilityLabel = "DevBar 菜单栏"
   static let statusItemTitle = "DevBar"
-  static let tabClipboard = "剪贴板"
+  static let tabClipboard = "Paste"
   static let tabTools = "工具"
-  static let tabDocument = "文稿"
+  static let tabDocument = "Markdown"
   static let pin = "钉住"
   static let theme = "白或黑"
   static let enlarge = "放大"
