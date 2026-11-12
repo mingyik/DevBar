@@ -107,3 +107,66 @@ import Testing
   model.dropActive = false
   #expect(model.panelSize == before)
 }
+
+@MainActor @Test func pageCycleSkipsDisabledAndPreservesDirectShortcutAccess() {
+  let defaults = UserDefaults(suiteName: "devbar.cycle.\(UUID())")!
+  let model = PanelModel(defaults: defaults)
+  model.setCycleParticipation(.json, enabled: false)
+  model.cyclePage()
+  #expect(model.page == .qr)
+  model.page = .json  // Dedicated shortcuts set the target directly.
+  #expect(model.page == .json)
+  model.cyclePage()
+  #expect(model.page == .qr)
+  model.page = .json
+  model.prepareToOpen()
+  #expect(model.page == .clipboard)
+  #expect(!PanelModel(defaults: defaults).participatesInCycle(.json))
+}
+
+@MainActor @Test func pageCycleAlwaysRetainsOneEnabledPageAndRepairsEmptyPreferences() {
+  let defaults = UserDefaults(suiteName: "devbar.cycle.single.\(UUID())")!
+  let model = PanelModel(defaults: defaults)
+  for page in [PanelModel.Page.json, .qr, .doc, .clipboard] {
+    model.setCycleParticipation(page, enabled: false)
+  }
+  #expect(model.cyclingPages == [.clipboard])
+  #expect(!model.canChangeCycleParticipation(.clipboard))
+  model.cyclePage()
+  #expect(model.page == .clipboard)
+  model.setCycleParticipation(.doc, enabled: true)
+  #expect(model.cyclingPages == [.clipboard, .doc])
+  defaults.set([], forKey: "cyclingPages")
+  #expect(PanelModel(defaults: defaults).cyclingPages == [.clipboard])
+}
+
+@MainActor @Test func disablingFixedDefaultReturnsToEnabledPage() {
+  let defaults = UserDefaults(suiteName: "devbar.cycle.default.\(UUID())")!
+  let model = PanelModel(defaults: defaults)
+  model.defaultPage = "doc"
+  model.page = .doc
+  model.setCycleParticipation(.doc, enabled: false)
+  #expect(model.defaultPage == "last")
+  model.prepareToOpen()
+  #expect(model.page == .clipboard)
+}
+
+@MainActor @Test func shiftCommandPDoesNotInvokePageCycling() throws {
+  let panel = DevBarPanel()
+  var calls = 0
+  panel.onCyclePage = { _ in calls += 1 }
+  let event = try #require(
+    NSEvent.keyEvent(
+      with: .keyDown, location: .zero, modifierFlags: [.command, .shift], timestamp: 0,
+      windowNumber: 0, context: nil, characters: "P", charactersIgnoringModifiers: "p",
+      isARepeat: false, keyCode: 35))
+  _ = panel.performKeyEquivalent(with: event)
+  #expect(calls == 0)
+  let ordinary = try #require(
+    NSEvent.keyEvent(
+      with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
+      windowNumber: 0, context: nil, characters: "p", charactersIgnoringModifiers: "p",
+      isARepeat: false, keyCode: 35))
+  #expect(panel.performKeyEquivalent(with: ordinary))
+  #expect(calls == 1)
+}

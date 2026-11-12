@@ -8,6 +8,20 @@ final class PanelModel {
   }
 
   private let defaults: UserDefaults
+  private(set) var cyclingPages: [Page]
+  func participatesInCycle(_ page: Page) -> Bool { cyclingPages.contains(page) }
+  func canChangeCycleParticipation(_ page: Page) -> Bool {
+    !participatesInCycle(page) || cyclingPages.count > 1
+  }
+  func setCycleParticipation(_ page: Page, enabled: Bool) {
+    guard Page.contentPages.contains(page) else { return }
+    guard enabled || canChangeCycleParticipation(page) else { return }
+    cyclingPages = Page.contentPages.filter { candidate in
+      candidate == page ? enabled : cyclingPages.contains(candidate)
+    }
+    defaults.set(cyclingPages.map(\.rawValue), forKey: "cyclingPages")
+    if !enabled, defaultPage == page.rawValue { defaultPage = "last" }
+  }
   var page: Page {
     didSet {
       guard oldValue != page else { return }
@@ -59,6 +73,12 @@ final class PanelModel {
 
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
+    if let saved = defaults.stringArray(forKey: "cyclingPages") {
+      let selected = Page.contentPages.filter { saved.contains($0.rawValue) }
+      cyclingPages = selected.isEmpty ? [.clipboard] : selected
+    } else {
+      cyclingPages = Page.contentPages
+    }
     autoImport = defaults.object(forKey: "autoImport") as? Bool ?? true
     let raw = defaults.string(forKey: "lastContentPage") ?? ""
     let stored: Page = raw == "encode" ? .json : Page(rawValue: raw) ?? .clipboard
@@ -82,18 +102,29 @@ final class PanelModel {
   func leaveSettings() { page = settingsOrigin }
 
   func prepareToOpen() {
-    if let fixed = Page(rawValue: defaultPage), fixed != .settings {
+    if let fixed = Page(rawValue: defaultPage), cyclingPages.contains(fixed) {
       page = fixed
     } else if page == .settings {
-      page = Page(rawValue: defaults.string(forKey: "lastContentPage") ?? "") ?? .clipboard
+      let remembered = Page(rawValue: defaults.string(forKey: "lastContentPage") ?? "")
+      page = remembered.flatMap { cyclingPages.contains($0) ? $0 : nil } ?? cyclingPages[0]
+    } else if !cyclingPages.contains(page) {
+      page = cyclingPages[0]
     }
   }
 
   func cyclePage(backwards: Bool = false) {
     let remembered = Page(rawValue: defaults.string(forKey: "lastContentPage") ?? "") ?? .clipboard
-    let pages = Page.contentPages
-    let current = pages.firstIndex(of: page == .settings ? remembered : page) ?? 0
-    page = pages[(current + (backwards ? pages.count - 1 : 1)) % pages.count]
+    let origin = page == .settings ? remembered : page
+    let all = Page.contentPages
+    let current = all.firstIndex(of: origin) ?? 0
+    for distance in 1...all.count {
+      let offset = backwards ? all.count - distance : distance
+      let candidate = all[(current + offset) % all.count]
+      if cyclingPages.contains(candidate) {
+        page = candidate
+        return
+      }
+    }
   }
 
   var showsEnlarge: Bool { page == .json || page == .doc }

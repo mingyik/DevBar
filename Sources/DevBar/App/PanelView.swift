@@ -85,8 +85,10 @@ struct PanelView: View {
       actionButton(model.pinned ? "pin.fill" : "pin.slash", label: Strings.pin, scheme: scheme) {
         model.pinned.toggle()
       }
-      actionButton("devbar.settings", label: Strings.settingsPage, scheme: scheme) {
-        model.enterSettings()
+      if model.page != .settings {
+        actionButton("devbar.settings", label: Strings.settingsPage, scheme: scheme) {
+          model.enterSettings()
+        }
       }
       if model.showsEnlarge {
         actionButton(
@@ -150,7 +152,7 @@ struct PanelView: View {
             Spacer(minLength: 12)
             Picker(Strings.defaultPage, selection: $model.defaultPage) {
               Text(Strings.lastPage).tag("last")
-              ForEach(PanelModel.Page.contentPages, id: \.self) { page in
+              ForEach(model.cyclingPages, id: \.self) { page in
                 Text(page.title).tag(page.rawValue)
               }
             }.pickerStyle(.menu).labelsHidden().controlSize(.small)
@@ -177,7 +179,19 @@ struct PanelView: View {
           shortcut(Strings.shortcutLong, .captureScroll, scheme)
           settingsHeading(Strings.pageShortcuts, scheme: scheme).id("shortcuts")
           ForEach(PanelModel.Page.contentPages, id: \.self) { page in
-            shortcut(page.title, page.shortcutName, scheme)
+            HStack(spacing: 10) {
+              Toggle(
+                page.title,
+                isOn: Binding(
+                  get: { model.participatesInCycle(page) },
+                  set: { model.setCycleParticipation(page, enabled: $0) })
+              )
+              .labelsHidden().toggleStyle(.switch).controlSize(.mini)
+              .tint(DesignTokens.textSecondary(scheme))
+              .disabled(!model.canChangeCycleParticipation(page))
+              .help(Strings.pageCycleSwitchHelp)
+              shortcut(page.title, page.shortcutName, scheme)
+            }
           }
           Text(Strings.aboutBody).font(.system(size: 11)).foregroundStyle(
             DesignTokens.textSecondary(scheme))

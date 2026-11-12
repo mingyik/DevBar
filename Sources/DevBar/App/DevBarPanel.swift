@@ -66,10 +66,10 @@ final class DevBarPanel: NSPanel {
       return true
     }
     let flags = event.modifierFlags.intersection([.command, .shift, .control, .option])
-    if flags == .command || flags == [.command, .shift],
+    if flags == .command,
       event.charactersIgnoringModifiers?.lowercased() == "p"
     {
-      onCyclePage?(flags.contains(.shift))
+      onCyclePage?(false)
       return true
     }
     if flags.isEmpty, onClipboardKey?(event.keyCode) == true { return true }
