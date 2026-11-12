@@ -49,3 +49,7 @@ main，代码提交37d8afc、4840286。
 ## 右侧控件宽度统一
 
 从锁定版本KeyboardShortcuts的RecorderCocoa.minimumWidth确认固有宽度为130pt。PanelView中新增共用宽度，路径/系统设置按钮、数量输入与快捷键录制框均用130pt，居中与路径省略规则保留。Scripts/check.sh通过（109 Swift、350 Web），构建/签名通过，已安装重启；外观待需求方确认。
+
+## 通用选择控件与分组细线
+
+外观、默认页面改为左标签右选择控件，右侧统一130pt；通用分组顶部增加5pt，各分组标题上方加0.5pt细线，使用主题line.divider变量、左右沿内容边距。仅修改PanelView及UI基准。Scripts/check.sh通过（109 Swift、350 Web），debug构建与固定签名校验通过，已安装重启。浅深外观由需求方确认，未声明视觉验收通过。

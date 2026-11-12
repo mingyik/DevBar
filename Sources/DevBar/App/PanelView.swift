@@ -134,17 +134,27 @@ struct PanelView: View {
     ScrollViewReader { proxy in
       ReadOnlyScrollView(scheme: scheme) {
         VStack(alignment: .leading, spacing: 16) {
-          Text(Strings.generalGroup).font(.system(size: 13, weight: .semibold)).id("general")
-          Picker(Strings.appearance, selection: $theme.mode) {
-            Text(Strings.followSystem).tag(ThemeMode.system)
-            Text(Strings.light).tag(ThemeMode.light)
-            Text(Strings.dark).tag(ThemeMode.dark)
-          }.pickerStyle(.segmented)
-          Picker(Strings.defaultPage, selection: $model.defaultPage) {
-            Text(Strings.lastPage).tag("last")
-            ForEach(PanelModel.Page.contentPages, id: \.self) { page in
-              Text(page.title).tag(page.rawValue)
-            }
+          settingsHeading(Strings.generalGroup, scheme: scheme).padding(.top, 5).id("general")
+          HStack {
+            Text(Strings.appearance).font(.system(size: 13)).lineLimit(1)
+            Spacer(minLength: 12)
+            Picker(Strings.appearance, selection: $theme.mode) {
+              Text(Strings.followSystem).tag(ThemeMode.system)
+              Text(Strings.light).tag(ThemeMode.light)
+              Text(Strings.dark).tag(ThemeMode.dark)
+            }.pickerStyle(.segmented).labelsHidden().controlSize(.small)
+              .frame(width: SettingsControlLayout.width)
+          }
+          HStack {
+            Text(Strings.defaultPage).font(.system(size: 13)).lineLimit(1)
+            Spacer(minLength: 12)
+            Picker(Strings.defaultPage, selection: $model.defaultPage) {
+              Text(Strings.lastPage).tag("last")
+              ForEach(PanelModel.Page.contentPages, id: \.self) { page in
+                Text(page.title).tag(page.rawValue)
+              }
+            }.pickerStyle(.menu).labelsHidden().controlSize(.small)
+              .frame(width: SettingsControlLayout.width)
           }
           storageLocation(Strings.dataLocation, path: storage.dataPath, scheme: scheme) {
             storage.chooseDataLocation()
@@ -158,14 +168,14 @@ struct PanelView: View {
           }
           Toggle(Strings.autoImport, isOn: $model.autoImport)
           shortcut(Strings.shortcutToggle, .togglePanel, scheme)
-          Text(Strings.clipboardGroup).font(.system(size: 13, weight: .semibold)).id("clipboard")
+          settingsHeading(Strings.clipboardGroup, scheme: scheme).id("clipboard")
           HistoryLimitRow(clipboard: clipboard, scheme: scheme).disabled(storage.busy)
           shortcut(Strings.shortcutOlder, .cycleOlder, scheme)
           directPasteAuthorization(scheme)
-          Text(Strings.captureGroup).font(.system(size: 13, weight: .semibold)).id("capture")
+          settingsHeading(Strings.captureGroup, scheme: scheme).id("capture")
           shortcut(Strings.shortcutCapture, .captureRegion, scheme)
           shortcut(Strings.shortcutLong, .captureScroll, scheme)
-          Text(Strings.pageShortcuts).font(.system(size: 13, weight: .semibold)).id("shortcuts")
+          settingsHeading(Strings.pageShortcuts, scheme: scheme).id("shortcuts")
           ForEach(PanelModel.Page.contentPages, id: \.self) { page in
             shortcut(page.title, page.shortcutName, scheme)
           }
@@ -182,6 +192,13 @@ struct PanelView: View {
         }
       }
     }
+  }
+
+  private func settingsHeading(_ title: String, scheme: ColorScheme) -> some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Rectangle().fill(DesignTokens.lineDivider(scheme)).frame(height: 0.5)
+      Text(title).font(.system(size: 13, weight: .semibold))
+    }.frame(maxWidth: .infinity, alignment: .leading)
   }
 
   private func storageLocation(
