@@ -225,8 +225,9 @@ final class SelectionView: NSView {
         if kind == "arrowFilled" {
           color.setFill()
           path.fill()
+        } else {
+          path.stroke()
         }
-        path.stroke()
       }
     }
     for (text, point, color, size) in texts {
@@ -283,15 +284,30 @@ final class SelectionView: NSView {
     path.line(to: end)
     let angle = atan2(end.y - start.y, end.x - start.x)
     let length = hypot(end.x - start.x, end.y - start.y)
-    let head = min(length * 0.6, max(12, width * (large ? 5 : 3)))
-    let spread: CGFloat = large ? 0.48 : 0.5
-    let left = CGPoint(x: end.x - head * cos(angle - spread), y: end.y - head * sin(angle - spread))
-    let right = CGPoint(
-      x: end.x - head * cos(angle + spread), y: end.y - head * sin(angle + spread))
-    path.move(to: left)
-    path.line(to: end)
-    path.line(to: right)
-    if large { path.close() }
+    if large {
+      let head = min(length * 0.45, max(18, width * 6))
+      let ux = cos(angle)
+      let uy = sin(angle)
+      let nx = -uy
+      let ny = ux
+      let base = CGPoint(x: end.x - head * ux, y: end.y - head * uy)
+      let outer = head * 0.48
+      let inner = max(width * 0.45, head * 0.13)
+      path.move(to: start)
+      path.line(to: CGPoint(x: base.x + inner * nx, y: base.y + inner * ny))
+      path.line(to: CGPoint(x: base.x + outer * nx, y: base.y + outer * ny))
+      path.line(to: end)
+      path.line(to: CGPoint(x: base.x - outer * nx, y: base.y - outer * ny))
+      path.line(to: CGPoint(x: base.x - inner * nx, y: base.y - inner * ny))
+      path.close()
+    } else {
+      let head = min(length * 0.6, max(12, width * 3))
+      let left = CGPoint(x: end.x - head * cos(angle - 0.5), y: end.y - head * sin(angle - 0.5))
+      let right = CGPoint(x: end.x - head * cos(angle + 0.5), y: end.y - head * sin(angle + 0.5))
+      path.move(to: left)
+      path.line(to: end)
+      path.line(to: right)
+    }
     return path
   }
 
@@ -426,11 +442,15 @@ final class SelectionView: NSView {
     if offset > 0 {
       for index in 0..<2 {
         let title = tool == "arrow" ? (index == 0 ? "大头" : "普通") : (index == 0 ? "涂抹" : "框选")
-        let button = NSButton(title: title, target: self, action: #selector(modeChanged(_:)))
+        let button = NSButton(
+          image: modeImage(index: index), target: self, action: #selector(modeChanged(_:)))
+        button.toolTip = title
+        button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .medium)
         button.tag = index
         button.isBordered = false
         button.wantsLayer = true
         let active = tool == "arrow" ? (largeArrow == (index == 0)) : (mosaicBrush == (index == 0))
+        button.contentTintColor = active ? .systemBlue : .labelColor  // devbar:allow-color
         button.layer?.cornerRadius = 5
         button.layer?.backgroundColor =
           active ? NSColor.labelColor.withAlphaComponent(0.12).cgColor : nil
@@ -456,6 +476,40 @@ final class SelectionView: NSView {
     }
     addSubview(bar)
     optionsBar = bar
+  }
+
+  private func modeImage(index: Int) -> NSImage {
+    if tool == "mosaic", index == 0 {
+      return NSImage(systemSymbolName: "hand.point.up.left", accessibilityDescription: nil)
+        ?? NSImage(size: NSSize(width: 24, height: 24))
+    }
+    let image = NSImage(size: NSSize(width: 24, height: 24))
+    image.lockFocus()
+    NSColor.labelColor.setFill()
+    NSColor.labelColor.setStroke()
+    if tool == "arrow" {
+      let path = Self.arrowPath(
+        start: CGPoint(x: 3, y: 3), end: CGPoint(x: 22, y: 22), width: 2, large: index == 0)
+      if index == 0 {
+        path.fill()
+      } else {
+        path.lineWidth = 2
+        path.stroke()
+      }
+    } else {
+      let rect = CGRect(x: 4, y: 4, width: 16, height: 16)
+      let path = NSBezierPath(rect: rect)
+      path.lineWidth = 1.5
+      path.stroke()
+      for point in [
+        CGPoint(x: 4, y: 4), CGPoint(x: 20, y: 4), CGPoint(x: 4, y: 20), CGPoint(x: 20, y: 20),
+      ] {
+        NSBezierPath(ovalIn: CGRect(x: point.x - 2, y: point.y - 2, width: 4, height: 4)).fill()
+      }
+    }
+    image.unlockFocus()
+    image.isTemplate = true
+    return image
   }
 
   @objc private func modeChanged(_ sender: NSButton) {
