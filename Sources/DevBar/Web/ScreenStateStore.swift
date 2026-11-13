@@ -3,14 +3,16 @@ import os
 
 actor ScreenStateStore {
   private let explicitDirectory: URL?
+  private let inMemory: Bool
   private var directory: URL { explicitDirectory ?? DataLocations.root }
   private var session: [String: String] = [:]
-  private var cleanedLegacyDiskState = false
   private let logger = Logger(subsystem: "local.devbar.app", category: "web")
 
-  init(directory explicitDirectory: URL? = nil) {
+  init(directory explicitDirectory: URL? = nil, inMemory: Bool? = nil) {
     self.explicitDirectory = explicitDirectory
+    self.inMemory = inMemory ?? (explicitDirectory == nil)
   }
+
   func relocate(to destination: URL) throws {
     guard explicitDirectory == nil else { throw DataLocations.LocationError.occupiedDestination }
     try DataLocations.move(from: directory, to: destination)
@@ -19,9 +21,8 @@ actor ScreenStateStore {
 
   @discardableResult
   func save(screen: String, json: String) -> Bool {
-    guard explicitDirectory != nil else {
+    if inMemory {
       guard let key = canonicalScreen(screen) else { return false }
-      cleanupLegacyDiskStateIfNeeded()
       session[key] = json
       return true
     }
@@ -46,9 +47,8 @@ actor ScreenStateStore {
   }
 
   func load(screen: String) -> String? {
-    guard explicitDirectory != nil else {
+    if inMemory {
       guard let key = canonicalScreen(screen) else { return nil }
-      cleanupLegacyDiskStateIfNeeded()
       return session[key]
     }
     if screen == "json" || screen == "tools",
@@ -73,15 +73,6 @@ actor ScreenStateStore {
     case "qr": "qr"
     case "doc": "doc"
     default: nil
-    }
-  }
-
-  private func cleanupLegacyDiskStateIfNeeded() {
-    guard !cleanedLegacyDiskState else { return }
-    cleanedLegacyDiskState = true
-    let fm = FileManager.default
-    for folder in ["Json", "QrCode", "Markdown", "state"] {
-      try? fm.removeItem(at: directory.appending(path: folder))
     }
   }
 

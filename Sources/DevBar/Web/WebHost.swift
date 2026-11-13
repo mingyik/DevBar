@@ -20,7 +20,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
 
   private let previewImage = PreviewImage()
   private let theme: ThemeManager
-  private let store = ScreenStateStore()
+  private let store: ScreenStateStore
   private let handler: DevBarSchemeHandler
   private let logger = Logger(subsystem: "local.devbar.app", category: "web")
   private var ready = false
@@ -32,8 +32,12 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   private var ruleList: WKContentRuleList?
   private var loading = false
 
-  init(theme: ThemeManager, webRoot: URL? = nil) {
+  init(
+    theme: ThemeManager, webRoot: URL? = nil,
+    store: ScreenStateStore = ScreenStateStore()
+  ) {
     self.theme = theme
+    self.store = store
     #if DEBUG
       if SelfCheckEnvironment.isActive { autoImport = false }
     #endif
@@ -358,7 +362,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     }
   }
 
-  private func flushHiddenMemory() async {
+  func flushHiddenMemory() async {
     guard !panelVisible, !memoryFlushInProgress, !webViewReleased else { return }
     memoryFlushInProgress = true
     defer { memoryFlushInProgress = false }
