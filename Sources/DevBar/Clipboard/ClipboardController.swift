@@ -265,9 +265,23 @@ final class ClipboardController {
     card.show(
       index: cycler.currentIndex, count: items.count, title: title,
       subtitle: subtitle, thumbnail: thumbnails[item.id], swatch: swatch, fileCount: files.count,
-      boundary: boundary, footer: footer, multilineContent: textMode)
+      boundary: boundary, footer: footer, multilineContent: textMode,
+      tag: textMode ? nil : tag(for: item))
     let elapsed = started.duration(to: .now).components
     lastCycleMilliseconds = Double(elapsed.seconds) * 1000 + Double(elapsed.attoseconds) / 1e15
+  }
+
+  func tag(for item: ClipItem) -> String {
+    let payloads = originals[item.id] ?? []
+    let fileNames = payloads.filter { $0.type == NSPasteboard.PasteboardType.fileURL.rawValue }
+      .compactMap { String(data: $0.data, encoding: .utf8) }.compactMap(URL.init(string:))
+      .map(\.lastPathComponent)
+    let text =
+      item.kind == .text
+      ? payloads.first { $0.type == NSPasteboard.PasteboardType.string.rawValue }
+        .flatMap { String(data: $0.data, encoding: .utf8) } ?? item.preview : ""
+    return ClipTag.label(
+      kind: item.kind, types: payloads.map(\.type), fileNames: fileNames, text: text)
   }
 
   nonisolated static func filePaths(payloads: [ClipboardPayload]) -> String? {

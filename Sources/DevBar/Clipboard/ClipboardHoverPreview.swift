@@ -7,13 +7,17 @@ import SwiftUI
 @MainActor @Observable
 final class ClipboardHoverPreviewState {
   private(set) var item: ClipItem?
+  private(set) var tag = ""
   private(set) var content = ""
   private(set) var image: NSImage?
   private(set) var isLoading = true
   private(set) var isSizing = true
 
-  func begin(item: ClipItem, cachedContent: String? = nil, sizingComplete: Bool = false) {
+  func begin(
+    item: ClipItem, tag: String = "", cachedContent: String? = nil, sizingComplete: Bool = false
+  ) {
     self.item = item
+    self.tag = tag
     content = item.kind == .image ? "" : cachedContent ?? item.preview
     image = nil
     isLoading = item.kind == .image
@@ -119,14 +123,8 @@ struct ClipboardHoverPreview: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 10) {
-      if let item = state.item {
-        Text(
-          item.kind == .files
-            ? Strings.clipboardFileType
-            : item.kind == .image ? Strings.clipboardImageType : Strings.clipboardTextType
-        )
-        .font(.system(size: 11, weight: .medium))
-        .foregroundStyle(DesignTokens.textSecondary(scheme))
+      if state.item != nil {
+        ClipTagChip(tag: state.tag, scheme: scheme)
       }
       if state.isLoading && state.item?.kind == .image {
         Spacer(minLength: 0)

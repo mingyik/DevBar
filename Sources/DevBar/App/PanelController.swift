@@ -258,7 +258,9 @@ final class PanelController {
     let frame = clipboardPreviewFrame(width: width, height: height, visible: visible)
     let state = clipboardPreviewState ?? ClipboardHoverPreviewState()
     clipboardPreviewState = state
-    state.begin(item: item, cachedContent: cachedContent, sizingComplete: cachedHeight != nil)
+    state.begin(
+      item: item, tag: clipboard.tag(for: item), cachedContent: cachedContent,
+      sizingComplete: cachedHeight != nil)
     let previewContent = ClipboardHoverPreview(
       state: state, scheme: theme.effective, theme: theme,
       onHoverChange: { [weak self] inside in

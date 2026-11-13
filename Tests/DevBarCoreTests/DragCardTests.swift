@@ -16,8 +16,24 @@ import Testing
   #expect(DragCard.previewText("first line\nsecond line") == "first line\nsecond line")
   #expect(DragCard.previewText(String(repeating: "字", count: 400)).count == 321)
   #expect(DragCard.textSubtitle(characters: 120) == "120 字符")
-  #expect(DragCard.fileSubtitle(names: ["first.txt", "second.txt"]) == "first.txt 等 2 个文件")
-  #expect(DragCard.fileSubtitle(names: ["only.txt"]) == "only.txt")
+  #expect(DragCard.fileSubtitle(names: ["first.txt", "second.txt"]) == "2 个文件")
+  #expect(DragCard.fileSubtitle(names: ["only.txt"]) == "")
+}
+
+@Test func clipTagUsesFormatNotChineseKind() {
+  #expect(ClipTag.label(kind: .text, types: [], fileNames: [], text: "hello") == "TXT")
+  #expect(ClipTag.label(kind: .text, types: [], fileNames: [], text: " https://a.b/c ") == "URL")
+  #expect(ClipTag.label(kind: .text, types: [], fileNames: [], text: "https://a b") == "TXT")
+  #expect(
+    ClipTag.label(kind: .image, types: ["public.tiff", "public.png"], fileNames: [], text: "")
+      == "TIFF")
+  #expect(ClipTag.label(kind: .image, types: ["x.unknown"], fileNames: [], text: "") == "IMG")
+  #expect(ClipTag.label(kind: .files, types: [], fileNames: ["a.svg"], text: "") == "SVG")
+  #expect(
+    ClipTag.label(kind: .files, types: [], fileNames: ["a.svg", "b.SVG"], text: "") == "SVG ×2")
+  #expect(
+    ClipTag.label(kind: .files, types: [], fileNames: ["a.svg", "b.png"], text: "") == "FILE ×2")
+  #expect(ClipTag.label(kind: .files, types: [], fileNames: ["folder"], text: "") == "FILE")
 }
 
 @Test func dragCardBoundsMillionCharacterTitleBeforeDrawing() {

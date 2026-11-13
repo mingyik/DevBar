@@ -134,6 +134,7 @@ private struct ClipboardRow: View {
           subtitle: dragSubtitle,
           fileCount: fileNames.count,
           swatch: swatch,
+          tag: tag,
           scheme: scheme,
           onClick: { controller.select(index) },
           onDelete: { Task { await controller.remove(item.id) } },
@@ -151,8 +152,7 @@ private struct ClipboardRow: View {
         Image(systemName: "checkmark").font(.system(size: 11))
           .foregroundStyle(DesignTokens.textPrimary(scheme))
       }
-      Text(kindLabel).font(.system(size: 11))
-        .foregroundStyle(DesignTokens.textTertiary(scheme)).lineLimit(1)
+      ClipTagChip(tag: tag, scheme: scheme)
     }
     .padding(.horizontal, 8).frame(height: 56)
     .background {
@@ -189,8 +189,11 @@ private struct ClipboardRow: View {
       hovered = inside
       controller.setHovered(item.id, inside: inside && !dragging)
     }
+    .onAppear { if dragging { dragging = false } }
     .onDisappear { controller.setHovered(item.id, inside: false) }
   }
+
+  private var tag: String { controller.tag(for: item) }
 
   private var dragSource: String {
     payloads.first { $0.type == NSPasteboard.PasteboardType.string.rawValue }
@@ -217,12 +220,21 @@ private struct ClipboardRow: View {
     return NSColor(  // devbar:allow-color
       srgbRed: color.red, green: color.green, blue: color.blue, alpha: color.alpha)
   }
+}
 
-  private var kindLabel: String {
-    switch item.kind {
-    case .text: Strings.clipboardTextType
-    case .image: Strings.clipboardImageType
-    case .files: Strings.clipboardFileType
-    }
+/// Monochrome format tag (TXT / PNG / SVG ×4); Latin reads faster than 文本/图片 at 11pt.
+struct ClipTagChip: View {
+  let tag: String
+  let scheme: ColorScheme
+  var body: some View {
+    Text(tag)
+      .font(.system(size: 9, weight: .semibold, design: .monospaced))
+      .foregroundStyle(DesignTokens.textSecondary(scheme))
+      .lineLimit(1).fixedSize()
+      .padding(.horizontal, 4).frame(height: 15)
+      .overlay {
+        RoundedRectangle(cornerRadius: 3, style: .continuous)
+          .strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: 0.5)
+      }
   }
 }

@@ -42,8 +42,8 @@ public enum DragCard: Sendable {
 
   public static func textSubtitle(characters: Int) -> String { "\(characters) 字符" }
 
+  /// The title already shows the names; the subtitle only adds the count.
   public static func fileSubtitle(names: [String]) -> String {
-    guard let first = names.first else { return "" }
-    return names.count == 1 ? first : "\(first) 等 \(names.count) 个文件"
+    names.count > 1 ? "\(names.count) 个文件" : ""
   }
 }
