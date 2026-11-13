@@ -47,10 +47,16 @@ enum ShortcutActions {
       }
     }
     KeyboardShortcuts.onKeyUp(for: .captureRegion) {
-      Task { @MainActor in log("captureRegion") }
+      Task { @MainActor in
+        log("captureRegion")
+        panel.capture.start(scrolling: false)
+      }
     }
     KeyboardShortcuts.onKeyUp(for: .captureScroll) {
-      Task { @MainActor in log("captureScroll") }
+      Task { @MainActor in
+        log("captureScroll")
+        panel.capture.start(scrolling: true)
+      }
     }
   }
 

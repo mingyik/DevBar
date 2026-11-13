@@ -31,6 +31,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     statusItem.onPrimaryClick = { [weak self] in
       self?.panel.toggle(anchor: self?.statusItem.anchor)
     }
+    statusItem.onCaptureRegion = { [weak self] in self?.panel.capture.start(scrolling: false) }
+    statusItem.onCaptureScroll = { [weak self] in self?.panel.capture.start(scrolling: true) }
     statusItem.onSettings = { [weak self] in
       self?.panel.showSettings(anchor: self?.statusItem.anchor)
     }

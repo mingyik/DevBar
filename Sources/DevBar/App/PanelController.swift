@@ -6,6 +6,7 @@ import os
 
 @MainActor
 final class PanelController {
+  lazy var capture = CaptureCoordinator(panel: self)
   let model: PanelModel
   let theme: ThemeManager
   let panel: DevBarPanel

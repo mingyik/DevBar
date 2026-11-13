@@ -18,6 +18,7 @@ struct PanelView: View {
   @State private var pageDragLocation: CGPoint?
   @State private var pageDragOffset = CGSize.zero
   @GestureState private var pageDragActive = false
+  @State private var screenCaptureAllowed = CGPreflightScreenCaptureAccess()
   @State private var titleHovered = false
   @State private var titleShortcut: String?
 
@@ -220,6 +221,18 @@ struct PanelView: View {
           shortcut(Strings.shortcutOlder, .cycleOlder, scheme)
           directPasteAuthorization(scheme)
           settingsHeading(Strings.captureGroup, scheme: scheme).id("capture")
+          HStack {
+            VStack(alignment: .leading, spacing: 3) {
+              Text(Strings.capturePermission).font(.system(size: 13))
+              Text(screenCaptureAllowed ? Strings.captureAllowed : Strings.captureDenied)
+                .font(.system(size: 11)).foregroundStyle(DesignTokens.textSecondary(scheme))
+            }
+            Spacer(minLength: 12)
+            if !screenCaptureAllowed {
+              Button(Strings.openSystemSettings) { CaptureCoordinator.openScreenSettings() }
+                .font(.system(size: 11)).buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
+            }
+          }
           shortcut(Strings.shortcutCapture, .captureRegion, scheme)
           shortcut(Strings.shortcutLong, .captureScroll, scheme)
           settingsHeading(Strings.pageShortcuts, scheme: scheme).id("shortcuts")
@@ -307,7 +320,10 @@ struct PanelView: View {
         try? await Task.sleep(for: .milliseconds(80))
         proxy.scrollTo(model.settingsGroup, anchor: .top)
         while !Task.isCancelled {
-          if NSApp.isActive { clipboard.refreshDirectPasteAuthorization() }
+          if NSApp.isActive {
+            clipboard.refreshDirectPasteAuthorization()
+            screenCaptureAllowed = CGPreflightScreenCaptureAccess()
+          }
           try? await Task.sleep(for: .seconds(1))
         }
       }

@@ -6,6 +6,8 @@ final class StatusItemController: NSObject {
   var onPrimaryClick: (() -> Void)?
   var onSettings: (() -> Void)?
   var onAbout: (() -> Void)?
+  var onCaptureRegion: (() -> Void)?
+  var onCaptureScroll: (() -> Void)?
 
   override init() {
     item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -43,12 +45,12 @@ final class StatusItemController: NSObject {
   private func showMenu() {
     let menu = NSMenu()
     menu.autoenablesItems = false
-    for (title, symbol) in [
-      (Strings.shortcutCapture, "viewfinder"), (Strings.shortcutLong, "rectangle.stack"),
+    for (title, symbol, action) in [
+      (Strings.shortcutCapture, "viewfinder", #selector(captureRegion)),
+      (Strings.shortcutLong, "rectangle.stack", #selector(captureScroll)),
     ] {
-      let entry = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+      let entry = item(title, action: action)
       entry.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
-      entry.isEnabled = false
       menu.addItem(entry)
     }
     menu.addItem(.separator())
@@ -67,6 +69,9 @@ final class StatusItemController: NSObject {
     entry.target = self
     return entry
   }
+
+  @objc private func captureRegion() { onCaptureRegion?() }
+  @objc private func captureScroll() { onCaptureScroll?() }
 
   @objc private func openSettings() {
     onSettings?()
