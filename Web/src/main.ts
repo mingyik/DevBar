@@ -247,18 +247,3 @@ async function save(): Promise<void> {
 export function activePage(): string {
   return current;
 }
-
-if (typeof document !== "undefined") {
-  document.addEventListener("keydown", (event) => {
-    if (
-      event.metaKey &&
-      event.key.toLowerCase() === "e" &&
-      (current === "json" || current === "qr" || current === "doc")
-    ) {
-      event.preventDefault();
-      void (
-        current === "json" ? json : current === "qr" ? qr : doc
-      ).togglePreview();
-    }
-  });
-}

@@ -159,7 +159,7 @@ import Testing
   #expect(calls == 1)
 }
 
-@MainActor @Test func shiftCommandPDispatchesDocumentModeInsteadOfPageCycle() throws {
+@MainActor @Test func commandEDispatchesModeToggleInsteadOfPageCycle() throws {
   let panel = DevBarPanel()
   var modeCalls = 0
   var cycleCalls = 0
@@ -168,12 +168,20 @@ import Testing
     return true
   }
   panel.onCyclePage = { _ in cycleCalls += 1 }
-  let event = try #require(
+  let shiftP = try #require(
     NSEvent.keyEvent(
       with: .keyDown, location: .zero, modifierFlags: [.command, .shift], timestamp: 0,
       windowNumber: 0, context: nil, characters: "P", charactersIgnoringModifiers: "p",
       isARepeat: false, keyCode: 35))
-  #expect(panel.performKeyEquivalent(with: event))
+  #expect(!panel.performKeyEquivalent(with: shiftP))
+  #expect(modeCalls == 0)
+
+  let cmdE = try #require(
+    NSEvent.keyEvent(
+      with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
+      windowNumber: 0, context: nil, characters: "e", charactersIgnoringModifiers: "e",
+      isARepeat: false, keyCode: 14))
+  #expect(panel.performKeyEquivalent(with: cmdE))
   #expect(modeCalls == 1)
   #expect(cycleCalls == 0)
 }
@@ -222,7 +230,7 @@ import Testing
   #expect(model.cyclingPages == model.pageOrder)
 }
 
-@MainActor @Test func shiftCommandPTogglesBothDocAndQRPagesWithoutTouchingClipboard() async throws {
+@MainActor @Test func commandETogglesBothDocAndQRPagesAndSkipsJsonTree() async throws {
   #expect(PanelController.supportsModeToggle(.doc))
   #expect(PanelController.supportsModeToggle(.qr))
   #expect(!PanelController.supportsModeToggle(.json))

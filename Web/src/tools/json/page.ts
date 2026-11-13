@@ -106,7 +106,6 @@ export class JsonPage {
     this.wholeURL = state.wholeURL === true;
     this.shell.restore(state);
     await this.analyze();
-    if (state.view === "preview") await this.togglePreview();
   }
   private changed(): void {
     this.codecErrors = false;

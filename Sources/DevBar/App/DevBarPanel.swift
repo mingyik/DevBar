@@ -67,7 +67,7 @@ final class DevBarPanel: NSPanel {
       return true
     }
     let flags = event.modifierFlags.intersection([.command, .shift, .control, .option])
-    if flags == [.command, .shift], event.charactersIgnoringModifiers?.lowercased() == "p" {
+    if flags == .command, event.charactersIgnoringModifiers?.lowercased() == "e" {
       return onDocumentMode?() ?? false
     }
     if flags == .command,
