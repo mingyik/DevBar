@@ -39,3 +39,23 @@ import Testing
   save.performClick(nil)
   #expect(completed)
 }
+
+@MainActor @Test func liveSelectionRedrawDoesNotAccumulateMask() throws {
+  let view = SelectionView(frame: NSRect(x: 0, y: 0, width: 20, height: 20))
+  let bitmap = try #require(
+    NSBitmapImageRep(
+      bitmapDataPlanes: nil, pixelsWide: 20, pixelsHigh: 20,
+      bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+      colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+  let context = try #require(NSGraphicsContext(bitmapImageRep: bitmap))
+  NSGraphicsContext.saveGraphicsState()
+  defer { NSGraphicsContext.restoreGraphicsState() }
+  NSGraphicsContext.current = context
+  view.draw(view.bounds)
+  let first = Data(
+    bytes: try #require(bitmap.bitmapData), count: bitmap.bytesPerRow * bitmap.pixelsHigh)
+  view.draw(view.bounds)
+  let second = Data(
+    bytes: try #require(bitmap.bitmapData), count: bitmap.bytesPerRow * bitmap.pixelsHigh)
+  #expect(first == second)
+}

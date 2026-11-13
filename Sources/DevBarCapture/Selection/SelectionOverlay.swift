@@ -11,6 +11,8 @@ public final class SelectionOverlay {
   private var panels: [NSPanel] = []
   private var frozenFrames: [CGDirectDisplayID: CGImage] = [:]
   public private(set) var scrollingRequested = false
+  public private(set) var saveRequested = false
+  public private(set) var completionRequested = false
   private var renderedFrame: CGImage?
   private var preparing = false
   private var continuation: CheckedContinuation<CaptureRegion, any Error>?
@@ -82,6 +84,8 @@ public final class SelectionOverlay {
           view.scale = screen.backingScaleFactor
           view.complete = { [weak self, weak view] result in
             self?.scrollingRequested = view?.scrollingRequested ?? false
+            self?.saveRequested = view?.saveRequested ?? false
+            self?.completionRequested = view?.completionRequested ?? false
             self?.renderedFrame = view?.exportFrame()
             self?.finish(result)
           }
@@ -133,6 +137,8 @@ final class SelectionView: NSView {
   private var anchor: CGPoint?
   private var selection = CGRect.zero
   var scrollingRequested = false
+  var saveRequested = false
+  var completionRequested = false
   private var tool = "select"
   private var marks: [(String, NSBezierPath)] = []
   private var draft: NSBezierPath?
@@ -215,7 +221,12 @@ final class SelectionView: NSView {
       ("square.grid.3x3", "mosaic"), ("highlighter", "highlight"), ("arrow.uturn.backward", "undo"),
       ("rectangle.stack", "scroll"), ("arrow.down.to.line", "save"), ("xmark", "cancel"),
     ]
-    if frozenFrame == nil { tools = [("play.fill", "scroll"), ("xmark", "cancel")] }
+    if frozenFrame == nil {
+      tools = [
+        ("play.fill", "scroll"), ("arrow.down.to.line", "save"), ("xmark", "cancel"),
+        ("checkmark", "confirm"),
+      ]
+    }
     let width = CGFloat(tools.count * 44 + 24)
     let x = min(max(selection.maxX - width, 8), bounds.maxX - width - 8)
     let y = selection.minY > 64 ? selection.minY - 60 : min(selection.maxY + 10, bounds.maxY - 54)
@@ -238,7 +249,13 @@ final class SelectionView: NSView {
   @objc private func toolClicked(_ sender: NSButton) {
     for field in subviews.compactMap({ $0 as? NSTextField }) { commitText(field) }
     switch sender.identifier?.rawValue {
-    case "save": confirm()
+    case "save":
+      saveRequested = true
+      confirm()
+    case "confirm":
+      completionRequested = true
+      scrollingRequested = true
+      confirm()
     case "cancel": complete?(.failure(CaptureError.cancelled))
     case "scroll":
       scrollingRequested = true
@@ -255,6 +272,7 @@ final class SelectionView: NSView {
   override var acceptsFirstResponder: Bool { true }
 
   override func draw(_ dirtyRect: NSRect) {
+    NSGraphicsContext.current?.cgContext.clear(bounds)
     if let frame = frozenFrame {
       NSImage(cgImage: frame, size: bounds.size).draw(in: bounds)
     }

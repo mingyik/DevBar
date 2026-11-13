@@ -1,5 +1,6 @@
 import AppKit
 import DevBarCapture
+import DevBarCore
 import Observation
 import SwiftUI
 
@@ -10,6 +11,8 @@ private final class CaptureHUDState {
   var message = ""
   var path: URL?
   var finish: (() -> Void)?
+  var save: (() -> Void)?
+  var saveToDisk = false
   var cancel: (() -> Void)?
 }
 
@@ -68,6 +71,12 @@ private final class CaptureHUDState {
           }
           let finish = ScreenshotScrollingCapture.FinishSignal()
           self.showProgress(region: region, finish: finish)
+          if selection.saveRequested {
+            self.state.saveToDisk = true
+            finish.request()
+          } else if selection.completionRequested {
+            finish.request()
+          }
           let result = await ScreenshotScrollingCapture.capture(
             region: region, finishSignal: finish
           ) {
@@ -97,6 +106,20 @@ private final class CaptureHUDState {
           image = selected.1
         }
         try Task.checkCancellation()
+        if scrolling && !self.state.saveToDisk {
+          let data = try await Task.detached { try CaptureFileWriter.encode(image) }.value
+          let copied = PasteboardBridge.writePNG(data, file: nil)
+          if copied {
+            self.panel.clipboard.monitor.markSelfWrite(NSPasteboard.general.changeCount)
+            if let capture = ClipboardCapture(payloads: [
+              ClipboardPayload(type: NSPasteboard.PasteboardType.png.rawValue, data: data)
+            ]) {
+              await self.panel.clipboard.record(capture, source: nil, allowOversizedImage: true)
+            }
+          }
+          self.showNotice(copied ? Strings.captureCopied : Strings.captureFailed, path: nil)
+          return
+        }
         let directory = URL(fileURLWithPath: self.panel.storage.capturePath, isDirectory: true)
         let result = try await Task.detached(priority: .userInitiated) {
           try CaptureFileWriter.save(image, directory: directory, scrolling: scrolling)
@@ -119,7 +142,12 @@ private final class CaptureHUDState {
     state.unmatched = false
     state.message = ""
     state.path = nil
+    state.saveToDisk = false
     state.finish = { finish.request() }
+    state.save = { [weak self] in
+      self?.state.saveToDisk = true
+      finish.request()
+    }
     state.cancel = { [weak self] in
       self?.task?.cancel()
       self?.hud?.orderOut(nil)
@@ -141,6 +169,7 @@ private final class CaptureHUDState {
     state.unmatched = false
     state.path = path
     state.finish = nil
+    state.save = nil
     state.cancel = nil
     showHUD(displayID: nil)
     noticeTask?.cancel()
@@ -195,8 +224,12 @@ private struct CaptureHUD: View {
           .font(.system(size: 12)).lineLimit(1)
         Spacer(minLength: 4)
         if let finish = state.finish, let cancel = state.cancel {
-          Button(Strings.captureFinish, action: finish)
-          Button(Strings.captureCancel, action: cancel)
+          if let save = state.save {
+            Button(action: save) { Image(systemName: "arrow.down.to.line") }.help(
+              Strings.captureSave)
+          }
+          Button(action: cancel) { Image(systemName: "xmark") }.help(Strings.captureCancel)
+          Button(action: finish) { Image(systemName: "checkmark") }.help(Strings.captureFinish)
         } else if let path = state.path {
           Button(Strings.captureReveal) { NSWorkspace.shared.activateFileViewerSelecting([path]) }
         }

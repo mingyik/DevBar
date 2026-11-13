@@ -95,6 +95,8 @@ enum Strings {
   static let capturePermissionSettings = "打开系统设置"
   static let captureCancel = "取消"
   static let captureFinish = "完成"
+  static let captureCopied = "已复制到剪贴板"
+  static let captureSave = "保存"
   static let captureSaved = "已保存"
   static let captureReveal = "在 Finder 中显示"
   static let capturePartial = "从这里开始无法对齐，已保留前面的部分"
