@@ -93,7 +93,7 @@ final class PanelController {
       dismiss()
     }
     panel.onDocumentMode = { [weak self] in
-      guard let self, self.model.page == .doc else { return false }
+      guard let self, Self.supportsModeToggle(self.model.page) else { return false }
       self.webHost.toggleDocumentMode()
       return true
     }
@@ -130,6 +130,10 @@ final class PanelController {
     previousPage = model.page
     clipboard.releaseVisualCaches()
     watchSize()
+  }
+
+  static func supportsModeToggle(_ page: PanelModel.Page) -> Bool {
+    page == .doc || page == .qr
   }
 
   func toggle(anchor: CGRect?) {

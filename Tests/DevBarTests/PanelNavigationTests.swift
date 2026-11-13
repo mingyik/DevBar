@@ -221,3 +221,65 @@ import Testing
   #expect(model.pageOrder == [.doc, .clipboard, .json, .qr])
   #expect(model.cyclingPages == model.pageOrder)
 }
+
+@MainActor @Test func shiftCommandPTogglesBothDocAndQRPagesWithoutTouchingClipboard() async throws {
+  #expect(PanelController.supportsModeToggle(.doc))
+  #expect(PanelController.supportsModeToggle(.qr))
+  #expect(!PanelController.supportsModeToggle(.json))
+  #expect(!PanelController.supportsModeToggle(.clipboard))
+  #expect(!PanelController.supportsModeToggle(.settings))
+
+  _ = NSApplication.shared
+  let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: root) }
+  try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+  let webDist = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .appending(path: "Web/dist")
+  let host = WebHost(
+    theme: ThemeManager(defaults: UserDefaults(suiteName: "devbar.mode.\(UUID())")!),
+    webRoot: webDist, store: ScreenStateStore(directory: root, inMemory: true))
+  host.setPanelVisible(true)
+
+  for _ in 0..<200 {
+    if (try? await host.webView.evaluateJavaScript("!!window.__devbar")) as? Bool == true { break }
+    try? await Task.sleep(for: .milliseconds(50))
+  }
+  host.showScreen("qr")
+  host.importFile(text: "DevBar QR", name: "qr.txt", document: false)
+  for _ in 0..<100 {
+    if (try? await host.webView.evaluateJavaScript(
+      "document.querySelector('#qr .cm-content')?.cmTile?.root?.view?.state.doc.toString() === 'DevBar QR'"
+    )) as? Bool == true {
+      break
+    }
+    try? await Task.sleep(for: .milliseconds(50))
+  }
+  host.toggleDocumentMode()
+  var qrPreviewed = false
+  for _ in 0..<100 {
+    if (try? await host.webView.evaluateJavaScript(
+      "document.querySelector('#qr .preview')?.hidden === false"
+    )) as? Bool == true {
+      qrPreviewed = true
+      break
+    }
+    try? await Task.sleep(for: .milliseconds(50))
+  }
+  #expect(qrPreviewed)
+
+  host.toggleDocumentMode()
+  var qrReturnedToEdit = false
+  for _ in 0..<100 {
+    if (try? await host.webView.evaluateJavaScript(
+      "document.querySelector('#qr .preview')?.hidden === true"
+    )) as? Bool == true {
+      qrReturnedToEdit = true
+      break
+    }
+    try? await Task.sleep(for: .milliseconds(50))
+  }
+  #expect(qrReturnedToEdit)
+}
