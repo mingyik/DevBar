@@ -284,12 +284,12 @@ struct ClipboardDragView: NSViewRepresentable {
     let bounds = NSRect(x: pad, y: pad, width: card.width, height: card.height)
     let path = NSBezierPath(roundedRect: bounds, xRadius: 10, yRadius: 10)
     let shadow = NSShadow()
-    shadow.shadowOffset = glass ? .zero : NSSize(width: 0, height: -1)
+    shadow.shadowOffset = NSSize(width: 0, height: -1)
     shadow.shadowBlurRadius = 6
     shadow.shadowColor =
       deleteHover
       ? NSColor.systemRed.withAlphaComponent(0.65)  // devbar:allow-color
-      : NSColor(DesignTokens.textPrimary(scheme)).withAlphaComponent(glass ? 0.07 : 0.18)
+      : NSColor(DesignTokens.textPrimary(scheme)).withAlphaComponent(0.18)
     if deleteHover { shadow.shadowBlurRadius = 12 }
     shadow.set()
     if !glass {
@@ -300,13 +300,14 @@ struct ClipboardDragView: NSViewRepresentable {
     }
     NSShadow().set()
     path.lineWidth = 0.5
-    if deleteHover {
-
+    if glass {
+      NSColor(DesignTokens.lineBorder(scheme)).setStroke()
+    } else if deleteHover {
       NSColor.systemRed.setStroke()  // devbar:allow-color
     } else {
       NSColor(Color.blue).setStroke()  // devbar:allow-color
     }
-    if !glass { path.stroke() }
+    path.stroke()
     var textX = bounds.minX + 12
     if let swatch {
       let chip = NSRect(x: textX, y: bounds.midY - 8, width: 16, height: 16)
