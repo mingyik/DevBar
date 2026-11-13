@@ -209,7 +209,8 @@ final class SelectionView: NSView {
   private func showToolbar() {
     toolbar?.removeFromSuperview()
     let bar = NSVisualEffectView()
-    bar.material = .popover
+    bar.material = .hudWindow
+    bar.blendingMode = .withinWindow
     bar.state = .active
     bar.wantsLayer = true
     bar.layer?.cornerRadius = 10
@@ -227,19 +228,34 @@ final class SelectionView: NSView {
         ("checkmark", "confirm"),
       ]
     }
-    let width = CGFloat(tools.count * 44 + 24)
+    let breaks: Set<Int> = frozenFrame == nil ? [1] : [1, 8, 10]
+    let width = CGFloat(tools.count * 44 + 24 + breaks.count * 12)
     let x = min(max(selection.maxX - width, 8), bounds.maxX - width - 8)
     let y = selection.minY > 64 ? selection.minY - 60 : min(selection.maxY + 10, bounds.maxY - 54)
     bar.frame = NSRect(x: x, y: y, width: width, height: 50)
+    var offset: CGFloat = 12
     for (index, entry) in tools.enumerated() {
+      if breaks.contains(index) {
+        let separator = NSBox(frame: NSRect(x: offset + 5, y: 13, width: 1, height: 24))
+        separator.boxType = .separator
+        bar.addSubview(separator)
+        offset += 12
+      }
       let button = NSButton(
         image: NSImage(systemSymbolName: entry.0, accessibilityDescription: entry.1)!, target: self,
         action: #selector(toolClicked(_:)))
       button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .medium)
-      button.contentTintColor = .labelColor
+      let selected = entry.1 == tool
+      button.contentTintColor = selected ? .systemBlue : .labelColor  // devbar:allow-color
+      button.wantsLayer = true
+      button.layer?.cornerRadius = 7
+      button.layer?.backgroundColor =
+        selected ? NSColor.labelColor.withAlphaComponent(0.12).cgColor : nil
+      button.setAccessibilityValue(selected ? "1" : "0")
       button.identifier = NSUserInterfaceItemIdentifier(entry.1)
       button.isBordered = false
-      button.frame = NSRect(x: 12 + index * 44, y: 5, width: 42, height: 40)
+      button.frame = NSRect(x: offset, y: 5, width: 42, height: 40)
+      offset += 44
       bar.addSubview(button)
     }
     addSubview(bar)
@@ -265,7 +281,9 @@ final class SelectionView: NSView {
         if kind == "text" { texts.removeLast() } else { marks.removeLast() }
       }
       needsDisplay = true
-    case let value?: tool = value
+    case let value?:
+      tool = value
+      showToolbar()
     default: break
     }
   }
