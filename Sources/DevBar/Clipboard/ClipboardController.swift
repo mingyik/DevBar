@@ -7,7 +7,7 @@ import Synchronization
 
 @MainActor @Observable
 final class ClipboardController {
-  private static let directPastePromptKey = "directPasteAccessibilityPromptRequested"
+  private var authorizationPrompt: DirectPasteAuthorizationPrompt?
   let monitor: ClipboardMonitor
   let card: ClipboardCard
   private(set) var historyLimit: Int
@@ -312,17 +312,14 @@ final class ClipboardController {
         targetIsFinder: targetIsFinder
       ))
     if action == .authorizationRequired {
-      card.showAuthorizationNotice(
-        title: Strings.directPasteCopiedNotice, subtitle: Strings.directPasteAuthorizationHint)
-      if DirectPastePromptPolicy.shouldRequest(
-        isTrusted: isTrusted,
-        wasRequested: defaults.bool(forKey: Self.directPastePromptKey))
-      {
-        defaults.set(true, forKey: Self.directPastePromptKey)
-        let options =
-          [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
+      card.dismiss()
+      if authorizationPrompt == nil {
+        authorizationPrompt = DirectPasteAuthorizationPrompt(
+          defaults: defaults, beforeFallback: { [weak self] in self?.card.dismiss() },
+          didAuthorize: { [weak self] in self?.refreshDirectPasteAuthorization() },
+          openSettings: { [weak self] in self?.openAccessibilitySettings() })
       }
+      authorizationPrompt?.request()
       return
     }
     guard action != .none,

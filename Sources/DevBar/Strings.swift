@@ -90,6 +90,10 @@ enum Strings {
   static let directPasteUnauthorized = "未授权"
   static let directPasteCopiedNotice = "已复制，可按 ⌘V 粘贴"
   static let directPasteAuthorizationHint = "授权辅助功能后可直接粘贴"
+  static let directPastePermissionTitle = "需要辅助功能权限"
+  static let directPastePermissionBody =
+    "请在系统设置 → 隐私与安全性 → 辅助功能中允许 DevBar，才能按 Enter 直接粘贴。内容已复制，仍可手动按 ⌘V 粘贴。授权后请重新选择并按 Enter。"
+  static let directPastePermissionLater = "暂不授权"
   static let capturePermissionTitle = "需要屏幕采集权限"
   static let capturePermissionBody = "请在系统设置的“隐私与安全性”中允许 DevBar 进行屏幕与系统音频录制。"
   static let capturePermissionSettings = "打开系统设置"
