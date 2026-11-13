@@ -144,3 +144,13 @@ import Testing
   #expect(frame.midX == screen.midX)
   #expect(frame.midY == screen.midY)
 }
+
+@Test @MainActor func clipboardCardPanelStaysVisibleAcrossInactiveFullScreenSpaces() {
+  _ = NSApplication.shared
+  let card = ClipboardCard(theme: ThemeManager())
+  #expect(card.panel.level == .popUpMenu)
+  #expect(!card.panel.hidesOnDeactivate)
+  #expect(
+    card.panel.collectionBehavior.contains([.canJoinAllSpaces, .fullScreenAuxiliary, .transient]))
+  #expect(!card.panel.collectionBehavior.contains(.stationary))
+}

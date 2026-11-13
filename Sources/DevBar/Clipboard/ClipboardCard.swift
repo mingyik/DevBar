@@ -20,9 +20,10 @@ import SwiftUI
   private(set) var lastShowMilliseconds = 0.0
   init(theme: ThemeManager) {
     self.theme = theme
-    panel.level = .statusBar
+    panel.level = .popUpMenu
+    panel.hidesOnDeactivate = false
     panel.ignoresMouseEvents = true
-    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
     panel.backgroundColor = .clear
     panel.isOpaque = false
     panel.hasShadow = false
