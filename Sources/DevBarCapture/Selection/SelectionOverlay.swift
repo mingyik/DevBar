@@ -148,6 +148,8 @@ final class SelectionView: NSView {
   private var mosaicFrame: CGImage?
   private var texts: [(String, CGPoint)] = []
   private var undoKinds: [String] = []
+  private var selectedMark: Int?
+  private var selectedText: Int?
 
   func exportFrame() -> CGImage? {
     guard let frozenFrame else { return nil }
@@ -204,6 +206,59 @@ final class SelectionView: NSView {
     draft?.lineWidth = 3
     draft?.stroke()
     NSGraphicsContext.restoreGraphicsState()
+  }
+
+  private func drawObjectSelection() {
+    var points: [CGPoint] = []
+    var box: CGRect?
+    if let draft, tool == "rect" || tool == "ellipse" {
+      points = objectHandles(draft.bounds)
+    } else if let index = selectedMark, marks.indices.contains(index) {
+      let (kind, path) = marks[index]
+      if kind == "arrow", path.elementCount >= 2 {
+        var first = [NSPoint](repeating: .zero, count: 3)
+        var last = first
+        _ = path.element(at: 0, associatedPoints: &first)
+        _ = path.element(at: 1, associatedPoints: &last)
+        points = [first[0], last[0]]
+      } else if kind == "rect" || kind == "ellipse" {
+        points = objectHandles(path.bounds)
+      } else {
+        box = path.bounds.insetBy(dx: -5, dy: -5)
+      }
+    } else if let index = selectedText, texts.indices.contains(index) {
+      box = textBounds(index).insetBy(dx: -6, dy: -4)
+    }
+    NSColor.systemBlue.setStroke()  // devbar:allow-color
+    if let box {
+      let path = NSBezierPath(roundedRect: box, xRadius: 4, yRadius: 4)
+      path.lineWidth = 2
+      path.stroke()
+    }
+    for point in points {
+      let dot = NSBezierPath(
+        ovalIn: NSRect(x: point.x - 3.5, y: point.y - 3.5, width: 7, height: 7))
+      NSColor.systemBlue.setFill()  // devbar:allow-color
+      dot.fill()
+      NSColor.white.setStroke()  // devbar:allow-color
+      dot.lineWidth = 1
+      dot.stroke()
+    }
+  }
+
+  private func objectHandles(_ rect: CGRect) -> [CGPoint] {
+    [
+      CGPoint(x: rect.minX, y: rect.minY), CGPoint(x: rect.midX, y: rect.minY),
+      CGPoint(x: rect.maxX, y: rect.minY), CGPoint(x: rect.maxX, y: rect.midY),
+      CGPoint(x: rect.maxX, y: rect.maxY), CGPoint(x: rect.midX, y: rect.maxY),
+      CGPoint(x: rect.minX, y: rect.maxY), CGPoint(x: rect.minX, y: rect.midY),
+    ]
+  }
+
+  private func textBounds(_ index: Int) -> CGRect {
+    CGRect(
+      origin: texts[index].1,
+      size: texts[index].0.size(withAttributes: [.font: NSFont.systemFont(ofSize: 18)]))
   }
 
   private func showToolbar() {
@@ -287,6 +342,8 @@ final class SelectionView: NSView {
       scrollingRequested = true
       confirm()
     case "undo":
+      selectedMark = nil
+      selectedText = nil
       if let kind = undoKinds.popLast() {
         if kind == "text" { texts.removeLast() } else { marks.removeLast() }
       }
@@ -321,6 +378,7 @@ final class SelectionView: NSView {
       outline.lineWidth = 3
       outline.stroke()
       drawMarks()
+      drawObjectSelection()
       for point in handles {
         let dot = NSBezierPath(ovalIn: NSRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8))
         NSColor.systemBlue.setFill()  // devbar:allow-color
@@ -358,10 +416,37 @@ final class SelectionView: NSView {
     window?.makeFirstResponder(self)
     let point = convert(event.locationInWindow, from: nil)
     anchor = point
+    selectedMark = nil
+    selectedText = nil
+    if tool == "select" && selection.contains(point) {
+      if let index = texts.indices.reversed().first(where: {
+        textBounds($0).insetBy(dx: -6, dy: -4).contains(point)
+      }) {
+        selectedText = index
+        anchor = nil
+        needsDisplay = true
+        return
+      }
+      if let index = marks.indices.reversed().first(where: {
+        marks[$0].1.bounds.insetBy(dx: -6, dy: -6).contains(point)
+      }) {
+        selectedMark = index
+        anchor = nil
+        needsDisplay = true
+        return
+      }
+    }
     if tool == "text" && selection.contains(point) {
       let field = NSTextField(string: "")
       field.frame = NSRect(
         x: point.x, y: point.y, width: min(200, selection.maxX - point.x), height: 26)
+      field.isBordered = false
+      field.drawsBackground = false
+      field.font = .systemFont(ofSize: 18)
+      field.wantsLayer = true
+      field.layer?.cornerRadius = 4
+      field.layer?.borderWidth = 2
+      field.layer?.borderColor = NSColor.systemBlue.cgColor  // devbar:allow-color
       field.target = self
       field.action = #selector(commitText(_:))
       addSubview(field)
@@ -382,6 +467,7 @@ final class SelectionView: NSView {
     if !field.stringValue.isEmpty {
       texts.append((field.stringValue, field.frame.origin))
       undoKinds.append("text")
+      selectedText = texts.count - 1
     }
     field.removeFromSuperview()
     needsDisplay = true
@@ -446,12 +532,14 @@ final class SelectionView: NSView {
     if let draft {
       marks.append((tool, draft))
       undoKinds.append("mark")
+      selectedMark = marks.count - 1
       self.draft = nil
     }
     anchor = nil
     moveOrigin = nil
     resizeHandle = nil
     if !selection.isEmpty { showToolbar() }
+    needsDisplay = true
   }
 
   override func keyDown(with event: NSEvent) {
