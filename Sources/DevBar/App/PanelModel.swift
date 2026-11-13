@@ -49,12 +49,8 @@ final class PanelModel {
   private(set) var settingsGroup = "general"
   var autoImport: Bool { didSet { defaults.set(autoImport, forKey: Self.autoImportKey) } }
   var pinned = false
-  private var jsonEnlarged: Bool {
-    didSet { defaults.set(jsonEnlarged, forKey: "enlarged.json") }
-  }
-  private var docEnlarged: Bool {
-    didSet { defaults.set(docEnlarged, forKey: "enlarged.doc") }
-  }
+  private var jsonEnlarged = false
+  private var docEnlarged = false
   var enlarged: Bool {
     get { page == .json ? jsonEnlarged : page == .doc ? docEnlarged : false }
     set {
@@ -104,8 +100,6 @@ final class PanelModel {
     let stored: Page = raw == "encode" ? .json : Page(rawValue: raw) ?? .clipboard
     if raw == "encode" { defaults.set("json", forKey: "lastContentPage") }
     page = stored == .settings ? .clipboard : stored
-    jsonEnlarged = defaults.bool(forKey: "enlarged.json")
-    docEnlarged = defaults.bool(forKey: "enlarged.doc")
   }
 
   func enterSettings() {
