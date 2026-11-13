@@ -49,10 +49,17 @@ private final class CaptureHUDState {
       defer { self.task = nil }
       do {
         let selection = SelectionOverlay(appearanceName: self.panel.theme.appearance()?.name)
+        let selected = scrolling ? nil : try await selection.selectImage()
+        let scrolling = scrolling || selection.scrollingRequested
         let image: CGImage
         var completionMessage = Strings.captureSaved
         if scrolling {
-          let region = try await selection.select(freeze: false)
+          let region: CaptureRegion
+          if let selected {
+            region = selected.0
+          } else {
+            region = try await selection.select(freeze: false)
+          }
           let finish = ScreenshotScrollingCapture.FinishSignal()
           self.showProgress(region: region, finish: finish)
           let result = await ScreenshotScrollingCapture.capture(
@@ -80,21 +87,15 @@ private final class CaptureHUDState {
             return
           }
         } else {
-          (_, image) = try await selection.selectImage()
+          guard let selected else { return }
+          image = selected.1
         }
         try Task.checkCancellation()
         let directory = URL(fileURLWithPath: self.panel.storage.capturePath, isDirectory: true)
         let result = try await Task.detached(priority: .userInitiated) {
           try CaptureFileWriter.save(image, directory: directory, scrolling: scrolling)
         }.value
-        let copied = PasteboardBridge.writePNG(result.1, file: result.0)
-        if copied {
-          self.panel.clipboard.monitor.markSelfWrite(NSPasteboard.general.changeCount)
-          if let capture = ClipboardCapture(screenshotPNG: result.1, file: result.0) {
-            await self.panel.clipboard.record(capture, source: nil, allowOversizedImage: true)
-          }
-        }
-        self.showNotice(copied ? completionMessage : Strings.captureCopyFailed, path: result.0)
+        self.showNotice(completionMessage, path: result.0)
       } catch is CancellationError {
         self.hud?.orderOut(nil)
       } catch CaptureError.cancelled {
