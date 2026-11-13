@@ -194,9 +194,9 @@ final class SelectionView: NSView {
     return bitmap.cgImage
   }
 
-  private func drawMarks() {
+  private func drawMarks(clipped: Bool = true) {
     NSGraphicsContext.saveGraphicsState()
-    NSBezierPath(rect: selection).addClip()
+    if clipped { NSBezierPath(rect: selection).addClip() }
     NSColor.labelColor.setStroke()
     let displayed =
       marks
@@ -522,6 +522,7 @@ final class SelectionView: NSView {
     if let frame = frozenFrame {
       NSImage(cgImage: frame, size: bounds.size).draw(in: bounds)
     }
+    drawMarks(clipped: false)
     NSColor.black.withAlphaComponent(0.4).setFill()  // devbar:allow-color
     bounds.fill()
     if !selection.isEmpty {
@@ -725,22 +726,10 @@ final class SelectionView: NSView {
         selection = CGRect(x: left, y: bottom, width: right - left, height: top - bottom)
           .intersection(bounds)
       } else {
-        let previousOrigin = selection.origin
         selection.origin = CGPoint(
           x: min(max(original.minX + point.x - anchor.x, 0), bounds.width - original.width),
           y: min(max(original.minY + point.y - anchor.y, 0), bounds.height - original.height))
-        let dx = selection.minX - previousOrigin.x
-        let dy = selection.minY - previousOrigin.y
-        let transform = AffineTransform(translationByX: dx, byY: dy)
-        for index in marks.indices { marks[index].1.transform(using: transform) }
-        for index in texts.indices {
-          texts[index].1.x += dx
-          texts[index].1.y += dy
-        }
-        for field in subviews.compactMap({ $0 as? NSTextField }) {
-          field.frame.origin.x += dx
-          field.frame.origin.y += dy
-        }
+
       }
     } else {
       selection = CGRect(
