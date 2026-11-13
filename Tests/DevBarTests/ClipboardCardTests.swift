@@ -5,6 +5,42 @@ import Testing
 
 @testable import DevBar
 
+@Test @MainActor func clipboardCardClosesWhenFocusMovesToAnotherApplication() async {
+  _ = NSApplication.shared
+  var process: pid_t? = 1001
+  let card = ClipboardCard(
+    theme: ThemeManager(), focusedProcess: { process }, caretBounds: { _ in nil })
+  card.show(
+    index: 0, count: 2, title: "测试", subtitle: "", thumbnail: nil, swatch: nil,
+    fileCount: 0, boundary: false, target: 1001)
+  process = 1002
+  await card.refreshLocation()
+  #expect(!card.panel.isVisible)
+  #expect(!card.temporaryKeys.isRegistered)
+}
+
+@Test @MainActor func clipboardCardFollowsChangedCaretWhileAlreadyVisible() async {
+  _ = NSApplication.shared
+  guard let screen = NSScreen.screens.first else { return }
+  var bounds = CGRect(x: screen.frame.midX, y: 200, width: 1, height: 20)
+  let card = ClipboardCard(
+    theme: ThemeManager(), focusedProcess: { 1001 }, caretBounds: { _ in bounds })
+  card.show(
+    index: 0, count: 2, title: "测试", subtitle: "", thumbnail: nil, swatch: nil,
+    fileCount: 0, boundary: false, target: 1001)
+  await card.refreshLocation()
+  let oldFrame = card.panel.frame
+  bounds.origin.y += 160
+  await card.refreshLocation()
+  #expect(abs(card.panel.frame.minY - oldFrame.minY) > 100)
+  card.dismiss()
+  let closedFrame = card.panel.frame
+  bounds.origin.y += 80
+  await card.refreshLocation()
+  #expect(card.panel.frame == closedFrame)
+  #expect(!card.panel.isVisible)
+}
+
 @Test @MainActor func clipboardCardEnterConfirmsOnceAfterClosing() {
   _ = NSApplication.shared
   let card = ClipboardCard(theme: ThemeManager())
