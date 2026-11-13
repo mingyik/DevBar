@@ -248,44 +248,35 @@ struct ClipboardDragView: NSViewRepresentable {
 
 @MainActor enum DragCardImage {
   static func make(
-    _ content: ClipCardContent, scheme: ColorScheme, counter: (index: Int, total: Int)? = nil,
-    glass: Bool = false, deleteHover: Bool = false
+    _ content: ClipCardContent, scheme: ColorScheme, glass: Bool = false,
+    deleteHover: Bool = false
   ) -> (image: NSImage, hotspot: NSPoint) {
     make(
       title: content.title, subtitle: content.subtitle, fileCount: content.stack,
-      thumbnail: content.icon, swatch: content.swatch, scheme: scheme, counter: counter,
-      glass: glass, deleteHover: deleteHover, footer: content.note,
-      multilineContent: content.multiline, tag: content.tag)
+      thumbnail: content.icon, swatch: content.swatch, scheme: scheme, glass: glass,
+      deleteHover: deleteHover, footer: content.note, multilineContent: content.multiline,
+      tag: content.tag)
   }
   static func make(
     title: String, subtitle: String, fileCount: Int, thumbnail: NSImage?, swatch: NSColor?,
-    scheme: ColorScheme, counter: (index: Int, total: Int)? = nil, glass: Bool = false,
-    deleteHover: Bool = false, footer: String? = nil, multilineContent: Bool = false,
-    tag: String? = nil
+    scheme: ColorScheme, glass: Bool = false, deleteHover: Bool = false,
+    footer: String? = nil, multilineContent: Bool = false, tag: String? = nil
   ) -> (image: NSImage, hotspot: NSPoint) {
     let displayTitle = DragCard.firstLine(title)
     let displaySubtitle = DragCard.firstLine(subtitle)
     let hasThumb = thumbnail != nil || swatch != nil
-    let counterText = counter.map { counterString($0.index, $0.total, scheme: scheme) }
-    let counterWidth: CGFloat =
-      counterText.map { ceil($0.size().width) + 10 } ?? (deleteHover ? 28 : 0)
-    let sizingText =
-      multilineContent
-      ? DragCard.firstLine(title)
-      : (displayTitle.isEmpty ? displaySubtitle : displayTitle)
-    // Right column: counter on top, format tag at the bottom, for every kind.
     let tagWidth = deleteHover ? 0 : tag.map { tagSize($0) } ?? 0
     let tagReserve = tagWidth > 0 ? tagWidth + 6 : 0
+    let topRightReserve: CGFloat = deleteHover ? 28 : tagReserve
     let width =
       multilineContent
       ? DragCard.width(
-        title: sizingText, hasThumb: hasThumb,
-        trailingAccessoryWidth: counter != nil ? counterWidth : 0)
+        title: DragCard.firstLine(title), hasThumb: hasThumb,
+        trailingAccessoryWidth: topRightReserve)
       : max(
         DragCard.width(
-          title: displayTitle, hasThumb: hasThumb, trailingAccessoryWidth: counterWidth),
-        DragCard.width(
-          title: displaySubtitle, hasThumb: hasThumb, trailingAccessoryWidth: tagReserve))
+          title: displayTitle, hasThumb: hasThumb, trailingAccessoryWidth: topRightReserve),
+        DragCard.width(title: displaySubtitle, hasThumb: hasThumb, trailingAccessoryWidth: 0))
     let card = NSSize(width: width, height: DragCard.height)
     let pad: CGFloat = 10
     let image = NSImage(size: NSSize(width: card.width + pad * 2, height: card.height + pad * 2))
@@ -341,20 +332,20 @@ struct ClipboardDragView: NSViewRepresentable {
     }
     let primary = NSColor(DesignTokens.textPrimary(scheme))
     let tertiary = NSColor(DesignTokens.textTertiary(scheme))
-    var hasSecondContentLine = false
+    let fullTextWidth = bounds.maxX - textX - 12
     let titleRect = NSRect(
-      x: textX, y: bounds.midY + 1, width: bounds.maxX - textX - 12 - counterWidth, height: 16)
+      x: textX, y: bounds.midY + 1, width: max(0, fullTextWidth - topRightReserve), height: 16)
     if multilineContent {
       let textFont = NSFont.systemFont(ofSize: 12)
-      let fullTextWidth = bounds.maxX - textX - 12
-      let firstLineWidth = fullTextWidth - counterWidth
-      let footerWidth = min(
-        fullTextWidth,
-        max(44, textWidth(footer ?? "", font: .systemFont(ofSize: 11)) + 6) + tagReserve)
-      let secondLineWidth = max(1, fullTextWidth - footerWidth - 8)
+      let firstLineWidth = max(1, fullTextWidth - topRightReserve)
+      let footerWidth =
+        (footer?.isEmpty == false)
+        ? min(fullTextWidth, max(44, textWidth(footer ?? "", font: .systemFont(ofSize: 11)) + 6))
+        : 0
+      let secondLineWidth =
+        footerWidth > 0 ? max(1, fullTextWidth - footerWidth - 8) : fullTextWidth
       let lines = previewLines(
         title, firstLineWidth: firstLineWidth, secondLineWidth: secondLineWidth, font: textFont)
-      hasSecondContentLine = lines.second != nil
       draw(
         lines.first,
         in: NSRect(x: textX, y: bounds.midY + 1, width: firstLineWidth, height: 16),
@@ -369,25 +360,18 @@ struct ClipboardDragView: NSViewRepresentable {
         displayTitle, in: titleRect, font: .systemFont(ofSize: 12), color: primary,
         lineBreak: .byTruncatingTail)
     }
-    let bottomY = bounds.midY - 15
-    if let tag, tagWidth > 0 {
-      drawTag(tag, x: bounds.maxX - 12 - tagWidth, midY: bottomY + 7, scheme: scheme)
-    }
     if multilineContent {
       if let footer {
         draw(
           footer,
-          in: NSRect(
-            x: textX, y: bottomY, width: bounds.maxX - textX - 12 - tagReserve, height: 14),
+          in: NSRect(x: textX, y: bounds.midY - 15, width: fullTextWidth, height: 14),
           font: .systemFont(ofSize: 11), color: tertiary,
           lineBreak: .byTruncatingTail, align: .right)
       }
     } else {
-      let subtitleWidth =
-        bounds.maxX - textX - 12 - max(displayTitle.isEmpty ? 0 : counterWidth, tagReserve)
       draw(
         displaySubtitle,
-        in: NSRect(x: textX, y: bounds.midY - 16, width: max(0, subtitleWidth), height: 14),
+        in: NSRect(x: textX, y: bounds.midY - 16, width: max(0, fullTextWidth), height: 14),
         font: .systemFont(ofSize: 11), color: tertiary, lineBreak: .byTruncatingTail)
     }
     if deleteHover {
@@ -398,35 +382,12 @@ struct ClipboardDragView: NSViewRepresentable {
         redTrash.isTemplate = false
         redTrash.draw(in: iconRect)
       }
-    } else if let counterText {
-      let size = counterText.size()
-      counterText.draw(
-        at: NSPoint(x: bounds.maxX - 10 - ceil(size.width), y: bounds.maxY - 21))
+    } else if let tag, tagWidth > 0 {
+      drawTag(tag, x: bounds.maxX - 12 - tagWidth, midY: bounds.midY + 9, scheme: scheme)
     }
     image.unlockFocus()
     return (image, NSPoint(x: pad + card.width, y: pad))
   }
-
-  /// "6" reads first; "/ 10" is context for the boundary shake.
-  private static func counterString(_ index: Int, _ total: Int, scheme: ColorScheme)
-    -> NSAttributedString
-  {
-    let result = NSMutableAttributedString(
-      string: "\(index)",
-      attributes: [
-        .font: NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold),
-        .foregroundColor: NSColor(DesignTokens.clipboardIndex(scheme)),
-      ])
-    result.append(
-      NSAttributedString(
-        string: " / \(total)",
-        attributes: [
-          .font: NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .regular),
-          .foregroundColor: NSColor(DesignTokens.textTertiary(scheme)),
-        ]))
-    return result
-  }
-
   private static let tagFont = NSFont.systemFont(ofSize: 10, weight: .semibold)
 
   private static func tagSize(_ tag: String) -> CGFloat {

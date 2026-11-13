@@ -59,7 +59,7 @@ import Testing
   let card = DragCardImage.make(
     title: "", subtitle: "474 × 474", fileCount: 0,
     thumbnail: NSImage(size: NSSize(width: 40, height: 40)),
-    swatch: nil, scheme: .light, counter: (3, 10), glass: true)
+    swatch: nil, scheme: .light, glass: true)
   #expect(card.image.size.width == DragCard.minWidth + 20)
   #expect(card.image.size.width <= DragCard.maxWidth + 20)
 }

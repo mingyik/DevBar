@@ -60,7 +60,7 @@ import SwiftUI
     if first { pointer = NSEvent.mouseLocation }
     let image = DragCardImage.make(
       title: title, subtitle: subtitle, fileCount: fileCount, thumbnail: thumbnail, swatch: swatch,
-      scheme: theme.effective, counter: (index + 1, count), glass: true, footer: footer,
+      scheme: theme.effective, glass: true, footer: footer,
       multilineContent: multilineContent, tag: tag
     ).image
     install(image)
