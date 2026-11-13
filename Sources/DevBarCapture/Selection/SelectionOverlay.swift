@@ -241,12 +241,22 @@ final class SelectionView: NSView {
         bar.addSubview(separator)
         offset += 12
       }
-      let button = NSButton(
+      let button = CaptureToolbarButton(
         image: NSImage(systemSymbolName: entry.0, accessibilityDescription: entry.1)!, target: self,
         action: #selector(toolClicked(_:)))
       button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .medium)
-      let selected = entry.1 == tool
-      button.contentTintColor = selected ? .systemBlue : .labelColor  // devbar:allow-color
+      let action = ["save", "cancel", "confirm", "undo", "scroll"].contains(entry.1)
+      let selected = !action && entry.1 == tool
+      button.toolSelected = selected
+      button.isEnabled = entry.1 != "undo" || !undoKinds.isEmpty
+      if !button.isEnabled {
+        button.contentTintColor = .disabledControlTextColor
+      } else if selected {
+        button.contentTintColor = .systemBlue
+      }  // devbar:allow-color
+      else {
+        button.contentTintColor = .labelColor
+      }
       button.wantsLayer = true
       button.layer?.cornerRadius = 7
       button.layer?.backgroundColor =
@@ -281,6 +291,7 @@ final class SelectionView: NSView {
         if kind == "text" { texts.removeLast() } else { marks.removeLast() }
       }
       needsDisplay = true
+      showToolbar()
     case let value?:
       tool = value
       showToolbar()
@@ -368,9 +379,13 @@ final class SelectionView: NSView {
   }
 
   @objc private func commitText(_ field: NSTextField) {
-    if !field.stringValue.isEmpty { texts.append((field.stringValue, field.frame.origin)) }
+    if !field.stringValue.isEmpty {
+      texts.append((field.stringValue, field.frame.origin))
+      undoKinds.append("text")
+    }
     field.removeFromSuperview()
     needsDisplay = true
+    showToolbar()
   }
 
   override func mouseDragged(with event: NSEvent) {
@@ -457,5 +472,31 @@ final class SelectionView: NSView {
         try CaptureRegion(
           displayID: displayID, globalRect: global, screenFrame: screenFrame, scale: scale)
       })
+  }
+}
+
+@MainActor private final class CaptureToolbarButton: NSButton {
+  var toolSelected = false
+  private var hovered = false
+  override func updateTrackingAreas() {
+    super.updateTrackingAreas()
+    for area in trackingAreas { removeTrackingArea(area) }
+    addTrackingArea(
+      NSTrackingArea(
+        rect: bounds,
+        options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+  }
+  override func mouseEntered(with event: NSEvent) {
+    hovered = true
+    refreshBackground()
+  }
+  override func mouseExited(with event: NSEvent) {
+    hovered = false
+    refreshBackground()
+  }
+  private func refreshBackground() {
+    layer?.backgroundColor =
+      isEnabled && (toolSelected || hovered)
+      ? NSColor.labelColor.withAlphaComponent(toolSelected ? 0.12 : 0.08).cgColor : nil
   }
 }
