@@ -33,7 +33,13 @@ private final class CaptureHUDState {
   func start(scrolling: Bool) {
     guard task == nil else { return }
     panel.dismiss()
-    guard CGPreflightScreenCaptureAccess() || CGRequestScreenCaptureAccess() else {
+    if !CGPreflightScreenCaptureAccess() {
+      let key = "screenCapturePermissionRequested"
+      if !UserDefaults.standard.bool(forKey: key) {
+        UserDefaults.standard.set(true, forKey: key)
+        _ = CGRequestScreenCaptureAccess()
+        return
+      }
       let alert = NSAlert()
       alert.messageText = Strings.capturePermissionTitle
       alert.informativeText = Strings.capturePermissionBody
