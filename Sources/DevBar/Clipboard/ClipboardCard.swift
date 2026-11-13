@@ -11,6 +11,9 @@ import SwiftUI
   var onConfirm: (() -> Void)?
   private let theme: ThemeManager
   private var pointer: NSPoint?
+  private var caret: NSRect?
+  private var locationTask: Task<Void, Never>?
+  private var locationGeneration = 0
   private var dismissal: Task<Void, Never>?
   private var shakeTask: Task<Void, Never>?
   private(set) var isAuthorizationNoticeVisible = false
@@ -40,24 +43,51 @@ import SwiftUI
     let y = min(max(pointer.y + 36 - 10, visible.minY), visible.maxY - size.height)
     return NSRect(x: x, y: y, width: size.width, height: size.height)
   }
-  func show(index: Int, count: Int, content: ClipCardContent, boundary: Bool) {
+  static func caretFrame(caret: NSRect, size: NSSize, visible: NSRect) -> NSRect {
+    let gap: CGFloat = 32
+    let x = min(max(caret.midX - size.width / 2, visible.minX), visible.maxX - size.width)
+    let above = caret.maxY + gap
+    let below = caret.minY - gap - size.height
+    let y = above + size.height <= visible.maxY ? above : below
+    return NSRect(
+      x: x, y: min(max(y, visible.minY), visible.maxY - size.height),
+      width: size.width, height: size.height)
+  }
+  static func fallbackFrame(pointer: NSPoint, size: NSSize, visible: NSRect) -> NSRect {
+    guard visible.contains(pointer) else {
+      return centeredFrame(
+        center: NSPoint(x: visible.midX, y: visible.midY), size: size, visible: visible)
+    }
+    return frame(pointer: pointer, size: size, visible: visible)
+  }
+  func show(index: Int, count: Int, content: ClipCardContent, boundary: Bool, target: pid_t? = nil)
+  {
     show(
       index: index, count: count, title: content.title, subtitle: content.subtitle,
       thumbnail: content.icon, swatch: content.swatch, fileCount: content.stack,
       boundary: boundary, footer: content.note, multilineContent: content.multiline,
-      tag: content.tag)
+      tag: content.tag, target: target)
   }
   func show(
     index: Int, count: Int, title: String, subtitle: String, thumbnail: NSImage?, swatch: NSColor?,
     fileCount: Int, boundary: Bool, footer: String? = nil, multilineContent: Bool = false,
-    tag: String? = nil
+    tag: String? = nil, target: pid_t? = nil
   ) {
     let started = ContinuousClock.now
     dismissal?.cancel()
     shakeTask?.cancel()
     isAuthorizationNoticeVisible = false
     let first = !panel.isVisible
-    if first { pointer = NSEvent.mouseLocation }
+    if first {
+      pointer = NSEvent.mouseLocation
+      caret = nil
+      locateCaret(target: target)
+    } else if caret == nil {
+      // Once the user cycles again, keep the existing card position fixed.
+      locationGeneration += 1
+      locationTask?.cancel()
+      locationTask = nil
+    }
     let image = DragCardImage.make(
       title: title, subtitle: subtitle, fileCount: fileCount, thumbnail: thumbnail, swatch: swatch,
       scheme: theme.effective, glass: true, footer: footer,
@@ -65,9 +95,21 @@ import SwiftUI
     ).image
     install(image)
     let anchor = pointer ?? NSEvent.mouseLocation
-    if let screen = NSScreen.screens.first(where: { $0.frame.contains(anchor) }) ?? NSScreen.main {
+    if let caret,
+      let screen = NSScreen.screens.first(where: {
+        $0.frame.contains(NSPoint(x: caret.midX, y: caret.midY))
+      })
+    {
+      panel.setFrame(
+        Self.caretFrame(caret: caret, size: image.size, visible: screen.visibleFrame), display: true
+      )
+    } else if let screen = NSScreen.screens.first(where: { $0.frame.contains(anchor) }) {
       panel.setFrame(
         Self.frame(pointer: anchor, size: image.size, visible: screen.visibleFrame), display: true)
+    } else if let screen = NSScreen.main ?? NSScreen.screens.first {
+      panel.setFrame(
+        Self.fallbackFrame(pointer: anchor, size: image.size, visible: screen.visibleFrame),
+        display: true)
     }
     if first && !temporaryKeys.register() {
       dismiss()
@@ -89,6 +131,38 @@ import SwiftUI
       try? await Task.sleep(for: .milliseconds(200))
       guard !Task.isCancelled else { return }
       self.dismiss()
+    }
+  }
+
+  private func locateCaret(target: pid_t?) {
+    locationTask?.cancel()
+    locationGeneration += 1
+    let generation = locationGeneration
+    guard let target, target != ProcessInfo.processInfo.processIdentifier else { return }
+    locationTask = Task { [weak self] in
+      let bounds = await Task.detached(priority: .userInitiated) {
+        ClipboardCaretLocator.bounds(for: target)
+      }.value
+      guard !Task.isCancelled, let self, self.locationGeneration == generation,
+        self.panel.isVisible, !self.isAuthorizationNoticeVisible,
+        NSWorkspace.shared.frontmostApplication?.processIdentifier == target,
+        let bounds, let primary = NSScreen.screens.first
+      else { return }
+      let converted = NSRect(
+        x: bounds.minX, y: primary.frame.maxY - bounds.maxY,
+        width: bounds.width, height: bounds.height)
+      guard
+        let screen = NSScreen.screens.first(where: {
+          $0.frame.contains(NSPoint(x: converted.midX, y: converted.midY))
+        })
+      else {
+        return
+      }
+      self.caret = converted
+      self.panel.setFrame(
+        Self.caretFrame(
+          caret: converted, size: self.panel.frame.size,
+          visible: screen.visibleFrame), display: true)
     }
   }
 
@@ -134,6 +208,10 @@ import SwiftUI
     temporaryKeys.unregister()
     panel.orderOut(nil)
     pointer = nil
+    caret = nil
+    locationGeneration += 1
+    locationTask?.cancel()
+    locationTask = nil
     isAuthorizationNoticeVisible = false
     if notifying { onDismiss?() }
   }

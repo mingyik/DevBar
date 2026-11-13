@@ -234,7 +234,9 @@ final class ClipboardController {
     let payloads = originals[item.id] ?? []
     let content = ClipCardContent.make(
       item: item, payloads: payloads, thumbnail: thumbnails[item.id])
-    card.show(index: cycler.currentIndex, count: items.count, content: content, boundary: boundary)
+    card.show(
+      index: cycler.currentIndex, count: items.count, content: content, boundary: boundary,
+      target: pasteTarget)
     let elapsed = started.duration(to: .now).components
     lastCycleMilliseconds = Double(elapsed.seconds) * 1000 + Double(elapsed.attoseconds) / 1e15
   }

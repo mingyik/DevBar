@@ -124,3 +124,23 @@ import Testing
   #expect(!card.panel.isVisible)
   #expect(!card.temporaryKeys.isRegistered)
 }
+
+@Test @MainActor func clipboardCardCaretPlacementPrefersAboveAndFallsBelow() {
+  let screen = NSRect(x: 0, y: 0, width: 800, height: 600)
+  let size = NSSize(width: 240, height: 80)
+  let middle = ClipboardCard.caretFrame(
+    caret: NSRect(x: 400, y: 300, width: 1, height: 20), size: size, visible: screen)
+  #expect(middle.minY >= 320)
+  let top = ClipboardCard.caretFrame(
+    caret: NSRect(x: 790, y: 570, width: 1, height: 20), size: size, visible: screen)
+  #expect(top.maxY <= 570)
+  #expect(screen.contains(top))
+}
+
+@Test @MainActor func clipboardCardFallbackCentersWhenPointerIsOutsideScreens() {
+  let screen = NSRect(x: 0, y: 0, width: 800, height: 600)
+  let frame = ClipboardCard.fallbackFrame(
+    pointer: NSPoint(x: 5000, y: 5000), size: NSSize(width: 200, height: 80), visible: screen)
+  #expect(frame.midX == screen.midX)
+  #expect(frame.midY == screen.midY)
+}
