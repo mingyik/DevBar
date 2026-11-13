@@ -45,8 +45,9 @@ final class PanelModel {
   }
   @ObservationIgnored var onPageChange: (() -> Void)?
   private(set) var settingsOrigin: Page = .clipboard
+  static let autoImportKey = "autoImport.manual"
   private(set) var settingsGroup = "general"
-  var autoImport: Bool { didSet { defaults.set(autoImport, forKey: "autoImport") } }
+  var autoImport: Bool { didSet { defaults.set(autoImport, forKey: Self.autoImportKey) } }
   var pinned = false
   private var jsonEnlarged: Bool {
     didSet { defaults.set(jsonEnlarged, forKey: "enlarged.json") }
@@ -98,7 +99,7 @@ final class PanelModel {
     } else {
       cyclingPages = order
     }
-    autoImport = defaults.object(forKey: "autoImport") as? Bool ?? true
+    autoImport = defaults.object(forKey: Self.autoImportKey) as? Bool ?? false
     let raw = defaults.string(forKey: "lastContentPage") ?? ""
     let stored: Page = raw == "encode" ? .json : Page(rawValue: raw) ?? .clipboard
     if raw == "encode" { defaults.set("json", forKey: "lastContentPage") }

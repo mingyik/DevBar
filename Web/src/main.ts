@@ -22,7 +22,7 @@ import "./theme/tokens.css";
 type Page = "json" | "qr" | "doc";
 let current: Page = "json";
 let transitions: Promise<void> = Promise.resolve();
-let autoImport = true;
+let autoImport = false;
 const pages = new Map<Page, PageShell>();
 const importGenerations = new Map<Page, number>();
 function beginImport(page: Page): number {

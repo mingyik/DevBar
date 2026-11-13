@@ -10,7 +10,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   private(set) var webView: WKWebView
   private(set) var generation = 0
   private(set) var panelVisible = false
-  var autoImport = true
+  var autoImport = false
   var onClipboardWrite: ((Int) -> Void)?
   var onToast: ((String) -> Void)?
   var onMemoryFlush: (() -> Void)?
@@ -35,7 +35,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   init(theme: ThemeManager, webRoot: URL? = nil) {
     self.theme = theme
     #if DEBUG
-      autoImport = !SelfCheckEnvironment.isActive
+      if SelfCheckEnvironment.isActive { autoImport = false }
     #endif
     let root =
       webRoot ?? Bundle.main.resourceURL?.appending(path: "Web") ?? URL(fileURLWithPath: "/")
@@ -100,7 +100,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     send(type: "screen.show", payload: ["page": .string(screen)])
   }
 
-  func syncAppearance(panelSize: String, autoImport: Bool = true) {
+  func syncAppearance(panelSize: String, autoImport: Bool = false) {
     self.autoImport = autoImport
     send(
       type: "theme.set", payload: ["theme": .string(theme.effective == .dark ? "dark" : "light")])

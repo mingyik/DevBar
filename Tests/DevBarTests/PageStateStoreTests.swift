@@ -17,3 +17,15 @@ import Testing
   #expect(await store.load(screen: "qr") == "{\"text\":\"QR\"}")
   #expect(await store.load(screen: "../../escape") == nil)
 }
+
+@Test func defaultScreenStateStoreKeepsSessionStateOnlyInMemory() async {
+  let firstLaunch = ScreenStateStore()
+  #expect(await firstLaunch.load(screen: "json") == nil)
+  #expect(await firstLaunch.load(screen: "qr") == nil)
+  #expect(await firstLaunch.load(screen: "doc") == nil)
+  #expect(await firstLaunch.save(screen: "doc", json: #"{"text":"title","view":"preview"}"#))
+  #expect(await firstLaunch.load(screen: "doc") == #"{"text":"title","view":"preview"}"#)
+
+  let nextLaunch = ScreenStateStore()
+  #expect(await nextLaunch.load(screen: "doc") == nil)
+}

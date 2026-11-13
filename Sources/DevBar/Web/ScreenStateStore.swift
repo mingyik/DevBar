@@ -4,16 +4,13 @@ import os
 actor ScreenStateStore {
   private let explicitDirectory: URL?
   private var directory: URL { explicitDirectory ?? DataLocations.root }
+  private var session: [String: String] = [:]
+  private var cleanedLegacyDiskState = false
   private let logger = Logger(subsystem: "local.devbar.app", category: "web")
 
   init(directory explicitDirectory: URL? = nil) {
-    #if DEBUG
-      self.explicitDirectory = explicitDirectory ?? SelfCheckEnvironment.stateDirectory
-    #else
-      self.explicitDirectory = explicitDirectory
-    #endif
+    self.explicitDirectory = explicitDirectory
   }
-
   func relocate(to destination: URL) throws {
     guard explicitDirectory == nil else { throw DataLocations.LocationError.occupiedDestination }
     try DataLocations.move(from: directory, to: destination)
@@ -22,9 +19,14 @@ actor ScreenStateStore {
 
   @discardableResult
   func save(screen: String, json: String) -> Bool {
+    guard explicitDirectory != nil else {
+      guard let key = canonicalScreen(screen) else { return false }
+      cleanupLegacyDiskStateIfNeeded()
+      session[key] = json
+      return true
+    }
     guard let file = fileURL(screen), let data = json.data(using: .utf8) else { return false }
     do {
-      if explicitDirectory == nil { try DataLocations.prepare(directory) }
       try FileManager.default.createDirectory(
         at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
       let temporary = file.appendingPathExtension("tmp")
@@ -44,8 +46,10 @@ actor ScreenStateStore {
   }
 
   func load(screen: String) -> String? {
-    if explicitDirectory == nil {
-      do { try DataLocations.prepare(directory) } catch { return nil }
+    guard explicitDirectory != nil else {
+      guard let key = canonicalScreen(screen) else { return nil }
+      cleanupLegacyDiskStateIfNeeded()
+      return session[key]
     }
     if screen == "json" || screen == "tools",
       let file = fileURL(screen), !FileManager.default.fileExists(atPath: file.path),
@@ -61,6 +65,24 @@ actor ScreenStateStore {
     logger.notice(
       "stateLoad screen=\(screen, privacy: .public) bytes=\(text.utf8.count, privacy: .public)")
     return text
+  }
+
+  private func canonicalScreen(_ screen: String) -> String? {
+    switch screen {
+    case "tools", "json": "json"
+    case "qr": "qr"
+    case "doc": "doc"
+    default: nil
+    }
+  }
+
+  private func cleanupLegacyDiskStateIfNeeded() {
+    guard !cleanedLegacyDiskState else { return }
+    cleanedLegacyDiskState = true
+    let fm = FileManager.default
+    for folder in ["Json", "QrCode", "Markdown", "state"] {
+      try? fm.removeItem(at: directory.appending(path: folder))
+    }
   }
 
   private func fileURL(_ screen: String) -> URL? {
