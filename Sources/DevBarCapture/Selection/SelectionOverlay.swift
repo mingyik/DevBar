@@ -223,9 +223,6 @@ final class SelectionView: NSView {
           NSImage(cgImage: mosaicFrame, size: bounds.size).draw(in: bounds)
           NSGraphicsContext.restoreGraphicsState()
         }
-      } else if kind == "highlight" {
-        color.withAlphaComponent(0.2).setFill()
-        path.fill()
       } else {
         path.lineWidth = weight
         if kind == "arrowFilled" {
@@ -346,7 +343,7 @@ final class SelectionView: NSView {
     var tools = [
       ("hand.draw", "select"), ("rectangle", "rect"), ("circle", "ellipse"),
       ("arrow.up.right", "arrow"), ("pencil.tip", "pen"), ("textformat", "text"),
-      ("aqi.medium", "mosaic"), ("highlighter", "highlight"), ("arrow.uturn.backward", "undo"),
+      ("aqi.medium", "mosaic"), ("arrow.uturn.backward", "undo"),
       ("rectangle.stack", "scroll"), ("arrow.down.to.line", "save"), ("xmark", "cancel"),
     ]
     if frozenFrame == nil {
@@ -355,7 +352,7 @@ final class SelectionView: NSView {
         ("checkmark", "confirm"),
       ]
     }
-    let breaks: Set<Int> = frozenFrame == nil ? [1] : [1, 8, 10]
+    let breaks: Set<Int> = frozenFrame == nil ? [1] : [1, 7, 9]
     let width = CGFloat(tools.count * 44 + 24 + breaks.count * 12)
     let x = min(max(selection.maxX - width, 8), bounds.maxX - width - 8)
     let y = selection.minY > 64 ? selection.minY - 60 : min(selection.maxY + 10, bounds.maxY - 54)
@@ -427,7 +424,7 @@ final class SelectionView: NSView {
 
   private func showOptions(below frame: CGRect) {
     guard frozenFrame != nil,
-      ["rect", "ellipse", "arrow", "pen", "text", "highlight", "mosaic"].contains(tool)
+      ["rect", "ellipse", "arrow", "pen", "text", "mosaic"].contains(tool)
     else { return }
     let bar = NSVisualEffectView()
     bar.material = .hudWindow
@@ -767,7 +764,7 @@ final class SelectionView: NSView {
         let rect = CGRect(
           x: min(anchor.x, point.x), y: min(anchor.y, point.y), width: abs(point.x - anchor.x),
           height: abs(point.y - anchor.y))
-        if tool == "rect" || tool == "mosaic" || tool == "highlight" {
+        if tool == "rect" || tool == "mosaic" {
           draft = NSBezierPath(rect: rect)
         } else if tool == "ellipse" {
           draft = NSBezierPath(ovalIn: rect)
