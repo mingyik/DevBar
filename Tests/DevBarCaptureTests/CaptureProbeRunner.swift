@@ -42,25 +42,29 @@
       let region: CaptureRegion
       let image: CGImage
       if interactive {
-        (region, image) = try await SelectionOverlayPrototype().selectImage()
+        (region, image) = try await SelectionOverlay().selectImage()
       } else {
         guard let screen = NSScreen.main,
           let id = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
-        else { throw CapturePrototypeError.displayUnavailable }
+        else { throw CaptureError.displayUnavailable }
         let sample = CGRect(
           x: screen.frame.minX + 100, y: screen.frame.minY + 100, width: 320, height: 240)
         region = try CaptureRegion(
           displayID: id.uint32Value, globalRect: sample,
           screenFrame: screen.frame, scale: screen.backingScaleFactor)
-        image = try await RegionCapturePrototype.image(for: region)
+        guard let captured = await ScreenshotCaptureEngine.captureDisplayRegion(region: region)
+        else {
+          throw CaptureError.noImage
+        }
+        image = captured
       }
       let output = URL(fileURLWithPath: "/tmp/devbar-v4-\(UUID().uuidString).png")
       guard
         let destination = CGImageDestinationCreateWithURL(
           output as CFURL, UTType.png.identifier as CFString, 1, nil)
-      else { throw CapturePrototypeError.noImage }
+      else { throw CaptureError.noImage }
       CGImageDestinationAddImage(destination, image, nil)
-      guard CGImageDestinationFinalize(destination) else { throw CapturePrototypeError.noImage }
+      guard CGImageDestinationFinalize(destination) else { throw CaptureError.noImage }
       print(
         "V4 display=\(region.displayID) scale=\(region.scale) rect=\(region.rectInPoints) pixels=\(image.width)x\(image.height) output=\(output.path)"
       )

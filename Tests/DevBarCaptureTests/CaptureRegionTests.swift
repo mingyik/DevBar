@@ -23,7 +23,7 @@ import Testing
     CGRect(x: 200, y: 200, width: 10, height: 10),
     CGRect(x: 1, y: 1, width: 1, height: 1),
   ] {
-    #expect(throws: CapturePrototypeError.self) {
+    #expect(throws: CaptureError.self) {
       try CaptureRegion(
         displayID: 1, globalRect: rect,
         screenFrame: CGRect(x: 0, y: 0, width: 100, height: 100), scale: 1)
@@ -40,7 +40,7 @@ import Testing
 
 @Test func regionRejectsInvalidScaleAndNonfiniteCoordinates() {
   for scale in [CGFloat.zero, -1, .infinity, .nan] {
-    #expect(throws: CapturePrototypeError.self) {
+    #expect(throws: CaptureError.self) {
       try CaptureRegion(
         displayID: 1, globalRect: CGRect(x: 0, y: 0, width: 100, height: 100),
         screenFrame: CGRect(x: 0, y: 0, width: 100, height: 100), scale: scale)

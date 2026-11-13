@@ -4,49 +4,56 @@
 
 import AppKit
 
-/// Minimal V4 extraction of the screen-per-panel/drag lifecycle. This is not the final UI.
-/// Uses semantic system colors for the throwaway overlay; no app theme dependency.
+/// One selection overlay per display, optionally using a frozen frame.
 @MainActor
-public final class SelectionOverlayPrototype {
+public final class SelectionOverlay {
   private var panels: [NSPanel] = []
   private var frozenFrames: [CGDirectDisplayID: CGImage] = [:]
   private var preparing = false
   private var continuation: CheckedContinuation<CaptureRegion, any Error>?
   private var timeoutTask: Task<Void, Never>?
 
-  public init() {}
+  private let appearanceName: NSAppearance.Name?
+  public init(appearanceName: NSAppearance.Name? = nil) { self.appearanceName = appearanceName }
 
   public func selectImage(timeout: Duration = .seconds(60)) async throws -> (CaptureRegion, CGImage)
   {
-    guard continuation == nil, !preparing else { throw CapturePrototypeError.alreadyRunning }
+    guard continuation == nil, !preparing else { throw CaptureError.alreadyRunning }
     defer { frozenFrames.removeAll() }
     let region = try await select(timeout: timeout)
     guard let frame = frozenFrames[region.displayID],
       let image = frame.cropping(to: region.pixelRect)
-    else { throw CapturePrototypeError.noImage }
+    else { throw CaptureError.noImage }
     return (region, image)
   }
 
-  public func select(timeout: Duration = .seconds(60)) async throws -> CaptureRegion {
-    guard continuation == nil, !preparing else { throw CapturePrototypeError.alreadyRunning }
+  public func select(freeze: Bool = true, timeout: Duration = .seconds(60)) async throws
+    -> CaptureRegion
+  {
+    guard continuation == nil, !preparing else { throw CaptureError.alreadyRunning }
     preparing = true
     defer { preparing = false }
     frozenFrames.removeAll()
     // Freeze before showing any overlays; each image is captured at native pixels.
-    for screen in NSScreen.screens {
-      guard
-        let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber
-      else { continue }
-      let region = try CaptureRegion(
-        displayID: number.uint32Value, globalRect: screen.frame,
-        screenFrame: screen.frame, scale: screen.backingScaleFactor)
-      frozenFrames[number.uint32Value] = try await RegionCapturePrototype.image(for: region)
+    if freeze {
+      for screen in NSScreen.screens {
+        guard
+          let number = screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")]
+            as? NSNumber
+        else { continue }
+        let region = try CaptureRegion(
+          displayID: number.uint32Value, globalRect: screen.frame,
+          screenFrame: screen.frame, scale: screen.backingScaleFactor)
+        guard let image = await ScreenshotCaptureEngine.captureDisplayRegion(region: region)
+        else { throw CaptureError.noImage }
+        frozenFrames[number.uint32Value] = image
+      }
     }
     return try await withTaskCancellationHandler {
       try await withCheckedThrowingContinuation { reply in
         continuation = reply
         if Task.isCancelled {
-          finish(.failure(CapturePrototypeError.cancelled))
+          finish(.failure(CaptureError.cancelled))
           return
         }
         for screen in NSScreen.screens {
@@ -58,6 +65,7 @@ public final class SelectionOverlayPrototype {
             contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered, defer: false)
           panel.isReleasedWhenClosed = false
+          if let appearanceName { panel.appearance = NSAppearance(named: appearanceName) }
           panel.level = .screenSaver
           panel.isOpaque = false
           panel.backgroundColor = .clear
@@ -77,16 +85,16 @@ public final class SelectionOverlayPrototype {
           }
         }
         guard !panels.isEmpty else {
-          finish(.failure(CapturePrototypeError.displayUnavailable))
+          finish(.failure(CaptureError.displayUnavailable))
           return
         }
         timeoutTask = Task { [weak self] in
           do { try await Task.sleep(for: timeout) } catch { return }
-          self?.finish(.failure(CapturePrototypeError.timedOut))
+          self?.finish(.failure(CaptureError.timedOut))
         }
       }
     } onCancel: {
-      Task { @MainActor [weak self] in self?.finish(.failure(CapturePrototypeError.cancelled)) }
+      Task { @MainActor [weak self] in self?.finish(.failure(CaptureError.cancelled)) }
     }
   }
 
@@ -124,11 +132,19 @@ private final class SelectionView: NSView {
     NSColor.windowBackgroundColor.withAlphaComponent(0.45).setFill()
     bounds.fill()
     if !selection.isEmpty {
+      if let frame = frozenFrame {
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(rect: selection).addClip()
+        NSImage(cgImage: frame, size: bounds.size).draw(in: bounds)
+        NSGraphicsContext.restoreGraphicsState()
+      } else {
+        NSGraphicsContext.current?.cgContext.clear(selection)
+      }
       NSColor.labelColor.setStroke()
       let outline = NSBezierPath(rect: selection)
       outline.lineWidth = 1
       outline.stroke()
-      let label = "拖动选区，松开确认 · Esc 取消"
+      let label = "\(Int(selection.width * scale)) × \(Int(selection.height * scale))"
       label.draw(
         at: CGPoint(x: selection.minX, y: selection.maxY + 6),
         withAttributes: [
@@ -160,7 +176,7 @@ private final class SelectionView: NSView {
 
   override func keyDown(with event: NSEvent) {
     if event.keyCode == 53 {
-      complete?(.failure(CapturePrototypeError.cancelled))
+      complete?(.failure(CaptureError.cancelled))
     } else if event.keyCode == 36 {
       confirm()
     } else {

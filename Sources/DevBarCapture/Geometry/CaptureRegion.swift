@@ -26,10 +26,10 @@ public struct CaptureRegion: Equatable, Sendable {
         screenFrame.minX, screenFrame.minY, screenFrame.width, screenFrame.height,
       ]
       .allSatisfy(\.isFinite)
-    else { throw CapturePrototypeError.invalidRegion }
+    else { throw CaptureError.invalidRegion }
     let clipped = globalRect.standardized.intersection(screenFrame)
     guard !clipped.isNull, !clipped.isEmpty else {
-      throw CapturePrototypeError.invalidRegion
+      throw CaptureError.invalidRegion
     }
     let raw = CGRect(
       x: (clipped.minX - screenFrame.minX) * scale,
@@ -38,7 +38,7 @@ public struct CaptureRegion: Equatable, Sendable {
     // Reject tiny selections rather than expanding beyond the user's gesture.
     let width = floor(raw.width / 2) * 2
     let height = floor(raw.height / 2) * 2
-    guard width >= 2, height >= 2 else { throw CapturePrototypeError.invalidRegion }
+    guard width >= 2, height >= 2 else { throw CaptureError.invalidRegion }
     self.displayID = displayID
     self.scale = scale
     rectInPoints = CGRect(
@@ -47,7 +47,7 @@ public struct CaptureRegion: Equatable, Sendable {
   }
 }
 
-public enum CapturePrototypeError: Error {
+public enum CaptureError: Error {
   case invalidRegion
   case cancelled
   case screenPermissionDenied
