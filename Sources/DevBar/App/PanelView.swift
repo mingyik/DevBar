@@ -228,10 +228,16 @@ struct PanelView: View {
                 .font(.system(size: 11)).foregroundStyle(DesignTokens.textSecondary(scheme))
             }
             Spacer(minLength: 12)
-            if !screenCaptureAllowed {
-              Button(Strings.openSystemSettings) { CaptureCoordinator.openScreenSettings() }
-                .font(.system(size: 11)).buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
-            }
+            Button {
+              CaptureCoordinator.openScreenSettings()
+            } label: {
+              HStack(spacing: 6) {
+                Image(systemName: "gearshape").font(.system(size: 12))
+                Text(Strings.systemSettingsButton)
+                Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .medium))
+              }.font(.system(size: 12)).padding(.horizontal, 10).frame(
+                width: SettingsControlLayout.width, height: 30)
+            }.buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
           }
           shortcut(Strings.shortcutCapture, .captureRegion, scheme)
           shortcut(Strings.shortcutLong, .captureScroll, scheme)
