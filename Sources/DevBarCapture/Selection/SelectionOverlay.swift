@@ -142,9 +142,27 @@ final class SelectionView: NSView {
   var completionRequested = false
   var onInteraction: (() -> Void)?
   private var tool = "select"
-  private var ink = NSColor.systemRed  // devbar:allow-color
-  private var stroke: CGFloat = 3
-  private var fontSize: CGFloat = 18
+  private struct ToolStyle {
+    var color = NSColor.systemRed  // devbar:allow-color
+    var width: CGFloat = 3
+    var size: CGFloat = 18
+  }
+  private var styles: [String: ToolStyle] = [:]
+  private var ink: NSColor {
+    get { styles[tool, default: ToolStyle()].color }
+    set { styles[tool, default: ToolStyle()].color = newValue }
+  }
+  private var stroke: CGFloat {
+    get { styles[tool, default: ToolStyle()].width }
+    set { styles[tool, default: ToolStyle()].width = newValue }
+  }
+  private var fontSize: CGFloat {
+    get { styles[tool, default: ToolStyle()].size }
+    set { styles[tool, default: ToolStyle()].size = newValue }
+  }
+  private var largeArrow = false
+  private var editingArrow: (index: Int, start: Bool, fixed: CGPoint)?
+  private var mosaicBrush = true
   private var optionsBar: NSVisualEffectView?
   private var marks: [(String, NSBezierPath, NSColor, CGFloat)] = []
   private var draft: NSBezierPath?
@@ -180,7 +198,10 @@ final class SelectionView: NSView {
     NSGraphicsContext.saveGraphicsState()
     NSBezierPath(rect: selection).addClip()
     NSColor.labelColor.setStroke()
-    let displayed = marks + (draft.map { [(tool, $0, ink, stroke)] } ?? [])
+    let displayed =
+      marks
+      + (draft.map { [(tool == "arrow" && largeArrow ? "arrowFilled" : tool, $0, ink, stroke)] }
+        ?? [])
     for (kind, path, color, weight) in displayed {
       color.setStroke()
       if kind == "mosaic", let frozenFrame {
@@ -201,6 +222,10 @@ final class SelectionView: NSView {
         path.fill()
       } else {
         path.lineWidth = weight
+        if kind == "arrowFilled" {
+          color.setFill()
+          path.fill()
+        }
         path.stroke()
       }
     }
@@ -221,7 +246,7 @@ final class SelectionView: NSView {
       points = objectHandles(draft.bounds)
     } else if let index = selectedMark, marks.indices.contains(index) {
       let (kind, path, _, _) = marks[index]
-      if kind == "arrow", path.elementCount >= 2 {
+      if kind.hasPrefix("arrow"), path.elementCount >= 2 {
         var first = [NSPoint](repeating: .zero, count: 3)
         var last = first
         _ = path.element(at: 0, associatedPoints: &first)
@@ -250,6 +275,24 @@ final class SelectionView: NSView {
       dot.lineWidth = 1
       dot.stroke()
     }
+  }
+
+  static func arrowPath(start: CGPoint, end: CGPoint, width: CGFloat, large: Bool) -> NSBezierPath {
+    let path = NSBezierPath()
+    path.move(to: start)
+    path.line(to: end)
+    let angle = atan2(end.y - start.y, end.x - start.x)
+    let length = hypot(end.x - start.x, end.y - start.y)
+    let head = min(length * 0.6, max(12, width * (large ? 5 : 3)))
+    let spread: CGFloat = large ? 0.48 : 0.5
+    let left = CGPoint(x: end.x - head * cos(angle - spread), y: end.y - head * sin(angle - spread))
+    let right = CGPoint(
+      x: end.x - head * cos(angle + spread), y: end.y - head * sin(angle + spread))
+    path.move(to: left)
+    path.line(to: end)
+    path.line(to: right)
+    if large { path.close() }
+    return path
   }
 
   private func objectHandles(_ rect: CGRect) -> [CGPoint] {
@@ -372,14 +415,30 @@ final class SelectionView: NSView {
     bar.layer?.cornerRadius = 9
     bar.layer?.borderWidth = 0.5
     bar.layer?.borderColor = NSColor.separatorColor.cgColor
-    let width: CGFloat = tool == "mosaic" ? 180 : 430
+    let offset: CGFloat = tool == "arrow" || tool == "mosaic" ? 100 : 0
+    let width: CGFloat = (tool == "mosaic" ? 180 : 430) + offset
     let y = frame.minY >= 56 ? frame.minY - 54 : min(frame.maxY + 6, bounds.maxY - 48)
     bar.frame = CGRect(
       x: min(max(frame.minX, 8), bounds.maxX - width - 8), y: y, width: width, height: 46)
     let slider = NSSlider(
       value: Double(tool == "text" ? fontSize : stroke), minValue: tool == "text" ? 10 : 1,
       maxValue: tool == "text" ? 48 : 12, target: self, action: #selector(styleChanged(_:)))
-    slider.frame = CGRect(x: 12, y: 10, width: 140, height: 26)
+    if offset > 0 {
+      for index in 0..<2 {
+        let title = tool == "arrow" ? (index == 0 ? "大头" : "普通") : (index == 0 ? "涂抹" : "框选")
+        let button = NSButton(title: title, target: self, action: #selector(modeChanged(_:)))
+        button.tag = index
+        button.isBordered = false
+        button.wantsLayer = true
+        let active = tool == "arrow" ? (largeArrow == (index == 0)) : (mosaicBrush == (index == 0))
+        button.layer?.cornerRadius = 5
+        button.layer?.backgroundColor =
+          active ? NSColor.labelColor.withAlphaComponent(0.12).cgColor : nil
+        button.frame = CGRect(x: 6 + index * 46, y: 7, width: 44, height: 32)
+        bar.addSubview(button)
+      }
+    }
+    slider.frame = CGRect(x: 12 + offset, y: 10, width: 140, height: 26)
     bar.addSubview(slider)
     if tool != "mosaic" {
       for (index, color) in palette.enumerated() {
@@ -391,12 +450,17 @@ final class SelectionView: NSView {
         button.layer?.cornerRadius = 4
         button.layer?.backgroundColor = color.cgColor
         button.contentTintColor = index == 1 || index == 6 ? .black : .white  // devbar:allow-color
-        button.frame = CGRect(x: 165 + index * 36, y: 9, width: 28, height: 28)
+        button.frame = CGRect(x: 165 + index * 36 + Int(offset), y: 9, width: 28, height: 28)
         bar.addSubview(button)
       }
     }
     addSubview(bar)
     optionsBar = bar
+  }
+
+  @objc private func modeChanged(_ sender: NSButton) {
+    if tool == "arrow" { largeArrow = sender.tag == 0 } else { mosaicBrush = sender.tag == 0 }
+    showToolbar()
   }
 
   @objc private func styleChanged(_ slider: NSSlider) {
@@ -413,17 +477,12 @@ final class SelectionView: NSView {
     showToolbar()
   }
   private func applyStyle() {
-    if let index = selectedMark, marks.indices.contains(index) {
-      marks[index].2 = ink
-      marks[index].3 = stroke
-    }
-    if let index = selectedText, texts.indices.contains(index) {
-      texts[index].2 = ink
-      texts[index].3 = fontSize
-    }
     for field in subviews.compactMap({ $0 as? NSTextField }) {
       field.font = .systemFont(ofSize: fontSize)
       field.textColor = ink
+      field.frame.size.height = ceil(fontSize * 1.5 + 8)
+      field.frame.size.width = min(
+        max(80, CGFloat(field.stringValue.count + 2) * fontSize), selection.maxX - field.frame.minX)
     }
     needsDisplay = true
   }
@@ -517,6 +576,25 @@ final class SelectionView: NSView {
     window?.makeFirstResponder(self)
     let point = convert(event.locationInWindow, from: nil)
     onInteraction?()
+    if let index = selectedMark, marks.indices.contains(index), marks[index].0.hasPrefix("arrow") {
+      let path = marks[index].1
+      if path.elementCount >= 2 {
+        var start = [NSPoint](repeating: .zero, count: 3)
+        var end = start
+        _ = path.element(at: 0, associatedPoints: &start)
+        _ = path.element(at: 1, associatedPoints: &end)
+        if hypot(point.x - start[0].x, point.y - start[0].y) < 9 {
+          editingArrow = (index, true, end[0])
+          anchor = point
+          return
+        }
+        if hypot(point.x - end[0].x, point.y - end[0].y) < 9 {
+          editingArrow = (index, false, start[0])
+          anchor = point
+          return
+        }
+      }
+    }
     anchor = point
     if !selection.isEmpty && !selection.insetBy(dx: -9, dy: -9).contains(point) {
       for field in subviews.compactMap({ $0 as? NSTextField }) { commitText(field) }
@@ -534,8 +612,6 @@ final class SelectionView: NSView {
       }) {
         selectedText = index
         tool = "text"
-        ink = texts[index].2
-        fontSize = texts[index].3
         showToolbar()
         anchor = nil
         needsDisplay = true
@@ -545,9 +621,7 @@ final class SelectionView: NSView {
         marks[$0].1.bounds.insetBy(dx: -6, dy: -6).contains(point)
       }) {
         selectedMark = index
-        tool = marks[index].0
-        ink = marks[index].2
-        stroke = marks[index].3
+        tool = marks[index].0.hasPrefix("arrow") ? "arrow" : marks[index].0
         showToolbar()
         anchor = nil
         needsDisplay = true
@@ -557,7 +631,8 @@ final class SelectionView: NSView {
     if tool == "text" && selection.contains(point) {
       let field = NSTextField(string: "")
       field.frame = NSRect(
-        x: point.x, y: point.y, width: min(200, selection.maxX - point.x), height: 26)
+        x: point.x, y: point.y, width: min(200, selection.maxX - point.x),
+        height: ceil(fontSize * 1.5 + 8))
       field.isBordered = false
       field.drawsBackground = false
       field.font = .systemFont(ofSize: fontSize)
@@ -596,8 +671,19 @@ final class SelectionView: NSView {
   override func mouseDragged(with event: NSEvent) {
     guard let anchor else { return }
     let point = convert(event.locationInWindow, from: nil)
+    if let edit = editingArrow {
+      let clamped = CGPoint(
+        x: min(max(point.x, selection.minX), selection.maxX),
+        y: min(max(point.y, selection.minY), selection.maxY))
+      marks[edit.index].1 = Self.arrowPath(
+        start: edit.start ? clamped : edit.fixed,
+        end: edit.start ? edit.fixed : clamped, width: marks[edit.index].3,
+        large: marks[edit.index].0 == "arrowFilled")
+      needsDisplay = true
+      return
+    }
     if draft != nil {
-      if tool == "mosaic" {
+      if tool == "mosaic" && mosaicBrush {
         let last = draft?.currentPoint ?? anchor
         let distance = hypot(point.x - last.x, point.y - last.y)
         let steps = max(1, Int(distance / 3))
@@ -623,16 +709,7 @@ final class SelectionView: NSView {
         } else if tool == "ellipse" {
           draft = NSBezierPath(ovalIn: rect)
         } else {
-          draft = NSBezierPath()
-          draft?.move(to: anchor)
-          draft?.line(to: point)
-          let angle = atan2(point.y - anchor.y, point.x - anchor.x)
-          for delta in [-0.5, 0.5] {
-            draft?.move(to: point)
-            draft?.line(
-              to: CGPoint(
-                x: point.x - 14 * cos(angle + delta), y: point.y - 14 * sin(angle + delta)))
-          }
+          draft = Self.arrowPath(start: anchor, end: point, width: stroke, large: largeArrow)
         }
       }
     } else if let original = moveOrigin {
@@ -648,9 +725,22 @@ final class SelectionView: NSView {
         selection = CGRect(x: left, y: bottom, width: right - left, height: top - bottom)
           .intersection(bounds)
       } else {
+        let previousOrigin = selection.origin
         selection.origin = CGPoint(
           x: min(max(original.minX + point.x - anchor.x, 0), bounds.width - original.width),
           y: min(max(original.minY + point.y - anchor.y, 0), bounds.height - original.height))
+        let dx = selection.minX - previousOrigin.x
+        let dy = selection.minY - previousOrigin.y
+        let transform = AffineTransform(translationByX: dx, byY: dy)
+        for index in marks.indices { marks[index].1.transform(using: transform) }
+        for index in texts.indices {
+          texts[index].1.x += dx
+          texts[index].1.y += dy
+        }
+        for field in subviews.compactMap({ $0 as? NSTextField }) {
+          field.frame.origin.x += dx
+          field.frame.origin.y += dy
+        }
       }
     } else {
       selection = CGRect(
@@ -669,12 +759,13 @@ final class SelectionView: NSView {
       mouseDragged(with: event)
     }
     if let draft {
-      marks.append((tool, draft, ink, stroke))
+      marks.append((tool == "arrow" && largeArrow ? "arrowFilled" : tool, draft, ink, stroke))
       undoKinds.append("mark")
       selectedMark = marks.count - 1
       self.draft = nil
     }
     anchor = nil
+    editingArrow = nil
     moveOrigin = nil
     resizeHandle = nil
     if !selection.isEmpty { showToolbar() }

@@ -96,6 +96,19 @@ import Testing
   view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 200, y: 200)))
   view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 300, y: 300)))
   #expect(try button("undo").isEnabled)
+  let beforeStyleChange = try CaptureFileWriter.encode(#require(view.exportFrame()))
+  let slider = try #require(view.subviews.flatMap(\.subviews).compactMap { $0 as? NSSlider }.first)
+  slider.doubleValue = 9
+  NSApp.sendAction(try #require(slider.action), to: slider.target, from: slider)
+  #expect(try CaptureFileWriter.encode(#require(view.exportFrame())) == beforeStyleChange)
+  try button("rect").performClick(nil)
+  let rectangleSlider = try #require(
+    view.subviews.flatMap(\.subviews).compactMap { $0 as? NSSlider }.first)
+  #expect(rectangleSlider.doubleValue == 3)
+  try button("arrow").performClick(nil)
+  let arrowSlider = try #require(
+    view.subviews.flatMap(\.subviews).compactMap { $0 as? NSSlider }.first)
+  #expect(arrowSlider.doubleValue == 9)
   view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 20, y: 20)))
   view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 20, y: 20)))
   var region: CaptureRegion?
