@@ -205,7 +205,11 @@ struct ClipTagChip: View {
       .padding(.horizontal, 5).frame(height: 16)
       .background {
         RoundedRectangle(cornerRadius: 4, style: .continuous)
-          .fill(DesignTokens.textPrimary(scheme).opacity(0.12))
+          .fill(DesignTokens.panelControl(scheme))
+          .overlay {
+            RoundedRectangle(cornerRadius: 4, style: .continuous)
+              .strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline)
+          }
       }
   }
 }

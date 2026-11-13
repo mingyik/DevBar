@@ -398,8 +398,16 @@ struct ClipboardDragView: NSViewRepresentable {
   private static func drawTag(_ tag: String, x: CGFloat, midY: CGFloat, scheme: ColorScheme) {
     let primary = NSColor(DesignTokens.textPrimary(scheme))
     let rect = NSRect(x: x, y: midY - 8, width: tagSize(tag), height: 16)
-    primary.withAlphaComponent(0.12).setFill()
-    NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4).fill()
+    NSColor(DesignTokens.panelControl(scheme)).setFill()
+    let shape = NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4)
+    shape.fill()
+    NSColor(DesignTokens.lineBorder(scheme)).setStroke()
+    shape.lineWidth = DesignTokens.strokeHairline
+    let border = NSBezierPath(
+      roundedRect: rect.insetBy(dx: shape.lineWidth / 2, dy: shape.lineWidth / 2),
+      xRadius: 4, yRadius: 4)
+    border.lineWidth = shape.lineWidth
+    border.stroke()
     draw(
       tag, in: rect.offsetBy(dx: 0, dy: -1.5), font: tagFont,
       color: primary.withAlphaComponent(0.85), lineBreak: .byClipping, align: .center)
