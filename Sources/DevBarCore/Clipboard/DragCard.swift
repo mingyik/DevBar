@@ -46,4 +46,12 @@ public enum DragCard: Sendable {
   public static func fileSubtitle(names: [String]) -> String {
     names.count > 1 ? "\(names.count) 个文件" : ""
   }
+
+  /// Fast UTF-8 byte scan; avoids splitting huge clipboard strings into lines.
+  public static func lineCount(_ text: String) -> Int {
+    if text.isEmpty { return 0 }
+    var count = 1
+    for byte in text.utf8 where byte == 0x0A { count += 1 }
+    return count
+  }
 }

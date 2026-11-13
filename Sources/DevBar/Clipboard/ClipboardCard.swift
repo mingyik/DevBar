@@ -40,6 +40,13 @@ import SwiftUI
     let y = min(max(pointer.y + 36 - 10, visible.minY), visible.maxY - size.height)
     return NSRect(x: x, y: y, width: size.width, height: size.height)
   }
+  func show(index: Int, count: Int, content: ClipCardContent, boundary: Bool) {
+    show(
+      index: index, count: count, title: content.title, subtitle: content.subtitle,
+      thumbnail: content.icon, swatch: content.swatch, fileCount: content.stack,
+      boundary: boundary, footer: content.note, multilineContent: content.multiline,
+      tag: content.tag)
+  }
   func show(
     index: Int, count: Int, title: String, subtitle: String, thumbnail: NSImage?, swatch: NSColor?,
     fileCount: Int, boundary: Bool, footer: String? = nil, multilineContent: Bool = false,

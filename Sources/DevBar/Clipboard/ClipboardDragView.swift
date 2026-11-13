@@ -5,12 +5,7 @@ import SwiftUI
 /// AppKit supplies one dragging item per file; a single SwiftUI provider would lose extra URLs.
 struct ClipboardDragView: NSViewRepresentable {
   let payloads: [ClipboardPayload]
-  let thumbnail: NSImage?
-  let title: String
-  let subtitle: String
-  let fileCount: Int
-  let swatch: NSColor?
-  let tag: String
+  let cardContent: ClipCardContent
   let scheme: ColorScheme
   let onClick: () -> Void
   let onDelete: () -> Void
@@ -20,12 +15,7 @@ struct ClipboardDragView: NSViewRepresentable {
   func makeNSView(context: Context) -> DragSource { DragSource() }
   func updateNSView(_ view: DragSource, context: Context) {
     view.payloads = payloads
-    view.thumbnail = thumbnail
-    view.title = title
-    view.subtitle = subtitle
-    view.fileCount = fileCount
-    view.swatch = swatch
-    view.formatTag = tag
+    view.cardContent = cardContent
     view.scheme = scheme
     view.onClick = onClick
     view.onDelete = onDelete
@@ -35,12 +25,7 @@ struct ClipboardDragView: NSViewRepresentable {
 
   final class DragSource: NSView, NSDraggingSource {
     var payloads: [ClipboardPayload] = []
-    var thumbnail: NSImage?
-    var title = ""
-    var subtitle = ""
-    var fileCount = 0
-    var swatch: NSColor?
-    var formatTag: String?
+    var cardContent = ClipCardContent()
     var scheme: ColorScheme = .light
     var onClick: (() -> Void)?
     var onDelete: (() -> Void)?
@@ -89,9 +74,7 @@ struct ClipboardDragView: NSViewRepresentable {
       promisedFile = promise
       dragging = true
       onDragging?(true)
-      let card = DragCardImage.make(
-        title: title, subtitle: subtitle, fileCount: fileCount, thumbnail: thumbnail,
-        swatch: swatch, scheme: scheme, tag: formatTag)
+      let card = DragCardImage.make(cardContent, scheme: scheme)
       dragImageSize = card.image.size
       dragHotspot = card.hotspot
       deleteHover = false
@@ -157,9 +140,7 @@ struct ClipboardDragView: NSViewRepresentable {
       ) { item, index, _ in
         guard index == 0 else { return }
         let card = DragCardImage.make(
-          title: self.title, subtitle: self.subtitle, fileCount: self.fileCount,
-          thumbnail: self.thumbnail, swatch: self.swatch, scheme: self.scheme,
-          deleteHover: hovered, tag: self.formatTag)
+          self.cardContent, scheme: self.scheme, deleteHover: hovered)
         item.setDraggingFrame(item.draggingFrame, contents: card.image)
       }
     }
@@ -189,9 +170,7 @@ struct ClipboardDragView: NSViewRepresentable {
         let window
       {
         let target = window.convertToScreen(convert(bounds, to: nil))
-        let card = DragCardImage.make(
-          title: title, subtitle: subtitle, fileCount: fileCount, thumbnail: thumbnail,
-          swatch: swatch, scheme: scheme, tag: formatTag)
+        let card = DragCardImage.make(cardContent, scheme: scheme)
         let pointer = NSEvent.mouseLocation
         let start = NSRect(
           x: pointer.x - card.hotspot.x, y: pointer.y - card.hotspot.y,
@@ -269,6 +248,16 @@ struct ClipboardDragView: NSViewRepresentable {
 
 @MainActor enum DragCardImage {
   static func make(
+    _ content: ClipCardContent, scheme: ColorScheme, counter: (index: Int, total: Int)? = nil,
+    glass: Bool = false, deleteHover: Bool = false
+  ) -> (image: NSImage, hotspot: NSPoint) {
+    make(
+      title: content.title, subtitle: content.subtitle, fileCount: content.stack,
+      thumbnail: content.icon, swatch: content.swatch, scheme: scheme, counter: counter,
+      glass: glass, deleteHover: deleteHover, footer: content.note,
+      multilineContent: content.multiline, tag: content.tag)
+  }
+  static func make(
     title: String, subtitle: String, fileCount: Int, thumbnail: NSImage?, swatch: NSColor?,
     scheme: ColorScheme, counter: (index: Int, total: Int)? = nil, glass: Bool = false,
     deleteHover: Bool = false, footer: String? = nil, multilineContent: Bool = false,
@@ -287,11 +276,16 @@ struct ClipboardDragView: NSViewRepresentable {
     // Right column: counter on top, format tag at the bottom, for every kind.
     let tagWidth = deleteHover ? 0 : tag.map { tagSize($0) } ?? 0
     let tagReserve = tagWidth > 0 ? tagWidth + 6 : 0
-    let reservedWidth =
-      multilineContent && counter != nil
-      ? counterWidth : (!multilineContent && displayTitle.isEmpty ? tagReserve : 0)
-    let width = DragCard.width(
-      title: sizingText, hasThumb: hasThumb, trailingAccessoryWidth: reservedWidth)
+    let width =
+      multilineContent
+      ? DragCard.width(
+        title: sizingText, hasThumb: hasThumb,
+        trailingAccessoryWidth: counter != nil ? counterWidth : 0)
+      : max(
+        DragCard.width(
+          title: displayTitle, hasThumb: hasThumb, trailingAccessoryWidth: counterWidth),
+        DragCard.width(
+          title: displaySubtitle, hasThumb: hasThumb, trailingAccessoryWidth: tagReserve))
     let card = NSSize(width: width, height: DragCard.height)
     let pad: CGFloat = 10
     let image = NSImage(size: NSSize(width: card.width + pad * 2, height: card.height + pad * 2))
@@ -330,11 +324,19 @@ struct ClipboardDragView: NSViewRepresentable {
       NSBezierPath(roundedRect: chip, xRadius: 4, yRadius: 4).fill()
       textX += 24
     } else if let thumbnail {
-      let slot = NSRect(x: textX, y: bounds.midY - 20, width: 40, height: 40)
-      NSGraphicsContext.saveGraphicsState()
-      NSBezierPath(roundedRect: slot, xRadius: 6, yRadius: 6).addClip()
-      thumbnail.draw(in: slot, from: .zero, operation: .sourceOver, fraction: 1)
-      NSGraphicsContext.restoreGraphicsState()
+      // Multiple files: up to three stacked copies of the first icon, front one fully opaque.
+      let layers = min(max(fileCount, 1), 3)
+      let side: CGFloat = layers > 1 ? 34 : 40
+      for layer in (0..<layers).reversed() {
+        let shift = CGFloat(layer) * 3
+        let slot = NSRect(
+          x: textX + shift, y: bounds.midY - 20 + (40 - side) - shift, width: side, height: side)
+        NSGraphicsContext.saveGraphicsState()
+        NSBezierPath(roundedRect: slot, xRadius: 6, yRadius: 6).addClip()
+        thumbnail.draw(
+          in: slot, from: .zero, operation: .sourceOver, fraction: layer == 0 ? 1 : 0.45)
+        NSGraphicsContext.restoreGraphicsState()
+      }
       textX += 48
     }
     let primary = NSColor(DesignTokens.textPrimary(scheme))
@@ -367,7 +369,7 @@ struct ClipboardDragView: NSViewRepresentable {
         displayTitle, in: titleRect, font: .systemFont(ofSize: 12), color: primary,
         lineBreak: .byTruncatingTail)
     }
-    let bottomY = multilineContent && !hasSecondContentLine ? bounds.minY + 3 : bounds.midY - 15
+    let bottomY = bounds.midY - 15
     if let tag, tagWidth > 0 {
       drawTag(tag, x: bounds.maxX - 12 - tagWidth, midY: bottomY + 7, scheme: scheme)
     }
@@ -400,14 +402,6 @@ struct ClipboardDragView: NSViewRepresentable {
       let size = counterText.size()
       counterText.draw(
         at: NSPoint(x: bounds.maxX - 10 - ceil(size.width), y: bounds.maxY - 21))
-    } else if fileCount > 1 {
-      let badge = NSRect(x: bounds.maxX - 22, y: bounds.maxY - 22, width: 18, height: 18)
-      let circle = NSBezierPath(ovalIn: badge)
-      primary.setFill()
-      circle.fill()
-      draw(
-        "\(fileCount)", in: badge, font: .systemFont(ofSize: 10, weight: .semibold),
-        color: NSColor(DesignTokens.selectionText(scheme)), lineBreak: .byClipping, align: .center)
     }
     image.unlockFocus()
     return (image, NSPoint(x: pad + card.width, y: pad))

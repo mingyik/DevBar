@@ -31,6 +31,7 @@ public enum ClipTag {
   }
 
   private static func extensionTag(_ name: String) -> String {
+    if name.hasSuffix("/") { return "DIR" }
     let ext = (name as NSString).pathExtension.uppercased()
     return ext.isEmpty || ext.count > 6 ? "FILE" : ext
   }

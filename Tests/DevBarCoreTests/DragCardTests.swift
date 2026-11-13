@@ -34,6 +34,10 @@ import Testing
   #expect(
     ClipTag.label(kind: .files, types: [], fileNames: ["a.svg", "b.png"], text: "") == "FILE ×2")
   #expect(ClipTag.label(kind: .files, types: [], fileNames: ["folder"], text: "") == "FILE")
+  #expect(ClipTag.label(kind: .files, types: [], fileNames: ["folder/"], text: "") == "DIR")
+  #expect(DragCard.lineCount("") == 0)
+  #expect(DragCard.lineCount("one") == 1)
+  #expect(DragCard.lineCount("one\ntwo\nthree") == 3)
 }
 
 @Test func dragCardBoundsMillionCharacterTitleBeforeDrawing() {

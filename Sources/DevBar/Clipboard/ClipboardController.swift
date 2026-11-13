@@ -232,41 +232,9 @@ final class ClipboardController {
     select(cycler.currentIndex, board: board)
     let item = items[cycler.currentIndex]
     let payloads = originals[item.id] ?? []
-    let source =
-      payloads.first { $0.type == NSPasteboard.PasteboardType.string.rawValue }.flatMap {
-        String(data: $0.data, encoding: .utf8)
-      } ?? item.preview
-    let files = payloads.filter { $0.type == NSPasteboard.PasteboardType.fileURL.rawValue }
-      .compactMap { String(data: $0.data, encoding: .utf8) }.compactMap(URL.init(string:)).map(
-        \.lastPathComponent)
-    let textMode = item.kind == .text
-    let subtitle: String
-    if textMode {
-      subtitle = ""
-    } else if item.kind == .files {
-      subtitle = DragCard.fileSubtitle(names: files)
-    } else {
-      subtitle = item.preview
-    }
-    let footer = textMode ? DragCard.textSubtitle(characters: source.count) : nil
-    let color = ClipboardColor.parse(item.preview)
-    let swatch = color.map {
-      NSColor(  // devbar:allow-color
-        srgbRed: $0.red, green: $0.green, blue: $0.blue, alpha: $0.alpha)
-    }
-    let title: String
-    if item.kind == .image {
-      title = ""
-    } else if textMode {
-      title = DragCard.previewText(source)
-    } else {
-      title = DragCard.firstLine(source)
-    }
-    card.show(
-      index: cycler.currentIndex, count: items.count, title: title,
-      subtitle: subtitle, thumbnail: thumbnails[item.id], swatch: swatch, fileCount: files.count,
-      boundary: boundary, footer: footer, multilineContent: textMode,
-      tag: tag(for: item))
+    let content = ClipCardContent.make(
+      item: item, payloads: payloads, thumbnail: thumbnails[item.id])
+    card.show(index: cycler.currentIndex, count: items.count, content: content, boundary: boundary)
     let elapsed = started.duration(to: .now).components
     lastCycleMilliseconds = Double(elapsed.seconds) * 1000 + Double(elapsed.attoseconds) / 1e15
   }
@@ -275,7 +243,7 @@ final class ClipboardController {
     let payloads = originals[item.id] ?? []
     let fileNames = payloads.filter { $0.type == NSPasteboard.PasteboardType.fileURL.rawValue }
       .compactMap { String(data: $0.data, encoding: .utf8) }.compactMap(URL.init(string:))
-      .map(\.lastPathComponent)
+      .map { $0.hasDirectoryPath ? $0.lastPathComponent + "/" : $0.lastPathComponent }
     let text =
       item.kind == .text
       ? payloads.first { $0.type == NSPasteboard.PasteboardType.string.rawValue }

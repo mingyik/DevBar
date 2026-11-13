@@ -129,12 +129,7 @@ private struct ClipboardRow: View {
       .overlay {
         ClipboardDragView(
           payloads: payloads,
-          thumbnail: item.kind == .image ? controller.thumbnails[item.id] : nil,
-          title: DragCard.firstLine(dragSource),
-          subtitle: dragSubtitle,
-          fileCount: fileNames.count,
-          swatch: swatch,
-          tag: tag,
+          cardContent: cardContent,
           scheme: scheme,
           onClick: { controller.select(index) },
           onDelete: { Task { await controller.remove(item.id) } },
@@ -152,7 +147,7 @@ private struct ClipboardRow: View {
         Image(systemName: "checkmark").font(.system(size: 11))
           .foregroundStyle(DesignTokens.textPrimary(scheme))
       }
-      ClipTagChip(tag: tag, scheme: scheme)
+      ClipTagChip(tag: cardContent.tag, scheme: scheme)
     }
     .padding(.horizontal, 8).frame(height: 56)
     .background {
@@ -193,32 +188,8 @@ private struct ClipboardRow: View {
     .onDisappear { controller.setHovered(item.id, inside: false) }
   }
 
-  private var tag: String { controller.tag(for: item) }
-
-  private var dragSource: String {
-    payloads.first { $0.type == NSPasteboard.PasteboardType.string.rawValue }
-      .flatMap { String(data: $0.data, encoding: .utf8) } ?? item.preview
-  }
-
-  private var fileNames: [String] {
-    payloads.filter { $0.type == NSPasteboard.PasteboardType.fileURL.rawValue }
-      .compactMap { String(data: $0.data, encoding: .utf8) }
-      .compactMap(URL.init(string:))
-      .map(\.lastPathComponent)
-  }
-
-  private var dragSubtitle: String {
-    switch item.kind {
-    case .text: DragCard.textSubtitle(characters: dragSource.count)
-    case .image: item.preview
-    case .files: DragCard.fileSubtitle(names: fileNames)
-    }
-  }
-
-  private var swatch: NSColor? {
-    guard let color = ClipboardColor.parse(item.preview) else { return nil }
-    return NSColor(  // devbar:allow-color
-      srgbRed: color.red, green: color.green, blue: color.blue, alpha: color.alpha)
+  private var cardContent: ClipCardContent {
+    ClipCardContent.make(item: item, payloads: payloads, thumbnail: controller.thumbnails[item.id])
   }
 }
 
