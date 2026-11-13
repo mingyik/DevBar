@@ -82,12 +82,14 @@ final class ClipboardController {
     } catch { message = Strings.historyWriteFailed }
   }
 
-  func record(_ capture: ClipboardCapture, source: String?) async {
+  func record(_ capture: ClipboardCapture, source: String?, allowOversizedImage: Bool = false) async
+  {
     guard let store else { return }
     do {
       let result = try await store.add(
         kind: capture.kind, sourceBundleID: source,
-        preview: capture.preview, representations: capture.payloads, thumbnail: capture.thumbnail)
+        preview: capture.preview, representations: capture.payloads, thumbnail: capture.thumbnail,
+        allowOversizedImage: allowOversizedImage)
       if result == .rejectedImageTooLarge {
         message = Strings.imageTooLarge
         return
@@ -198,7 +200,10 @@ final class ClipboardController {
 
   static func pasteboardItems(payloads: [ClipboardPayload]) -> [NSPasteboardItem] {
     let files = payloads.filter { $0.type == NSPasteboard.PasteboardType.fileURL.rawValue }
-    if !files.isEmpty {
+    let hasImage = payloads.contains {
+      SystemPasteboardReader.imageTypes.map(\.rawValue).contains($0.type)
+    }
+    if !files.isEmpty && !hasImage {
       return files.map { payload in
         let item = NSPasteboardItem()
         item.setData(payload.data, forType: .fileURL)
@@ -301,9 +306,8 @@ final class ClipboardController {
     let selectedPayloads =
       items.indices.contains(cycler.currentIndex)
       ? originals[items[cycler.currentIndex].id] ?? [] : []
-    let isFile = selectedPayloads.contains {
-      $0.type == NSPasteboard.PasteboardType.fileURL.rawValue
-    }
+    let isFile =
+      items.indices.contains(cycler.currentIndex) && items[cycler.currentIndex].kind == .files
     let isTrusted = AXIsProcessTrusted()
     isDirectPasteAuthorized = isTrusted
     let initialFrontmost = NSWorkspace.shared.frontmostApplication

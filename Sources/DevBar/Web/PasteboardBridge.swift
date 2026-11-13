@@ -44,13 +44,14 @@ enum PasteboardBridge {
     writePNG(data, file: nil)
   }
 
-  static func writePNG(_ data: Data, file: URL?) {
-    let board = NSPasteboard.general
-    board.clearContents()
+  @discardableResult
+  static func writePNG(_ data: Data, file: URL?, board: NSPasteboard = .general) -> Bool {
     let item = NSPasteboardItem()
-    item.setData(data, forType: .png)
-    if let file { item.setString(file.absoluteString, forType: .fileURL) }
-    board.writeObjects([item])
+    guard item.setData(data, forType: .png) else { return false }
+    if let file, !item.setString(file.absoluteString, forType: .fileURL) { return false }
+    board.clearContents()
+    let written = board.writeObjects([item])
     logger.notice("clipboardWriteImage bytes=\(data.count, privacy: .public)")
+    return written
   }
 }

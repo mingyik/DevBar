@@ -104,6 +104,22 @@ struct ClipboardCapture: Sendable {
     }
   }
 
+  init?(screenshotPNG: Data, file: URL) {
+    guard
+      let capture = ClipboardCapture(payloads: [
+        ClipboardPayload(type: NSPasteboard.PasteboardType.png.rawValue, data: screenshotPNG)
+      ])
+    else { return nil }
+    kind = .image
+    preview = capture.preview
+    thumbnail = capture.thumbnail
+    payloads =
+      capture.payloads + [
+        ClipboardPayload(
+          type: NSPasteboard.PasteboardType.fileURL.rawValue, data: Data(file.absoluteString.utf8))
+      ]
+  }
+
   private static func thumbnail(_ source: CGImageSource) -> Data? {
     guard
       let image = CGImageSourceCreateThumbnailAtIndex(

@@ -73,11 +73,12 @@ public actor ClipboardStore {
   /// rendering (PNG, longest edge 160pt @2x); Core never substitutes it for originals.
   public func add(
     kind: ClipItem.Kind, createdAt: Date = Date(), sourceBundleID: String? = nil,
-    preview: String, representations: [ClipboardPayload], thumbnail: Data? = nil
+    preview: String, representations: [ClipboardPayload], thumbnail: Data? = nil,
+    allowOversizedImage: Bool = false
   ) throws -> AddResult {
     guard !representations.isEmpty else { throw StoreError.emptyRepresentations }
     let size = representations.reduce(0) { $0 + $1.data.count }
-    if kind == .image && size > Self.imageByteLimit {
+    if kind == .image && size > Self.imageByteLimit && !allowOversizedImage {
       onImageTooLarge()
       return .rejectedImageTooLarge
     }
