@@ -194,17 +194,23 @@ final class SelectionView: NSView {
     return bitmap.cgImage
   }
 
+  private var drawingKind: String {
+    if tool == "arrow" && largeArrow { return "arrowFilled" }
+    if tool == "mosaic" && !mosaicBrush { return "mosaicRect" }
+    return tool
+  }
+
   private func drawMarks(clipped: Bool = true) {
     NSGraphicsContext.saveGraphicsState()
     if clipped { NSBezierPath(rect: selection).addClip() }
     NSColor.labelColor.setStroke()
     let displayed =
       marks
-      + (draft.map { [(tool == "arrow" && largeArrow ? "arrowFilled" : tool, $0, ink, stroke)] }
+      + (draft.map { [(drawingKind, $0, ink, stroke)] }
         ?? [])
     for (kind, path, color, weight) in displayed {
       color.setStroke()
-      if kind == "mosaic", let frozenFrame {
+      if kind.hasPrefix("mosaic"), let frozenFrame {
         if mosaicFrame == nil {
           let source = CIImage(cgImage: frozenFrame)
           let filtered = source.applyingFilter(
@@ -243,7 +249,7 @@ final class SelectionView: NSView {
   private func drawObjectSelection() {
     var points: [CGPoint] = []
     var box: CGRect?
-    if let draft, tool == "rect" || tool == "ellipse" {
+    if let draft, tool == "rect" || tool == "ellipse" || (tool == "mosaic" && !mosaicBrush) {
       points = objectHandles(draft.bounds)
     } else if let index = selectedMark, marks.indices.contains(index) {
       let (kind, path, _, _) = marks[index]
@@ -253,9 +259,9 @@ final class SelectionView: NSView {
         _ = path.element(at: 0, associatedPoints: &first)
         _ = path.element(at: 1, associatedPoints: &last)
         points = [first[0], last[0]]
-      } else if kind == "rect" || kind == "ellipse" {
+      } else if kind == "rect" || kind == "ellipse" || kind == "mosaicRect" {
         points = objectHandles(path.bounds)
-      } else {
+      } else if kind != "mosaic" {
         box = path.bounds.insetBy(dx: -5, dy: -5)
       }
     } else if let index = selectedText, texts.indices.contains(index) {
@@ -676,7 +682,9 @@ final class SelectionView: NSView {
         marks[$0].1.bounds.insetBy(dx: -6, dy: -6).contains(point)
       }) {
         selectedMark = index
-        tool = marks[index].0.hasPrefix("arrow") ? "arrow" : marks[index].0
+        tool =
+          marks[index].0.hasPrefix("arrow")
+          ? "arrow" : marks[index].0.hasPrefix("mosaic") ? "mosaic" : marks[index].0
         showToolbar()
         anchor = nil
         needsDisplay = true
@@ -802,7 +810,7 @@ final class SelectionView: NSView {
       mouseDragged(with: event)
     }
     if let draft {
-      marks.append((tool == "arrow" && largeArrow ? "arrowFilled" : tool, draft, ink, stroke))
+      marks.append((drawingKind, draft, ink, stroke))
       undoKinds.append("mark")
       selectedMark = marks.count - 1
       self.draft = nil
