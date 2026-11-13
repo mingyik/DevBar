@@ -25,8 +25,7 @@ struct ClipCardContent {
         .flatMap { String(data: $0.data, encoding: .utf8) } ?? item.preview
       content.multiline = true
       content.title = DragCard.previewText(source)
-      let lines = DragCard.lineCount(source)
-      content.note = lines > 2 ? "+\(lines - 2) 行" : lines == 1 ? "\(source.count) 字符" : nil
+      content.note = DragCard.textSubtitle(characters: source.count)
       content.tag = ClipTag.label(kind: .text, types: [], fileNames: [], text: source)
       content.swatch = ClipboardColor.parse(item.preview).map {
         NSColor(  // devbar:allow-color
