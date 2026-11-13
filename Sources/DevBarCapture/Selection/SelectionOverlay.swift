@@ -82,6 +82,7 @@ public final class SelectionOverlay {
           view.screenFrame = screen.frame
           view.displayID = number.uint32Value
           view.scale = screen.backingScaleFactor
+          view.onInteraction = { [weak self] in self?.timeoutTask?.cancel() }
           view.complete = { [weak self, weak view] result in
             self?.scrollingRequested = view?.scrollingRequested ?? false
             self?.saveRequested = view?.saveRequested ?? false
@@ -139,14 +140,19 @@ final class SelectionView: NSView {
   var scrollingRequested = false
   var saveRequested = false
   var completionRequested = false
+  var onInteraction: (() -> Void)?
   private var tool = "select"
-  private var marks: [(String, NSBezierPath)] = []
+  private var ink = NSColor.systemRed  // devbar:allow-color
+  private var stroke: CGFloat = 3
+  private var fontSize: CGFloat = 18
+  private var optionsBar: NSVisualEffectView?
+  private var marks: [(String, NSBezierPath, NSColor, CGFloat)] = []
   private var draft: NSBezierPath?
   private var moveOrigin: CGRect?
   private var resizeHandle: CGPoint?
   private var toolbar: NSVisualEffectView?
   private var mosaicFrame: CGImage?
-  private var texts: [(String, CGPoint)] = []
+  private var texts: [(String, CGPoint, NSColor, CGFloat)] = []
   private var undoKinds: [String] = []
   private var selectedMark: Int?
   private var selectedText: Int?
@@ -174,7 +180,9 @@ final class SelectionView: NSView {
     NSGraphicsContext.saveGraphicsState()
     NSBezierPath(rect: selection).addClip()
     NSColor.labelColor.setStroke()
-    for (kind, path) in marks {
+    let displayed = marks + (draft.map { [(tool, $0, ink, stroke)] } ?? [])
+    for (kind, path, color, weight) in displayed {
+      color.setStroke()
       if kind == "mosaic", let frozenFrame {
         if mosaicFrame == nil {
           let source = CIImage(cgImage: frozenFrame)
@@ -189,22 +197,20 @@ final class SelectionView: NSView {
           NSGraphicsContext.restoreGraphicsState()
         }
       } else if kind == "highlight" {
-        NSColor.labelColor.withAlphaComponent(0.2).setFill()
+        color.withAlphaComponent(0.2).setFill()
         path.fill()
       } else {
-        path.lineWidth = 3
+        path.lineWidth = weight
         path.stroke()
       }
     }
-    for (text, point) in texts {
+    for (text, point, color, size) in texts {
       text.draw(
         at: point,
         withAttributes: [
-          .font: NSFont.systemFont(ofSize: 18), .foregroundColor: NSColor.labelColor,
+          .font: NSFont.systemFont(ofSize: size), .foregroundColor: color,
         ])
     }
-    draft?.lineWidth = 3
-    draft?.stroke()
     NSGraphicsContext.restoreGraphicsState()
   }
 
@@ -214,7 +220,7 @@ final class SelectionView: NSView {
     if let draft, tool == "rect" || tool == "ellipse" {
       points = objectHandles(draft.bounds)
     } else if let index = selectedMark, marks.indices.contains(index) {
-      let (kind, path) = marks[index]
+      let (kind, path, _, _) = marks[index]
       if kind == "arrow", path.elementCount >= 2 {
         var first = [NSPoint](repeating: .zero, count: 3)
         var last = first
@@ -258,11 +264,12 @@ final class SelectionView: NSView {
   private func textBounds(_ index: Int) -> CGRect {
     CGRect(
       origin: texts[index].1,
-      size: texts[index].0.size(withAttributes: [.font: NSFont.systemFont(ofSize: 18)]))
+      size: texts[index].0.size(withAttributes: [.font: NSFont.systemFont(ofSize: texts[index].3)]))
   }
 
   private func showToolbar() {
     toolbar?.removeFromSuperview()
+    optionsBar?.removeFromSuperview()
     let bar = NSVisualEffectView()
     bar.material = .hudWindow
     bar.blendingMode = .withinWindow
@@ -272,9 +279,9 @@ final class SelectionView: NSView {
     bar.layer?.borderWidth = 0.5
     bar.layer?.borderColor = NSColor.separatorColor.cgColor
     var tools = [
-      ("cursorarrow", "select"), ("rectangle", "rect"), ("circle", "ellipse"),
+      ("hand.draw", "select"), ("rectangle", "rect"), ("circle", "ellipse"),
       ("arrow.up.right", "arrow"), ("pencil.tip", "pen"), ("textformat", "text"),
-      ("square.grid.3x3", "mosaic"), ("highlighter", "highlight"), ("arrow.uturn.backward", "undo"),
+      ("aqi.medium", "mosaic"), ("highlighter", "highlight"), ("arrow.uturn.backward", "undo"),
       ("rectangle.stack", "scroll"), ("arrow.down.to.line", "save"), ("xmark", "cancel"),
     ]
     if frozenFrame == nil {
@@ -297,7 +304,7 @@ final class SelectionView: NSView {
         offset += 12
       }
       let button = CaptureToolbarButton(
-        image: NSImage(systemSymbolName: entry.0, accessibilityDescription: entry.1)!, target: self,
+        image: toolbarImage(symbol: entry.0, tool: entry.1), target: self,
         action: #selector(toolClicked(_:)))
       button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .medium)
       let action = ["save", "cancel", "confirm", "undo", "scroll"].contains(entry.1)
@@ -325,6 +332,100 @@ final class SelectionView: NSView {
     }
     addSubview(bar)
     toolbar = bar
+    showOptions(below: bar.frame)
+  }
+
+  private func toolbarImage(symbol: String, tool: String) -> NSImage {
+    if tool == "text" {
+      let image = NSImage(size: NSSize(width: 24, height: 24))
+      image.lockFocus()
+      ("T" as NSString).draw(
+        at: NSPoint(x: 5, y: 0),
+        withAttributes: [
+          .font: NSFont.systemFont(ofSize: 23, weight: .medium),
+          .foregroundColor: NSColor.labelColor,
+        ])
+      image.unlockFocus()
+      image.isTemplate = true
+      return image
+    }
+    return NSImage(systemSymbolName: symbol, accessibilityDescription: tool)
+      ?? NSImage(size: NSSize(width: 24, height: 24))
+  }
+
+  private var palette: [NSColor] {
+    [
+      .systemRed, .systemYellow, .systemBlue, .systemGreen,  // devbar:allow-color
+      .black, .gray, .white,  // devbar:allow-color
+    ]
+  }
+
+  private func showOptions(below frame: CGRect) {
+    guard frozenFrame != nil,
+      ["rect", "ellipse", "arrow", "pen", "text", "highlight", "mosaic"].contains(tool)
+    else { return }
+    let bar = NSVisualEffectView()
+    bar.material = .hudWindow
+    bar.blendingMode = .withinWindow
+    bar.state = .active
+    bar.wantsLayer = true
+    bar.layer?.cornerRadius = 9
+    bar.layer?.borderWidth = 0.5
+    bar.layer?.borderColor = NSColor.separatorColor.cgColor
+    let width: CGFloat = tool == "mosaic" ? 180 : 430
+    let y = frame.minY >= 56 ? frame.minY - 54 : min(frame.maxY + 6, bounds.maxY - 48)
+    bar.frame = CGRect(
+      x: min(max(frame.minX, 8), bounds.maxX - width - 8), y: y, width: width, height: 46)
+    let slider = NSSlider(
+      value: Double(tool == "text" ? fontSize : stroke), minValue: tool == "text" ? 10 : 1,
+      maxValue: tool == "text" ? 48 : 12, target: self, action: #selector(styleChanged(_:)))
+    slider.frame = CGRect(x: 12, y: 10, width: 140, height: 26)
+    bar.addSubview(slider)
+    if tool != "mosaic" {
+      for (index, color) in palette.enumerated() {
+        let button = NSButton(
+          title: color == ink ? "✓" : "", target: self, action: #selector(colorChanged(_:)))
+        button.tag = index
+        button.isBordered = false
+        button.wantsLayer = true
+        button.layer?.cornerRadius = 4
+        button.layer?.backgroundColor = color.cgColor
+        button.contentTintColor = index == 1 || index == 6 ? .black : .white  // devbar:allow-color
+        button.frame = CGRect(x: 165 + index * 36, y: 9, width: 28, height: 28)
+        bar.addSubview(button)
+      }
+    }
+    addSubview(bar)
+    optionsBar = bar
+  }
+
+  @objc private func styleChanged(_ slider: NSSlider) {
+    if tool == "text" {
+      fontSize = CGFloat(slider.doubleValue)
+    } else {
+      stroke = CGFloat(slider.doubleValue)
+    }
+    applyStyle()
+  }
+  @objc private func colorChanged(_ button: NSButton) {
+    ink = palette[button.tag]
+    applyStyle()
+    showToolbar()
+  }
+  private func applyStyle() {
+    if let index = selectedMark, marks.indices.contains(index) {
+      marks[index].2 = ink
+      marks[index].3 = stroke
+    }
+    if let index = selectedText, texts.indices.contains(index) {
+      texts[index].2 = ink
+      texts[index].3 = fontSize
+    }
+    for field in subviews.compactMap({ $0 as? NSTextField }) {
+      field.font = .systemFont(ofSize: fontSize)
+      field.textColor = ink
+    }
+    needsDisplay = true
   }
 
   @objc private func toolClicked(_ sender: NSButton) {
@@ -415,7 +516,16 @@ final class SelectionView: NSView {
     window?.makeKey()
     window?.makeFirstResponder(self)
     let point = convert(event.locationInWindow, from: nil)
+    onInteraction?()
     anchor = point
+    if !selection.isEmpty && !selection.insetBy(dx: -9, dy: -9).contains(point) {
+      for field in subviews.compactMap({ $0 as? NSTextField }) { commitText(field) }
+      selectedMark = nil
+      selectedText = nil
+      anchor = nil
+      needsDisplay = true
+      return
+    }
     selectedMark = nil
     selectedText = nil
     if tool == "select" && selection.contains(point) {
@@ -423,6 +533,10 @@ final class SelectionView: NSView {
         textBounds($0).insetBy(dx: -6, dy: -4).contains(point)
       }) {
         selectedText = index
+        tool = "text"
+        ink = texts[index].2
+        fontSize = texts[index].3
+        showToolbar()
         anchor = nil
         needsDisplay = true
         return
@@ -431,6 +545,10 @@ final class SelectionView: NSView {
         marks[$0].1.bounds.insetBy(dx: -6, dy: -6).contains(point)
       }) {
         selectedMark = index
+        tool = marks[index].0
+        ink = marks[index].2
+        stroke = marks[index].3
+        showToolbar()
         anchor = nil
         needsDisplay = true
         return
@@ -442,7 +560,8 @@ final class SelectionView: NSView {
         x: point.x, y: point.y, width: min(200, selection.maxX - point.x), height: 26)
       field.isBordered = false
       field.drawsBackground = false
-      field.font = .systemFont(ofSize: 18)
+      field.font = .systemFont(ofSize: fontSize)
+      field.textColor = ink
       field.wantsLayer = true
       field.layer?.cornerRadius = 4
       field.layer?.borderWidth = 2
@@ -465,7 +584,7 @@ final class SelectionView: NSView {
 
   @objc private func commitText(_ field: NSTextField) {
     if !field.stringValue.isEmpty {
-      texts.append((field.stringValue, field.frame.origin))
+      texts.append((field.stringValue, field.frame.origin, ink, fontSize))
       undoKinds.append("text")
       selectedText = texts.count - 1
     }
@@ -478,7 +597,22 @@ final class SelectionView: NSView {
     guard let anchor else { return }
     let point = convert(event.locationInWindow, from: nil)
     if draft != nil {
-      if tool == "pen" {
+      if tool == "mosaic" {
+        let last = draft?.currentPoint ?? anchor
+        let distance = hypot(point.x - last.x, point.y - last.y)
+        let steps = max(1, Int(distance / 3))
+        let diameter = max(16, stroke * 6)
+        for step in 0...steps {
+          let t = CGFloat(step) / CGFloat(steps)
+          let center = CGPoint(
+            x: last.x + (point.x - last.x) * t, y: last.y + (point.y - last.y) * t)
+          draft?.appendOval(
+            in: CGRect(
+              x: center.x - diameter / 2, y: center.y - diameter / 2, width: diameter,
+              height: diameter))
+        }
+        draft?.move(to: point)
+      } else if tool == "pen" {
         draft?.line(to: point)
       } else {
         let rect = CGRect(
@@ -528,9 +662,14 @@ final class SelectionView: NSView {
   }
 
   override func mouseUp(with event: NSEvent) {
-    mouseDragged(with: event)
+    let end = convert(event.locationInWindow, from: nil)
+    if let anchor, draft != nil, hypot(end.x - anchor.x, end.y - anchor.y) < 3 {
+      draft = nil
+    } else {
+      mouseDragged(with: event)
+    }
     if let draft {
-      marks.append((tool, draft))
+      marks.append((tool, draft, ink, stroke))
       undoKinds.append("mark")
       selectedMark = marks.count - 1
       self.draft = nil
