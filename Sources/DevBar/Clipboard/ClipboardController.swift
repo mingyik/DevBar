@@ -266,7 +266,7 @@ final class ClipboardController {
       index: cycler.currentIndex, count: items.count, title: title,
       subtitle: subtitle, thumbnail: thumbnails[item.id], swatch: swatch, fileCount: files.count,
       boundary: boundary, footer: footer, multilineContent: textMode,
-      tag: textMode ? nil : tag(for: item))
+      tag: tag(for: item))
     let elapsed = started.duration(to: .now).components
     lastCycleMilliseconds = Double(elapsed.seconds) * 1000 + Double(elapsed.attoseconds) / 1e15
   }

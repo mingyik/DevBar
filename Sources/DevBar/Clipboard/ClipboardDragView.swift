@@ -284,7 +284,12 @@ struct ClipboardDragView: NSViewRepresentable {
       multilineContent
       ? DragCard.firstLine(title)
       : (displayTitle.isEmpty ? displaySubtitle : displayTitle)
-    let reservedWidth = multilineContent && counter != nil ? counterWidth : 0
+    // Right column: counter on top, format tag at the bottom, for every kind.
+    let tagWidth = deleteHover ? 0 : tag.map { tagSize($0) } ?? 0
+    let tagReserve = tagWidth > 0 ? tagWidth + 6 : 0
+    let reservedWidth =
+      multilineContent && counter != nil
+      ? counterWidth : (!multilineContent && displayTitle.isEmpty ? tagReserve : 0)
     let width = DragCard.width(
       title: sizingText, hasThumb: hasThumb, trailingAccessoryWidth: reservedWidth)
     let card = NSSize(width: width, height: DragCard.height)
@@ -342,7 +347,8 @@ struct ClipboardDragView: NSViewRepresentable {
       let fullTextWidth = bounds.maxX - textX - 12
       let firstLineWidth = fullTextWidth - counterWidth
       let footerWidth = min(
-        fullTextWidth, max(44, textWidth(footer ?? "", font: .systemFont(ofSize: 11)) + 6))
+        fullTextWidth,
+        max(44, textWidth(footer ?? "", font: .systemFont(ofSize: 11)) + 6) + tagReserve)
       let secondLineWidth = max(1, fullTextWidth - footerWidth - 8)
       let lines = previewLines(
         title, firstLineWidth: firstLineWidth, secondLineWidth: secondLineWidth, font: textFont)
@@ -361,29 +367,26 @@ struct ClipboardDragView: NSViewRepresentable {
         displayTitle, in: titleRect, font: .systemFont(ofSize: 12), color: primary,
         lineBreak: .byTruncatingTail)
     }
+    let bottomY = multilineContent && !hasSecondContentLine ? bounds.minY + 3 : bounds.midY - 15
+    if let tag, tagWidth > 0 {
+      drawTag(tag, x: bounds.maxX - 12 - tagWidth, midY: bottomY + 7, scheme: scheme)
+    }
     if multilineContent {
       if let footer {
         draw(
           footer,
           in: NSRect(
-            x: textX,
-            y: hasSecondContentLine ? bounds.midY - 15 : bounds.minY + 3,
-            width: bounds.maxX - textX - 12, height: 14),
+            x: textX, y: bottomY, width: bounds.maxX - textX - 12 - tagReserve, height: 14),
           font: .systemFont(ofSize: 11), color: tertiary,
           lineBreak: .byTruncatingTail, align: .right)
       }
     } else {
-      let subtitleWidth = bounds.maxX - textX - 12 - (displayTitle.isEmpty ? 0 : counterWidth)
-      var subtitleX = textX
-      if let tag, !tag.isEmpty {
-        subtitleX += drawTag(tag, x: textX, midY: bounds.midY - 9, scheme: scheme) + 6
-      }
-      let subtitleRect = NSRect(
-        x: subtitleX, y: bounds.midY - 16, width: max(0, subtitleWidth - (subtitleX - textX)),
-        height: 14)
+      let subtitleWidth =
+        bounds.maxX - textX - 12 - max(displayTitle.isEmpty ? 0 : counterWidth, tagReserve)
       draw(
-        displaySubtitle, in: subtitleRect, font: .systemFont(ofSize: 11), color: tertiary,
-        lineBreak: .byTruncatingTail)
+        displaySubtitle,
+        in: NSRect(x: textX, y: bounds.midY - 16, width: max(0, subtitleWidth), height: 14),
+        font: .systemFont(ofSize: 11), color: tertiary, lineBreak: .byTruncatingTail)
     }
     if deleteHover {
       let iconRect = NSRect(x: bounds.maxX - 25, y: bounds.midY - 7, width: 14, height: 14)
@@ -430,21 +433,21 @@ struct ClipboardDragView: NSViewRepresentable {
     return result
   }
 
-  /// Outlined monochrome chip; returns its width.
-  private static func drawTag(_ tag: String, x: CGFloat, midY: CGFloat, scheme: ColorScheme)
-    -> CGFloat
-  {
-    let font = NSFont.monospacedSystemFont(ofSize: 9, weight: .semibold)
-    let width = ceil(textWidth(tag, font: font)) + 8
-    let rect = NSRect(x: x, y: midY - 7, width: width, height: 14)
-    let chip = NSBezierPath(roundedRect: rect.insetBy(dx: 0.25, dy: 0.25), xRadius: 3, yRadius: 3)
-    chip.lineWidth = 0.5
-    NSColor(DesignTokens.lineBorder(scheme)).setStroke()
-    chip.stroke()
+  private static let tagFont = NSFont.systemFont(ofSize: 10, weight: .semibold)
+
+  private static func tagSize(_ tag: String) -> CGFloat {
+    tag.isEmpty ? 0 : ceil(textWidth(tag, font: tagFont)) + 10
+  }
+
+  /// Filled monochrome chip: a hairline outline washed out on glass.
+  private static func drawTag(_ tag: String, x: CGFloat, midY: CGFloat, scheme: ColorScheme) {
+    let primary = NSColor(DesignTokens.textPrimary(scheme))
+    let rect = NSRect(x: x, y: midY - 8, width: tagSize(tag), height: 16)
+    primary.withAlphaComponent(0.12).setFill()
+    NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4).fill()
     draw(
-      tag, in: rect.offsetBy(dx: 0, dy: -1.5), font: font,
-      color: NSColor(DesignTokens.textSecondary(scheme)), lineBreak: .byClipping, align: .center)
-    return width
+      tag, in: rect.offsetBy(dx: 0, dy: -1.5), font: tagFont,
+      color: primary.withAlphaComponent(0.85), lineBreak: .byClipping, align: .center)
   }
 
   private static func draw(

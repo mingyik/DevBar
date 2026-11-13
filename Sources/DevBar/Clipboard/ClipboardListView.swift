@@ -222,19 +222,19 @@ private struct ClipboardRow: View {
   }
 }
 
-/// Monochrome format tag (TXT / PNG / SVG ×4); Latin reads faster than 文本/图片 at 11pt.
+/// Filled monochrome format tag (TXT / PNG / SVG ×4); matches the floating card chip.
 struct ClipTagChip: View {
   let tag: String
   let scheme: ColorScheme
   var body: some View {
     Text(tag)
-      .font(.system(size: 9, weight: .semibold, design: .monospaced))
-      .foregroundStyle(DesignTokens.textSecondary(scheme))
+      .font(.system(size: 10, weight: .semibold))
+      .foregroundStyle(DesignTokens.textPrimary(scheme).opacity(0.85))
       .lineLimit(1).fixedSize()
-      .padding(.horizontal, 4).frame(height: 15)
-      .overlay {
-        RoundedRectangle(cornerRadius: 3, style: .continuous)
-          .strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: 0.5)
+      .padding(.horizontal, 5).frame(height: 16)
+      .background {
+        RoundedRectangle(cornerRadius: 4, style: .continuous)
+          .fill(DesignTokens.textPrimary(scheme).opacity(0.12))
       }
   }
 }
