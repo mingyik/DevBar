@@ -226,6 +226,8 @@ import SwiftUI
     glass.state = .active
     glass.wantsLayer = true
     glass.layer?.cornerRadius = 10
+    glass.layer?.borderWidth = 0.5
+    glass.layer?.borderColor = NSColor(DesignTokens.lineBorder(theme.effective)).cgColor
     glass.layer?.masksToBounds = true
     container.addSubview(glass)
     container.addSubview(view)
