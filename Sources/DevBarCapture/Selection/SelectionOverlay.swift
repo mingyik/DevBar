@@ -206,7 +206,9 @@ final class SelectionView: NSView {
     bar.material = .popover
     bar.state = .active
     bar.wantsLayer = true
-    bar.layer?.cornerRadius = 9
+    bar.layer?.cornerRadius = 10
+    bar.layer?.borderWidth = 0.5
+    bar.layer?.borderColor = NSColor.separatorColor.cgColor
     var tools = [
       ("cursorarrow", "select"), ("rectangle", "rect"), ("circle", "ellipse"),
       ("arrow.up.right", "arrow"), ("pencil.tip", "pen"), ("textformat", "text"),
@@ -214,17 +216,19 @@ final class SelectionView: NSView {
       ("rectangle.stack", "scroll"), ("arrow.down.to.line", "save"), ("xmark", "cancel"),
     ]
     if frozenFrame == nil { tools = [("play.fill", "scroll"), ("xmark", "cancel")] }
-    let width = CGFloat(tools.count * 36 + 12)
+    let width = CGFloat(tools.count * 44 + 24)
     let x = min(max(selection.maxX - width, 8), bounds.maxX - width - 8)
-    let y = selection.minY > 52 ? selection.minY - 48 : min(selection.maxY + 8, bounds.maxY - 44)
-    bar.frame = NSRect(x: x, y: y, width: width, height: 40)
+    let y = selection.minY > 64 ? selection.minY - 60 : min(selection.maxY + 10, bounds.maxY - 54)
+    bar.frame = NSRect(x: x, y: y, width: width, height: 50)
     for (index, entry) in tools.enumerated() {
       let button = NSButton(
         image: NSImage(systemSymbolName: entry.0, accessibilityDescription: entry.1)!, target: self,
         action: #selector(toolClicked(_:)))
+      button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .medium)
+      button.contentTintColor = .labelColor
       button.identifier = NSUserInterfaceItemIdentifier(entry.1)
       button.isBordered = false
-      button.frame = NSRect(x: 6 + index * 36, y: 4, width: 34, height: 32)
+      button.frame = NSRect(x: 12 + index * 44, y: 5, width: 42, height: 40)
       bar.addSubview(button)
     }
     addSubview(bar)
@@ -254,7 +258,7 @@ final class SelectionView: NSView {
     if let frame = frozenFrame {
       NSImage(cgImage: frame, size: bounds.size).draw(in: bounds)
     }
-    NSColor.windowBackgroundColor.withAlphaComponent(0.45).setFill()
+    NSColor.black.withAlphaComponent(0.4).setFill()  // devbar:allow-color
     bounds.fill()
     if !selection.isEmpty {
       if let frame = frozenFrame {
@@ -265,21 +269,31 @@ final class SelectionView: NSView {
       } else {
         NSGraphicsContext.current?.cgContext.clear(selection)
       }
-      NSColor.labelColor.setStroke()
+      NSColor.systemBlue.setStroke()  // devbar:allow-color
       let outline = NSBezierPath(rect: selection)
-      outline.lineWidth = 1
+      outline.lineWidth = 3
       outline.stroke()
       drawMarks()
       for point in handles {
-        NSColor.labelColor.setFill()
-        NSBezierPath(ovalIn: NSRect(x: point.x - 3, y: point.y - 3, width: 6, height: 6)).fill()
+        let dot = NSBezierPath(ovalIn: NSRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8))
+        NSColor.systemBlue.setFill()  // devbar:allow-color
+        dot.fill()
+        NSColor.white.setStroke()  // devbar:allow-color
+        dot.lineWidth = 1
+        dot.stroke()
       }
       let label = "\(Int(selection.width * scale)) × \(Int(selection.height * scale))"
-      label.draw(
-        at: CGPoint(x: selection.minX, y: selection.maxY + 6),
-        withAttributes: [
-          .foregroundColor: NSColor.labelColor, .font: NSFont.systemFont(ofSize: 14),
-        ])
+      let attributes: [NSAttributedString.Key: Any] = [
+        .foregroundColor: NSColor.white,
+        .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium),  // devbar:allow-color
+      ]
+      let size = label.size(withAttributes: attributes)
+      let badge = NSRect(
+        x: min(selection.minX, bounds.maxX - size.width - 20),
+        y: min(selection.maxY + 8, bounds.maxY - 30), width: size.width + 20, height: 26)
+      NSColor.black.withAlphaComponent(0.65).setFill()  // devbar:allow-color
+      NSBezierPath(roundedRect: badge, xRadius: 4, yRadius: 4).fill()
+      label.draw(at: CGPoint(x: badge.minX + 10, y: badge.minY + 5), withAttributes: attributes)
     }
   }
 
