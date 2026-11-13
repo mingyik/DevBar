@@ -7,3 +7,7 @@
 - [x] 将原 SVG 路径生成透明矢量 PDF，加入 MenuBar.imageset。
 - [x] 通过 AppIcons 加载模板图片，替换 square.stack。
 - [x] 运行项目检查、构建 Release，沿用 local.devbar.app.repaired 安装，验证重启后菜单栏外观。
+
+## 2026-11-13 更新：改用圆润版
+
+需求方选定 `测试工具-圆润.svg`（大圆角屏幕、圆端粗线 `</>`、短底座），原 `测试工具.svg` 删除。菜单栏 `MenuBar.imageset/menubar.pdf`（18pt 单色模板）与应用图标 `Resources/AppIcon/`（`AppIcon.svg`、`AppIcon.iconset` 全部尺寸、`AppIcon.icns`，白底蓝线）都由这个造型生成；`Scripts/build-app.sh` 与 `Scripts/package-free.sh` 打包时直接使用 `AppIcon.icns`，后续打包无需另行处理。

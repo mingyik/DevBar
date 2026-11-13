@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="200" height="200" fill="none" stroke="#1296db" stroke-width="72" stroke-linecap="round" stroke-linejoin="round">
+  <!-- 屏幕：大圆角 -->
+  <rect x="112" y="124" width="800" height="616" rx="156"/>
+  <!-- 左尖括号 -->
+  <polyline points="372,338 268,432 372,526"/>
+  <!-- 斜杠 -->
+  <line x1="544" y1="336" x2="480" y2="528"/>
+  <!-- 右尖括号 -->
+  <polyline points="652,338 756,432 652,526"/>
+  <!-- 底座 -->
+  <line x1="384" y1="872" x2="640" y2="872"/>
+</svg>

@@ -88,7 +88,7 @@ final class ThemeManager {
   }
 
   private func refreshSystem() {
-    let match = NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua])
+    let match = NSApplication.shared.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua])
     systemScheme = match == .darkAqua ? .dark : .light
   }
 }
