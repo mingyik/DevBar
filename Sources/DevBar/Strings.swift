@@ -42,7 +42,7 @@ enum Strings {
   static let pageJSON = "Json"
   static let pageQR = "QrCode"
   static let reorderPages = "拖动调整页面顺序"
-  static let pageCycleSwitchHelp = "参与 ⌘P 页面切换；关闭后仍可使用此页面快捷键，至少保留一个开启"
+  static let pageCycleSwitchHelp = "参与 ⌘R 页面切换；关闭后仍可使用此页面快捷键，至少保留一个开启"
   static let pageShortcuts = "页面快捷键"
   static func pageNotImplemented(_ page: String) -> String { "\(page) · 尚未实现" }
   static func minutesAgo(_ minutes: Int) -> String { "\(minutes) 分钟前" }

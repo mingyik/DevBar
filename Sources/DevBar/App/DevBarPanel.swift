@@ -71,7 +71,7 @@ final class DevBarPanel: NSPanel {
       return onDocumentMode?() ?? false
     }
     if flags == .command,
-      event.charactersIgnoringModifiers?.lowercased() == "p"
+      event.charactersIgnoringModifiers?.lowercased() == "r"
     {
       onCyclePage?(false)
       return true

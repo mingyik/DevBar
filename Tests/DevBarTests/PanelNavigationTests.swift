@@ -139,23 +139,29 @@ import Testing
   #expect(PanelModel(defaults: defaults).cyclingPages == [.clipboard])
 }
 
-@MainActor @Test func shiftCommandPDoesNotInvokePageCycling() throws {
+@MainActor @Test func commandRCyclesPagesWhileShiftRAndCommandPDoNot() throws {
   let panel = DevBarPanel()
   var calls = 0
   panel.onCyclePage = { _ in calls += 1 }
-  let event = try #require(
+  let shiftR = try #require(
     NSEvent.keyEvent(
       with: .keyDown, location: .zero, modifierFlags: [.command, .shift], timestamp: 0,
-      windowNumber: 0, context: nil, characters: "P", charactersIgnoringModifiers: "p",
-      isARepeat: false, keyCode: 35))
-  _ = panel.performKeyEquivalent(with: event)
-  #expect(calls == 0)
-  let ordinary = try #require(
+      windowNumber: 0, context: nil, characters: "R", charactersIgnoringModifiers: "r",
+      isARepeat: false, keyCode: 15))
+  _ = panel.performKeyEquivalent(with: shiftR)
+  let oldP = try #require(
     NSEvent.keyEvent(
       with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
       windowNumber: 0, context: nil, characters: "p", charactersIgnoringModifiers: "p",
       isARepeat: false, keyCode: 35))
-  #expect(panel.performKeyEquivalent(with: ordinary))
+  #expect(!panel.performKeyEquivalent(with: oldP))
+  #expect(calls == 0)
+  let cmdR = try #require(
+    NSEvent.keyEvent(
+      with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
+      windowNumber: 0, context: nil, characters: "r", charactersIgnoringModifiers: "r",
+      isARepeat: false, keyCode: 15))
+  #expect(panel.performKeyEquivalent(with: cmdR))
   #expect(calls == 1)
 }
 
