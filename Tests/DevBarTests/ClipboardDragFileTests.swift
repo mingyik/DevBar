@@ -4,6 +4,43 @@ import Testing
 
 @testable import DevBar
 
+@MainActor @Test func imageDragOffersReadableFileURLAlongsideOriginalImage() throws {
+  let tiff = try #require(
+    NSImage(systemSymbolName: "doc", accessibilityDescription: nil)?.tiffRepresentation)
+  let png = try #require(NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]))
+  for extra in [
+    [],
+    [
+      ClipboardPayload(
+        type: NSPasteboard.PasteboardType.fileURL.rawValue,
+        data: Data("file:///missing/old-screenshot.png".utf8))
+    ],
+  ] {
+    let writer = try #require(
+      ClipboardDragFile(
+        payloads: [ClipboardPayload(type: NSPasteboard.PasteboardType.png.rawValue, data: png)]
+          + extra))
+    let board = NSPasteboard.withUniqueName()
+    defer { board.releaseGlobally() }
+    #expect(board.writeObjects([writer]))
+    let urls = try #require(
+      board.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
+        as? [URL])
+    let file = try #require(urls.first)
+    defer { try? FileManager.default.removeItem(at: file) }
+    #expect(file.isFileURL)
+    #expect(file.pathExtension == "png")
+    #expect(try Data(contentsOf: file) == png)
+    #expect(board.data(forType: .png) == png)
+    #expect(board.string(forType: .string) == file.path(percentEncoded: false))
+    let editor = NSTextView()
+    editor.isRichText = false
+    #expect(editor.readSelection(from: board, type: .string))
+    #expect(editor.string == file.path(percentEncoded: false))
+    #expect(board.canReadObject(forClasses: [NSFilePromiseReceiver.self], options: nil))
+  }
+}
+
 @MainActor @Test func textDragOffersOriginalTextAndCreatesExactUTF8File() throws {
   let text = "中文\r\n  keep spacing\n"
   let data = Data(text.utf8)
@@ -48,7 +85,9 @@ import Testing
         type: NSPasteboard.PasteboardType.string.rawValue, data: Data("caption".utf8)),
     ]))
   #expect(writer.pasteboardPropertyList(forType: .tiff) as? Data == data)
-  #expect(writer.pasteboardPropertyList(forType: .string) as? Data == Data("caption".utf8))
+  let path = try #require(writer.pasteboardPropertyList(forType: .string) as? String)
+  defer { try? FileManager.default.removeItem(atPath: path) }
+  #expect(FileManager.default.fileExists(atPath: path))
   let name = writer.filePromiseProvider(writer, fileNameForType: writer.fileType)
   #expect(name.hasSuffix(".tiff") || name.hasSuffix(".tif"))
   let destination = FileManager.default.temporaryDirectory.appending(path: name)
