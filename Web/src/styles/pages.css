@@ -321,7 +321,7 @@ button:disabled {
   mask-size: contain;
   mask-repeat: no-repeat;
 }
-.page-fixed .icon-button {
+.page-toolbar .icon-button {
   display: flex;
   align-items: center;
   justify-content: center;

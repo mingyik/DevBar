@@ -36,11 +36,15 @@ export default async function run(scenario, fixture) {
       !document.querySelector("#doc .preview").hidden &&
       !!document.querySelector("#doc .preview h1");
     result.buttonOffersEdit =
-      document.querySelector("#doc .pill").textContent === "编辑";
+      document
+        .querySelector("#doc .page-actions .icon-button")
+        .getAttribute("aria-label") === "编辑";
     await receive("doc.toggleMode", {});
     result.secondToggleEdits = document.querySelector("#doc .preview").hidden;
     result.buttonOffersPreview =
-      document.querySelector("#doc .pill").textContent === "预览";
+      document
+        .querySelector("#doc .page-actions .icon-button")
+        .getAttribute("aria-label") === "预览";
     return result;
   }
   if (scenario === "storage") {
@@ -292,7 +296,7 @@ export default async function run(scenario, fixture) {
   } else {
     await receive("screen.show", { page: "doc" });
     const started = performance.now();
-    document.querySelector("#doc .pill").click();
+    document.querySelector("#doc .page-actions .icon-button").click();
     await until(
       () =>
         !document.querySelector("#doc .preview").hidden &&
@@ -335,9 +339,9 @@ export default async function run(scenario, fixture) {
     ).length;
     const warm = [];
     for (let i = 0; i < 5; i++) {
-      document.querySelector("#doc .pill").click();
+      document.querySelector("#doc .page-actions .icon-button").click();
       const t = performance.now();
-      document.querySelector("#doc .pill").click();
+      document.querySelector("#doc .page-actions .icon-button").click();
       await new Promise(requestAnimationFrame);
       warm.push(performance.now() - t);
     }
@@ -357,7 +361,7 @@ export default async function run(scenario, fixture) {
         mode: "replace",
       });
       await receive("screen.show", { page: "qr" });
-      document.querySelector("#qr .pill").click();
+      document.querySelector("#qr .page-actions .icon-button").click();
       await until(() => !!document.querySelector("#qr .preview img"));
       await receive("screen.show", { page: "doc" });
       await delay(5000);

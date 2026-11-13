@@ -8,7 +8,12 @@ import {
 import { Compartment, Transaction } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
 import { documentLanguages } from "./languages";
-import { PageShell, iconButton, pill, setIcon } from "../editor/page-shell";
+import {
+  PageShell,
+  iconButton,
+  setButtonLabel,
+  setIcon,
+} from "../editor/page-shell";
 import type { PageState } from "../editor/page-shell";
 import { post } from "../bridge/client";
 import { strings } from "../strings";
@@ -43,9 +48,10 @@ export class DocPage {
         }),
       ),
     );
-    this.toggle = pill(strings.preview, () => {
+    this.toggle = iconButton("toggle", () => {
       void this.togglePreview();
     });
+    setButtonLabel(this.toggle, strings.preview);
     shell.actions.append(this.toggle);
     shell.fixed.append(
       iconButton("exportImage", () => {
@@ -56,7 +62,7 @@ export class DocPage {
         shell.replace("", "devbar.clear");
         this.locked = false;
         this.setMode("markdown");
-        this.toggle.textContent = strings.preview;
+        setButtonLabel(this.toggle, strings.preview);
       }),
     );
     shell.preview.classList.add("prose");
@@ -148,7 +154,7 @@ export class DocPage {
     this.setMode(text === "" ? "markdown" : (mode ?? detectDocMode(text)));
     this.shell.fileName = fileName;
     this.shell.updateInfo();
-    this.toggle.textContent = strings.preview;
+    setButtonLabel(this.toggle, strings.preview);
   }
   private text() {
     const raw = this.shell.view.state.field(metadataField).rawText;
@@ -157,7 +163,7 @@ export class DocPage {
   async togglePreview() {
     const preview = this.shell.mode !== "preview";
     this.shell.showPreview(preview);
-    this.toggle.textContent = preview ? strings.edit : strings.preview;
+    setButtonLabel(this.toggle, preview ? strings.edit : strings.preview);
     this.shell.onStateChange();
     if (preview) await this.render();
   }
@@ -243,7 +249,7 @@ export class DocPage {
     );
     if (state.view === "preview") {
       this.shell.showPreview(true);
-      this.toggle.textContent = strings.edit;
+      setButtonLabel(this.toggle, strings.edit);
     }
   }
 }

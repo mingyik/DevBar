@@ -56,7 +56,7 @@
         if scenario == "tree" || scenario == "qr" || scenario == "performance" {
           let script =
             scenario == "qr"
-            ? "document.querySelector('#qr .pill').click(); while(document.querySelector('#qr .preview').hidden) await new Promise(requestAnimationFrame);return true"
+            ? "document.querySelector('#qr .page-actions .icon-button').click(); while(document.querySelector('#qr .preview').hidden) await new Promise(requestAnimationFrame);return true"
             : "const t=performance.now();document.dispatchEvent(new KeyboardEvent('keydown',{key:'e',metaKey:true,bubbles:true}));while(document.querySelector('#tools .preview').hidden)await new Promise(requestAnimationFrame);return {milliseconds:performance.now()-t,rows:document.querySelectorAll('#tools .tree-row').length}"
           let result = try? await panel.webHost.webView.callAsyncJavaScript(
             script, arguments: [:], in: nil, contentWorld: .page)

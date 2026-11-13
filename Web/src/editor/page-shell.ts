@@ -1,6 +1,7 @@
 import captureSymbol from "../assets/icons/capture.png";
 import copySymbol from "../assets/icons/copy.png";
 import clearSymbol from "../assets/icons/clear.png";
+import toggleSymbol from "../assets/icons/toggle.png";
 import { EditorView } from "@codemirror/view";
 import { StateEffect, type Extension } from "@codemirror/state";
 import {
@@ -44,6 +45,7 @@ export function setIcon(button: HTMLButtonElement, name: string): void {
     copy: copySymbol,
     clear: clearSymbol,
     exportImage: captureSymbol,
+    toggle: toggleSymbol,
   };
   if (symbols[name]) {
     const icon = element("span", "system-icon");
@@ -51,11 +53,11 @@ export function setIcon(button: HTMLButtonElement, name: string): void {
     icon.style.maskImage = `url("${symbols[name]}")`;
     button.replaceChildren(icon);
   }
-  button.setAttribute(
-    "aria-label",
-    String(strings[name as keyof typeof strings] ?? name),
-  );
-  button.title = button.getAttribute("aria-label") ?? "";
+  setButtonLabel(button, String(strings[name as keyof typeof strings] ?? name));
+}
+export function setButtonLabel(button: HTMLButtonElement, label: string): void {
+  button.setAttribute("aria-label", label);
+  button.title = label;
 }
 export function iconButton(
   name: string,

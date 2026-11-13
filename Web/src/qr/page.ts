@@ -1,8 +1,8 @@
 import {
   PageShell,
   element,
-  pill,
   iconButton,
+  setButtonLabel,
   setIcon,
   type PageState,
 } from "../editor/page-shell";
@@ -14,9 +14,10 @@ export class QRPage {
   private readonly toggle: HTMLButtonElement;
   constructor(shell: PageShell) {
     this.shell = shell;
-    this.toggle = pill(strings.preview, () => {
+    this.toggle = iconButton("toggle", () => {
       void this.togglePreview();
     });
+    setButtonLabel(this.toggle, strings.preview);
     shell.actions.append(this.toggle);
     const copy = iconButton("copy", () => {
       void this.copy().then(() => {
@@ -38,7 +39,7 @@ export class QRPage {
   }
   private edit(): void {
     this.shell.showPreview(false);
-    this.toggle.textContent = strings.preview;
+    setButtonLabel(this.toggle, strings.preview);
   }
   async togglePreview(): Promise<void> {
     if (this.shell.mode === "preview") {
@@ -85,7 +86,7 @@ export class QRPage {
     this.shell.preview.classList.add("qr-preview");
     this.shell.preview.replaceChildren(image);
     this.shell.showPreview(true);
-    this.toggle.textContent = strings.edit;
+    setButtonLabel(this.toggle, strings.edit);
     return true;
   }
   async copy(): Promise<void> {
