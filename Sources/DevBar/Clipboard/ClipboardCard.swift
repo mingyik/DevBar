@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import SwiftUI
 
 @MainActor final class ClipboardCard {
@@ -220,15 +221,24 @@ import SwiftUI
     let view = NSImageView(frame: NSRect(origin: .zero, size: image.size))
     view.image = image
     let container = NSView(frame: view.frame)
-    container.wantsLayer = true
-    container.layer?.masksToBounds = false
-    container.layer?.shadowColor = NSColor(DesignTokens.textPrimary(theme.effective)).cgColor
-    container.layer?.shadowOpacity = 0.1
-    container.layer?.shadowRadius = 5
-    container.layer?.shadowOffset = .zero
-    container.layer?.shadowPath = CGPath(
-      roundedRect: view.frame.insetBy(dx: 10, dy: 10),
+    let glow = NSView(frame: view.frame)
+    glow.wantsLayer = true
+    glow.layer?.shadowColor = NSColor(DesignTokens.textPrimary(theme.effective)).cgColor
+    glow.layer?.shadowOpacity = 0.1
+    glow.layer?.shadowRadius = 5
+    glow.layer?.shadowOffset = .zero
+    let cardBounds = view.frame.insetBy(dx: 10, dy: 10)
+    glow.layer?.shadowPath = CGPath(
+      roundedRect: cardBounds,
       cornerWidth: 10, cornerHeight: 10, transform: nil)
+    let outside = CGMutablePath()
+    outside.addRect(view.bounds)
+    outside.addRoundedRect(in: cardBounds, cornerWidth: 10, cornerHeight: 10)
+    let mask = CAShapeLayer()
+    mask.path = outside
+    mask.fillRule = .evenOdd
+    glow.layer?.mask = mask
+    container.addSubview(glow)
     let glass = NSVisualEffectView(frame: view.frame.insetBy(dx: 10, dy: 10))
     glass.material = .popover
     glass.blendingMode = .behindWindow
