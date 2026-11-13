@@ -220,14 +220,22 @@ import SwiftUI
     let view = NSImageView(frame: NSRect(origin: .zero, size: image.size))
     view.image = image
     let container = NSView(frame: view.frame)
+    container.wantsLayer = true
+    container.layer?.masksToBounds = false
+    container.layer?.shadowColor = NSColor(DesignTokens.textPrimary(theme.effective)).cgColor
+    container.layer?.shadowOpacity = 0.1
+    container.layer?.shadowRadius = 5
+    container.layer?.shadowOffset = .zero
+    container.layer?.shadowPath = CGPath(
+      roundedRect: view.frame.insetBy(dx: 10, dy: 10),
+      cornerWidth: 10, cornerHeight: 10, transform: nil)
     let glass = NSVisualEffectView(frame: view.frame.insetBy(dx: 10, dy: 10))
     glass.material = .popover
     glass.blendingMode = .behindWindow
     glass.state = .active
     glass.wantsLayer = true
     glass.layer?.cornerRadius = 10
-    glass.layer?.borderWidth = 0.5
-    glass.layer?.borderColor = NSColor(DesignTokens.lineBorder(theme.effective)).cgColor
+    glass.layer?.cornerCurve = .continuous
     glass.layer?.masksToBounds = true
     container.addSubview(glass)
     container.addSubview(view)

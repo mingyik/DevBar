@@ -292,17 +292,7 @@ struct ClipboardDragView: NSViewRepresentable {
       : NSColor(DesignTokens.textPrimary(scheme)).withAlphaComponent(glass ? 0.07 : 0.18)
     if deleteHover { shadow.shadowBlurRadius = 12 }
     shadow.set()
-    if glass {
-      // Draw only the soft shadow; leave the card interior transparent for the glass view.
-      NSGraphicsContext.saveGraphicsState()
-      let outside = NSBezierPath(rect: NSRect(origin: .zero, size: image.size))
-      outside.append(path)
-      outside.windingRule = .evenOdd
-      outside.addClip()
-      NSColor(DesignTokens.textPrimary(scheme)).setFill()
-      path.fill()
-      NSGraphicsContext.restoreGraphicsState()
-    } else {
+    if !glass {
       NSColor(DesignTokens.opaqueBackdrop(scheme)).setFill()
       path.fill()
       NSColor(DesignTokens.panelRaised(scheme)).setFill()
