@@ -4,6 +4,7 @@ import AppKit
 final class DevBarPanel: NSPanel {
   var onEscape: (() -> Void)?
   var onDocumentMode: (() -> Bool)?
+  var globalCycleOwnsR: (() -> Bool)?
   var onCyclePage: ((Bool) -> Void)?
   var onClipboardKey: ((UInt16) -> Bool)?
 
@@ -67,13 +68,20 @@ final class DevBarPanel: NSPanel {
       return true
     }
     let flags = event.modifierFlags.intersection([.command, .shift, .control, .option])
+    if flags == .command, event.charactersIgnoringModifiers?.lowercased() == "w" {
+      onEscape?()
+      return true
+    }
     if flags == .command, event.charactersIgnoringModifiers?.lowercased() == "e" {
       return onDocumentMode?() ?? false
     }
     if flags == .command,
       event.charactersIgnoringModifiers?.lowercased() == "r"
     {
-      onCyclePage?(false)
+      // The registered global shortcut handles this key on key-up.
+      if globalCycleOwnsR?() != true {
+        onCyclePage?(false)
+      }
       return true
     }
     if flags.isEmpty, onClipboardKey?(event.keyCode) == true { return true }

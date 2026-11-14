@@ -83,7 +83,7 @@ enum Strings {
   static let followSystem = "自动"
   static let light = "浅色"
   static let dark = "深色"
-  static let shortcutToggle = "打开面板"
+  static let shortcutToggle = "打开／切换面板"
   static let shortcutOlder = "切换剪贴板"
   static let directPaste = "直接粘贴"
   static let directPasteAuthorized = "已授权"

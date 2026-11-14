@@ -297,3 +297,22 @@ import Testing
   }
   #expect(qrReturnedToEdit)
 }
+
+@MainActor @Test func commandWClosesPanelAndGlobalRDoesNotCycleTwice() throws {
+  let panel = DevBarPanel()
+  var closes = 0
+  var cycles = 0
+  panel.onEscape = { closes += 1 }
+  panel.onCyclePage = { _ in cycles += 1 }
+  panel.globalCycleOwnsR = { true }
+  for (key, code) in [("w", UInt16(13)), ("r", UInt16(15))] {
+    let event = try #require(
+      NSEvent.keyEvent(
+        with: .keyDown, location: .zero,
+        modifierFlags: .command, timestamp: 0, windowNumber: 0, context: nil,
+        characters: key, charactersIgnoringModifiers: key, isARepeat: false, keyCode: code))
+    #expect(panel.performKeyEquivalent(with: event))
+  }
+  #expect(closes == 1)
+  #expect(cycles == 0)
+}

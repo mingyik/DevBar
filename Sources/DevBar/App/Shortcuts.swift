@@ -9,12 +9,12 @@ extension KeyboardShortcuts.Name {
   static let pageQR = Self("page.qr")
   static let pageDoc = Self("page.doc")
   static let togglePanel = Self(
-    "togglePanel", default: .init(.w, modifiers: [.command]))
+    "togglePanel", default: .init(.r, modifiers: [.command]))
   static let cycleOlder = Self("cycleOlder", default: .init(.v, modifiers: [.command, .shift]))
   static let captureRegion = Self(
-    "captureRegion", default: .init(.four, modifiers: [.option, .command]))
+    "captureRegion", default: .init(.a, modifiers: [.command, .shift]))
   static let captureScroll = Self(
-    "captureScroll", default: .init(.five, modifiers: [.option, .command]))
+    "captureScroll", default: .init(.l, modifiers: [.command, .shift]))
 }
 
 @MainActor
@@ -22,6 +22,22 @@ enum ShortcutActions {
   private static let logger = Logger(subsystem: "local.devbar.app", category: "shortcut")
 
   static func register(panel: PanelController, status: StatusItemController) {
+    panel.panel.globalCycleOwnsR = {
+      KeyboardShortcuts.getShortcut(for: .togglePanel)
+        == KeyboardShortcuts.Shortcut(.r, modifiers: [.command])
+    }
+    for (name, old) in [
+      (
+        KeyboardShortcuts.Name.captureRegion,
+        KeyboardShortcuts.Shortcut(.four, modifiers: [.option, .command])
+      ),
+      (
+        KeyboardShortcuts.Name.captureScroll,
+        KeyboardShortcuts.Shortcut(.five, modifiers: [.option, .command])
+      ),
+    ] {
+      if KeyboardShortcuts.getShortcut(for: name) == old { KeyboardShortcuts.reset(name) }
+    }
     ClipboardShortcutMigration.apply()
     KeyboardShortcuts.reset(KeyboardShortcuts.Name("page.encode"))
     for page in PanelModel.Page.contentPages {
@@ -32,6 +48,7 @@ enum ShortcutActions {
     let retired = [
       KeyboardShortcuts.Shortcut(.space, modifiers: [.option, .command]),
       KeyboardShortcuts.Shortcut(.d, modifiers: [.control, .option]),
+      KeyboardShortcuts.Shortcut(.w, modifiers: [.command]),
     ]
     if let current = KeyboardShortcuts.getShortcut(for: .togglePanel), retired.contains(current) {
       KeyboardShortcuts.reset(.togglePanel)
@@ -40,7 +57,11 @@ enum ShortcutActions {
     KeyboardShortcuts.onKeyUp(for: .togglePanel) {
       Task { @MainActor in
         log("togglePanel")
-        panel.toggle(anchor: status.anchor)
+        if panel.panel.isVisible {
+          panel.model.cyclePage()
+        } else {
+          panel.toggle(anchor: status.anchor)
+        }
       }
     }
     KeyboardShortcuts.onKeyDown(for: .cycleOlder) {
