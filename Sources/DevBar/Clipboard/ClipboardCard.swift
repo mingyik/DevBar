@@ -2,6 +2,8 @@ import AppKit
 import SwiftUI
 
 @MainActor final class ClipboardCard {
+  /// 每次展示后的停留时间；切换条目会重新计时。
+  private static let visibleDuration = Duration.milliseconds(2500)
   let panel = NSPanel(
     contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered,
     defer: false)
@@ -117,7 +119,7 @@ import SwiftUI
     lastShowMilliseconds = Double(elapsed.seconds) * 1000 + Double(elapsed.attoseconds) / 1e15
     if boundary { shake() }
     dismissal = Task { [weak self] in
-      try? await Task.sleep(for: .milliseconds(1500))
+      try? await Task.sleep(for: Self.visibleDuration)
       guard !Task.isCancelled, let self else { return }
       NSAnimationContext.runAnimationGroup(
         { context in
