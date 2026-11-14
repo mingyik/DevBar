@@ -18,8 +18,10 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   var acceptsFiles: (() -> Bool)?
   var receivedFiles: (([URL]) -> Void)?
   var saveDocument: ((String, String?) async -> String)?
-  var onDocumentMode: ((String) -> Void)?
+  var onDocumentMode: ((String, String, String, String?) async -> Void)?
   var onDocumentEditorText: ((String, String?) -> Void)?
+  var flushDocumentEditor: (() async -> (String, String?)?)?
+  var onDocumentModeShortcut: (() -> Void)?
 
   enum PageMode { case main, documentEditor }
   let pageMode: PageMode
@@ -138,11 +140,31 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     send(type: "doc.setEditorText", payload: payload)
   }
 
-  func editorText() async -> String? {
-    guard ready, !webViewReleased else { return nil }
-    return try? await webView.callAsyncJavaScript(
-      "return window.devbarEditorText()", arguments: [:], in: nil, contentWorld: .page
-    ) as? String
+  func editorSnapshot(flush: Bool) async -> (text: String, documentId: String?)? {
+    guard ready, !webViewReleased,
+      let value = try? await webView.callAsyncJavaScript(
+        "return window.devbarEditorSnapshot(flush)", arguments: ["flush": flush], in: nil,
+        contentWorld: .page) as? [String: Any],
+      let text = value["text"] as? String
+    else { return nil }
+    return (text, value["documentId"] as? String)
+  }
+
+  func setEditorIdentity(_ documentId: String?) async {
+    guard ready, !webViewReleased else { return }
+    _ = try? await webView.callAsyncJavaScript(
+      "return window.devbarEditorSetIdentity(documentId)",
+      arguments: ["documentId": documentId.map { $0 as Any } ?? NSNull()],
+      in: nil, contentWorld: .page)
+  }
+
+  func applyDocumentEditorText(_ text: String, documentId: String?) async {
+    guard ready, !webViewReleased else { return }
+    _ = try? await webView.callAsyncJavaScript(
+      "return window.__devbar.applyEditorText(text, documentId)",
+      arguments: [
+        "text": text, "documentId": documentId.map { $0 as Any } ?? NSNull(),
+      ], in: nil, contentWorld: .page)
   }
 
   func documentMode() async -> String? {
@@ -152,10 +174,11 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     ) as? String
   }
 
-  func documentStatus() async -> [String: Any]? {
+  func documentStatus(textOverride: String? = nil) async -> [String: Any]? {
     guard ready, !webViewReleased else { return nil }
     return try? await webView.callAsyncJavaScript(
-      "return window.__devbar.docStatus()", arguments: [:], in: nil, contentWorld: .page
+      "return window.__devbar.docStatus(text)",
+      arguments: ["text": textOverride as Any? ?? NSNull()], in: nil, contentWorld: .page
     ) as? [String: Any]
   }
 
@@ -344,13 +367,28 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       return "{}"
     case "qr.show":
       return QRGenerator.reply(text: payload["text"]?.stringValue ?? "")
+    case "doc.cycleMode", "doc.toggleMode":
+      onDocumentModeShortcut?()
+      return "{}"
     case "doc.save":
       guard let saveDocument else { return #"{"status":"failed"}"# }
       return await saveDocument(
         payload["text"]?.stringValue ?? "", payload["documentId"]?.stringValue)
     case "doc.mode":
-      onDocumentMode?(payload["mode"]?.stringValue ?? "source")
+      await onDocumentMode?(
+        payload["mode"]?.stringValue ?? "source",
+        payload["text"]?.stringValue ?? "",
+        payload["docMode"]?.stringValue ?? "markdown",
+        payload["documentId"]?.stringValue)
       return "{}"
+    case "doc.flushEditor":
+      guard let flushDocumentEditor,
+        let snapshot = await flushDocumentEditor()
+      else { return #"{"ok":false}"# }
+      return BridgeJSON.object([
+        "ok": .bool(true), "text": .string(snapshot.0),
+        "documentId": snapshot.1.map(BridgeJSON.string) ?? .null,
+      ]).canonical()
     case "doc.editorText":
       onDocumentEditorText?(
         payload["text"]?.stringValue ?? "", payload["documentId"]?.stringValue)

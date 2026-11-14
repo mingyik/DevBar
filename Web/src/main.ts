@@ -141,8 +141,12 @@ const bridge = {
     }
     return {};
   },
-  docStatus() {
-    return doc.documentStatus();
+  docStatus(text?: string | null) {
+    return doc.documentStatus(text);
+  },
+  applyEditorText(text: string, documentId: string | null) {
+    doc.applyEditorText(text, documentId);
+    return { ok: true };
   },
   docText() {
     return doc.documentText();

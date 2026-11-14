@@ -2,6 +2,7 @@ import { isolateHistory } from "@codemirror/commands";
 import {
   documentHistory,
   documentMetadata,
+  isCurrentDocumentMessage,
   metadataField,
   sourceText,
 } from "./state";
@@ -66,7 +67,7 @@ export class DocPage {
       ),
     );
     this.toggle = iconButton("preview", () => {
-      this.cycleDisplayMode();
+      void this.cycleDisplayMode();
     });
     shell.actions.append(this.toggle);
     this.saveButton = iconButton("save", () => {
@@ -257,7 +258,19 @@ export class DocPage {
     if (mode === "preview" || mode === "split") void this.render();
     else this.shell.view.focus();
   }
-  private cycleDisplayMode() {
+  private async cycleDisplayMode() {
+    if (this.display === "split") {
+      const reply = await post("doc.flushEditor", {
+        documentId: this.documentID,
+      });
+      if (
+        reply.ok !== true ||
+        typeof reply.text !== "string" ||
+        (reply.documentId ?? null) !== this.documentID
+      )
+        return;
+      this.applyEditorText(reply.text, this.documentID);
+    }
     this.display = nextDisplayMode(this.display);
     this.shell.showPreview(
       this.display === "preview" || this.display === "split",
@@ -272,7 +285,12 @@ export class DocPage {
     }
   }
   private emitMode() {
-    void post("doc.mode", { mode: this.display });
+    void post("doc.mode", {
+      mode: this.display,
+      text: this.text(),
+      docMode: this.mode,
+      documentId: this.documentID,
+    });
   }
   private schedulePreview() {
     clearTimeout(this.previewTimer);
@@ -282,12 +300,7 @@ export class DocPage {
     }, 140);
   }
   applyEditorText(text: string, documentId: string | null = null) {
-    if (
-      documentId !== null &&
-      this.documentID !== null &&
-      documentId !== this.documentID
-    )
-      return;
+    if (!isCurrentDocumentMessage(this.documentID, documentId)) return;
     if (this.text() === text) return;
     this.shell.view.dispatch({
       changes: { from: 0, to: this.shell.view.state.doc.length, insert: text },
@@ -323,8 +336,13 @@ export class DocPage {
           this.documentID = reply.documentId;
         if (typeof reply.fileName === "string")
           this.shell.fileName = reply.fileName;
-        this.shell.updateInfo();
         this.updateMetadata();
+        if (
+          typeof reply.currentText === "string" &&
+          reply.currentText !== this.text()
+        )
+          this.applyEditorText(reply.currentText, this.documentID);
+        this.shell.updateInfo();
       } else if (reply.status === "externalChanged") {
         this.showMessage(strings.saveExternalChanged);
       } else if (reply.status === "missing") {
@@ -340,7 +358,7 @@ export class DocPage {
     }
   }
   async togglePreview() {
-    this.cycleDisplayMode();
+    await this.cycleDisplayMode();
   }
   async render() {
     if (!this.locked) this.setMode(detectDocMode(this.shell.text));
@@ -408,9 +426,9 @@ export class DocPage {
       this.shell.view.focus();
     }
   }
-  documentStatus() {
+  documentStatus(textOverride?: string | null) {
     return {
-      dirty: this.dirty(),
+      dirty: isDirty(textOverride ?? this.text(), this.savedText),
       documentId: this.documentID,
       fileName: this.shell.fileName,
     };

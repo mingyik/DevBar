@@ -43,6 +43,16 @@ export function startDocumentEditor(): void {
     send();
     view.focus();
   }
+  root.addEventListener("keydown", (event) => {
+    const modeKey =
+      event.metaKey &&
+      (event.key.toLowerCase() === "e" ||
+        (event.shiftKey && event.key.toLowerCase() === "p"));
+    if (!modeKey) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void post("doc.cycleMode", {});
+  });
   root.addEventListener("pointerdown", () => view.focus());
   const bridge = {
     async receive(raw: string): Promise<JSONValue> {
@@ -82,10 +92,16 @@ export function startDocumentEditor(): void {
   };
   Object.assign(window, {
     __devbar: bridge,
-    devbarEditorText: () => view.state.doc.toString(),
-    devbarEditorFlush: () => {
-      send();
-      return view.state.doc.toString();
+    devbarEditorSnapshot: (flush: boolean) => {
+      if (flush) {
+        clearTimeout(timer);
+        send();
+      }
+      return { text: view.state.doc.toString(), documentId };
+    },
+    devbarEditorSetIdentity: (id: string | null) => {
+      documentId = id;
+      return true;
     },
   });
   void post("app.ready", { version: "1" }).then((reply) => {

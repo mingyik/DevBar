@@ -34,3 +34,10 @@ export function sourceText(normalized: string, raw?: string): string {
     ? raw
     : normalized;
 }
+
+export function isCurrentDocumentMessage(
+  currentID: string | null,
+  incomingID: string | null,
+): boolean {
+  return currentID === incomingID;
+}
