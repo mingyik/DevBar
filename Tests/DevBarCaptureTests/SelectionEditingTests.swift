@@ -74,6 +74,7 @@ import Testing
       #expect(bar.bounds.contains(button.frame))
       #expect(button.image?.size == NSSize(width: 18, height: 18))
       #expect(button.image?.isTemplate == true)
+      #expect(button.image?.representations.contains { $0 is NSCustomImageRep } == true)
       if button.identifier?.rawValue == "select" {
         #expect(button.contentTintColor == .systemBlue)  // devbar:allow-color
       } else if button.identifier?.rawValue == "undo" {
@@ -98,6 +99,7 @@ import Testing
     #expect(modeButtons.count == 2)
     for button in modeButtons {
       #expect(button.image?.size == NSSize(width: 18, height: 18))
+      #expect(button.image?.representations.contains { $0 is NSCustomImageRep } == true)
       #expect(NSStringFromClass(type(of: button)) == NSStringFromClass(type(of: arrow)))
     }
   }

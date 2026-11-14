@@ -433,9 +433,6 @@ final class SelectionView: NSView {
       "select", "rect", "ellipse", "text", "arrow", "pen", "mosaic", "undo", "scroll", "save",
       "cancel", "confirm",
     ].contains(tool) {
-      let image = NSImage(size: NSSize(width: 18, height: 18))
-      image.lockFocus()
-      NSColor.labelColor.setStroke()
       let path = NSBezierPath()
       path.lineWidth = 1.35
       path.lineCapStyle = .round
@@ -550,9 +547,13 @@ final class SelectionView: NSView {
         path.move(to: CGPoint(x: 6, y: 3))
         path.line(to: CGPoint(x: 12, y: 3))
       }
-      path.stroke()
-      image.unlockFocus()
+      let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+        NSColor.labelColor.setStroke()
+        path.stroke()
+        return true
+      }
       image.isTemplate = true
+      image.cacheMode = .never
       return image
     }
     let symbolImage =
@@ -564,17 +565,20 @@ final class SelectionView: NSView {
   }
 
   private func normalizedToolbarImage(_ source: NSImage) -> NSImage {
-    let image = NSImage(size: NSSize(width: 18, height: 18))
-    guard source.size.width > 0, source.size.height > 0 else { return image }
+    guard source.size.width > 0, source.size.height > 0 else {
+      return NSImage(size: NSSize(width: 18, height: 18))
+    }
     let scale = min(18 / source.size.width, 18 / source.size.height)
     let size = NSSize(width: source.size.width * scale, height: source.size.height * scale)
-    image.lockFocus()
-    source.draw(
-      in: NSRect(
-        x: (18 - size.width) / 2, y: (18 - size.height) / 2,
-        width: size.width, height: size.height))
-    image.unlockFocus()
+    let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { _ in
+      source.draw(
+        in: NSRect(
+          x: (18 - size.width) / 2, y: (18 - size.height) / 2,
+          width: size.width, height: size.height))
+      return true
+    }
     image.isTemplate = true
+    image.cacheMode = .never
     return image
   }
 
@@ -643,32 +647,34 @@ final class SelectionView: NSView {
     if tool == "mosaic", index == 0 {
       return toolbarImage(symbol: "hand.point.up.left", tool: "mosaicBrush")
     }
-    let image = NSImage(size: NSSize(width: 24, height: 24))
-    image.lockFocus()
-    NSColor.labelColor.setFill()
-    NSColor.labelColor.setStroke()
-    if tool == "arrow" {
-      let path = Self.arrowPath(
-        start: CGPoint(x: 3, y: 3), end: CGPoint(x: 22, y: 22), width: 2, large: index == 0)
-      if index == 0 {
-        path.fill()
+    let isArrow = tool == "arrow"
+    let image = NSImage(size: NSSize(width: 24, height: 24), flipped: false) { _ in
+      NSColor.labelColor.setFill()
+      NSColor.labelColor.setStroke()
+      if isArrow {
+        let path = Self.arrowPath(
+          start: CGPoint(x: 3, y: 3), end: CGPoint(x: 22, y: 22), width: 2, large: index == 0)
+        if index == 0 {
+          path.fill()
+        } else {
+          path.lineWidth = 1.5
+          path.stroke()
+        }
       } else {
+        let rect = CGRect(x: 4, y: 4, width: 16, height: 16)
+        let path = NSBezierPath(rect: rect)
         path.lineWidth = 1.5
         path.stroke()
+        for point in [
+          CGPoint(x: 4, y: 4), CGPoint(x: 20, y: 4), CGPoint(x: 4, y: 20), CGPoint(x: 20, y: 20),
+        ] {
+          NSBezierPath(ovalIn: CGRect(x: point.x - 2, y: point.y - 2, width: 4, height: 4)).fill()
+        }
       }
-    } else {
-      let rect = CGRect(x: 4, y: 4, width: 16, height: 16)
-      let path = NSBezierPath(rect: rect)
-      path.lineWidth = 1.5
-      path.stroke()
-      for point in [
-        CGPoint(x: 4, y: 4), CGPoint(x: 20, y: 4), CGPoint(x: 4, y: 20), CGPoint(x: 20, y: 20),
-      ] {
-        NSBezierPath(ovalIn: CGRect(x: point.x - 2, y: point.y - 2, width: 4, height: 4)).fill()
-      }
+      return true
     }
-    image.unlockFocus()
     image.isTemplate = true
+    image.cacheMode = .never
     return normalizedToolbarImage(image)
   }
 
