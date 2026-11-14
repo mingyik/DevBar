@@ -19,9 +19,9 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   var receivedFiles: (([URL]) -> Void)?
   var saveDocument: ((String, String?) async -> String)?
   var onDocumentMode: ((String) -> Void)?
-  var onDocumentPreviewText: ((String, String) -> Void)?
+  var onDocumentEditorText: ((String) -> Void)?
 
-  enum PageMode { case main, documentPreview }
+  enum PageMode { case main, documentEditor }
   let pageMode: PageMode
 
   private let previewImage = PreviewImage()
@@ -120,9 +120,19 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
 
   func cycleDocumentMode() { send(type: "doc.cycleMode", payload: [:]) }
 
-  func sendDocumentPreview(text: String, mode: String) {
+  func sendEditorInit(text: String, mode: String) {
     send(
-      type: "doc.preview", payload: ["text": .string(text), "mode": .string(mode)])
+      type: "doc.editorInit", payload: ["text": .string(text), "mode": .string(mode)])
+  }
+
+  func applyEditorText(_ text: String) {
+    send(type: "doc.setEditorText", payload: ["text": .string(text)])
+  }
+
+  func documentMode() async -> String? {
+    try? await webView.callAsyncJavaScript(
+      "return window.__devbar.docMode()", arguments: [:], in: nil, contentWorld: .page
+    ) as? String
   }
 
   func documentStatus() async -> [String: Any]? {
@@ -244,8 +254,8 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     #endif
     webView = view
     let address =
-      pageMode == .documentPreview
-      ? "devbar://app/index.html?doc-preview=1" : "devbar://app/index.html"
+      pageMode == .documentEditor
+      ? "devbar://app/index.html?doc-editor=1" : "devbar://app/index.html"
     view.load(URLRequest(url: URL(string: address)!))
     logger.notice("webViewLoad generation=\(self.generation, privacy: .public)")
   }
@@ -322,9 +332,8 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     case "doc.mode":
       onDocumentMode?(payload["mode"]?.stringValue ?? "source")
       return "{}"
-    case "doc.previewText":
-      onDocumentPreviewText?(
-        payload["text"]?.stringValue ?? "", payload["mode"]?.stringValue ?? "markdown")
+    case "doc.editorText":
+      onDocumentEditorText?(payload["text"]?.stringValue ?? "")
       return "{}"
     case "state.save":
       if let screen = payload["screen"]?.stringValue, let state = payload["state"] {

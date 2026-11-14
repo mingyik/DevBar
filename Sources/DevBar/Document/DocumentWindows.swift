@@ -17,14 +17,14 @@ final class DocumentSidebarPanel: NSPanel {
     hidesOnDeactivate = false
     animationBehavior = .none
   }
-  override var canBecomeKey: Bool { false }
+  override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { false }
   @objc func _hasActiveAppearance() -> Bool { true }
   @objc func _hasActiveAppearanceIgnoringKeyFocus() -> Bool { true }
 }
 
 @MainActor
-final class DocumentPreviewPanel: NSPanel {
+final class DocumentEditorPanel: NSPanel {
   init() {
     super.init(
       contentRect: NSRect(x: 0, y: 0, width: 480, height: 600),
@@ -39,13 +39,13 @@ final class DocumentPreviewPanel: NSPanel {
     hidesOnDeactivate = false
     animationBehavior = .none
   }
-  override var canBecomeKey: Bool { false }
+  override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { false }
   @objc func _hasActiveAppearance() -> Bool { true }
   @objc func _hasActiveAppearanceIgnoringKeyFocus() -> Bool { true }
 }
 
-struct DocumentPreviewSurface: View {
+struct DocumentEditorSurface: View {
   let theme: ThemeManager
   let host: WebHost
   var body: some View {
@@ -100,29 +100,30 @@ private struct DocumentWebViewBox: NSViewRepresentable {
 /// main panel without ever placing them off the visible frame.
 @MainActor
 final class DocumentWindows {
-  let previewHost: WebHost
+  let editorHost: WebHost
   private let theme: ThemeManager
   private let session: DocumentSession
   private let browser: DocumentBrowser
-  private let previewPanel = DocumentPreviewPanel()
+  private let editorPanel = DocumentEditorPanel()
   private let sidebarPanel = DocumentSidebarPanel()
   private let sidebarWidth: CGFloat = 260
   private let sidebarHeight: CGFloat = 460
+  private let editorWidth: CGFloat = 480
+  private let editorHeight: CGFloat = 600
   private let gap: CGFloat = 8
   private(set) var sidebarVisible = false
-  var splitActive = false
-  var isPreviewVisible: Bool { previewPanel.isVisible }
+  var isEditorVisible: Bool { editorPanel.isVisible }
 
   init(
     theme: ThemeManager, session: DocumentSession, browser: DocumentBrowser,
-    previewHost: WebHost
+    editorHost: WebHost
   ) {
     self.theme = theme
     self.session = session
     self.browser = browser
-    self.previewHost = previewHost
-    previewPanel.contentView = NSHostingView(
-      rootView: DocumentPreviewSurface(theme: theme, host: previewHost))
+    self.editorHost = editorHost
+    editorPanel.contentView = NSHostingView(
+      rootView: DocumentEditorSurface(theme: theme, host: editorHost))
     sidebarPanel.contentView = NSHostingView(
       rootView: DocumentSidebarSurface(
         theme: theme, session: session, browser: browser,
@@ -142,19 +143,12 @@ final class DocumentWindows {
         result.origin.x = min(result.minX + shift, visible.maxX - result.width)
       }
     }
-    if splitActive {
-      let minimumPreview: CGFloat = 320
-      let needed = result.width + gap + minimumPreview
-      if result.minX + needed > visible.maxX {
-        result.origin.x = max(visible.minX, visible.maxX - needed)
-      }
-    }
     result.origin.x = min(max(result.minX, visible.minX), visible.maxX - result.width)
     result.origin.y = min(max(result.minY, visible.minY), visible.maxY - result.height)
     return result
   }
 
-  func position(mainFrame: NSRect, visible: NSRect) {
+  func position(mainFrame: NSRect, visible: NSRect, animated: Bool = false) {
     if sidebarVisible {
       let x = min(
         max(mainFrame.minX - gap - sidebarWidth, visible.minX),
@@ -162,31 +156,46 @@ final class DocumentWindows {
       let height = min(max(sidebarHeight, mainFrame.height), visible.height)
       let y = min(max(mainFrame.maxY - height, visible.minY), visible.maxY - height)
       let frame = NSRect(x: x, y: y, width: sidebarWidth, height: height)
-      if sidebarPanel.frame != frame { sidebarPanel.setFrame(frame, display: true) }
+      if sidebarPanel.frame != frame {
+        setFrame(sidebarPanel, frame, animated: animated)
+      }
       sidebarPanel.appearance = theme.appearance()
     }
-    guard previewPanel.isVisible else { return }
-    let x = min(mainFrame.maxX + gap, visible.maxX - 240)
-    let available = visible.maxX - x
-    let width = min(max(320, mainFrame.width), max(240, available))
-    let height = min(mainFrame.height, visible.height)
+    guard editorPanel.isVisible else { return }
+    let available = mainFrame.minX - gap - visible.minX
+    let width = min(editorWidth, max(240, available))
+    let x = max(visible.minX, mainFrame.minX - gap - width)
+    let height = min(editorHeight, visible.height)
     let y = min(max(mainFrame.maxY - height, visible.minY), visible.maxY - height)
     let frame = NSRect(x: x, y: y, width: width, height: height)
-    if previewPanel.frame != frame { previewPanel.setFrame(frame, display: true) }
+    if editorPanel.frame != frame {
+      setFrame(editorPanel, frame, animated: animated)
+    }
   }
 
-  func showPreview(text: String, mode: String) {
-    previewPanel.appearance = theme.appearance()
-    previewHost.setPanelVisible(true)
-    previewHost.syncAppearance(panelSize: "normal")
-    previewHost.sendDocumentPreview(text: text, mode: mode)
-    previewPanel.orderFrontRegardless()
+  private func setFrame(_ panel: NSPanel, _ frame: NSRect, animated: Bool) {
+    guard animated else {
+      panel.setFrame(frame, display: true)
+      return
+    }
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = 0.15
+      panel.animator().setFrame(frame, display: true)
+    }
   }
 
-  func hidePreview() {
-    guard previewPanel.isVisible else { return }
-    previewPanel.orderOut(nil)
-    previewHost.setPanelVisible(false)
+  func showEditor(text: String, mode: String) {
+    editorPanel.appearance = theme.appearance()
+    editorHost.setPanelVisible(true)
+    editorHost.syncAppearance(panelSize: "normal")
+    editorHost.sendEditorInit(text: text, mode: mode)
+    editorPanel.makeKeyAndOrderFront(nil)
+  }
+
+  func hideEditor() {
+    guard editorPanel.isVisible else { return }
+    editorPanel.orderOut(nil)
+    editorHost.setPanelVisible(false)
   }
 
   func toggleSidebar() {
@@ -206,7 +215,7 @@ final class DocumentWindows {
   }
 
   func hideAll() {
-    hidePreview()
+    hideEditor()
     closeSidebar()
   }
 }

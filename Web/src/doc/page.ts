@@ -120,7 +120,8 @@ export class DocPage {
       }
       this.timer = setTimeout(() => {
         if (!this.locked) this.setMode(detectDocMode(shell.text));
-        if (this.display === "preview") void this.render();
+        if (this.display === "preview" || this.display === "split")
+          void this.render();
       }, 400);
       this.afterEdit();
     };
@@ -154,7 +155,7 @@ export class DocPage {
           : [],
       ),
     });
-    if (this.display === "split") this.announcePreview();
+    if (this.display === "split") void this.render();
   }
   import(
     text: string,
@@ -186,26 +187,33 @@ export class DocPage {
   private updateControls() {
     this.shell.fileDirty = this.dirty();
     this.shell.updateInfo();
-    const next = nextDisplayMode(this.display);
     setIcon(
       this.toggle,
-      next === "preview" ? "preview" : next === "split" ? "split" : "edit",
+      this.display === "source"
+        ? "edit"
+        : this.display === "preview"
+          ? "preview"
+          : "split",
     );
     setButtonLabel(
       this.toggle,
-      next === "preview"
-        ? strings.modePreview
-        : next === "split"
-          ? strings.modeSplit
-          : strings.modeEdit,
+      this.display === "source"
+        ? strings.modeEdit
+        : this.display === "preview"
+          ? strings.modePreview
+          : strings.modeSplit,
     );
     setIcon(
       this.contextAction,
-      this.display === "preview" ? "exportImage" : "clear",
+      this.display === "preview" || this.display === "split"
+        ? "exportImage"
+        : "clear",
     );
     setButtonLabel(
       this.contextAction,
-      this.display === "preview" ? strings.exportImage : strings.clear,
+      this.display === "preview" || this.display === "split"
+        ? strings.exportImage
+        : strings.clear,
     );
     const dirty = this.dirty();
     this.saveButton.disabled = !dirty || this.saveInProgress;
@@ -220,7 +228,8 @@ export class DocPage {
   }
   private afterEdit() {
     this.updateControls();
-    if (this.display === "split") this.schedulePreview();
+    if (this.display === "split" || this.display === "preview")
+      this.schedulePreview();
   }
   private text() {
     const raw = this.shell.view.state.field(metadataField).rawText;
@@ -240,14 +249,14 @@ export class DocPage {
   }
   private cycleDisplayMode() {
     this.display = nextDisplayMode(this.display);
-    this.shell.showPreview(this.display === "preview");
+    this.shell.showPreview(
+      this.display === "preview" || this.display === "split",
+    );
     this.updateControls();
     this.shell.onStateChange();
     this.emitMode();
-    if (this.display === "preview") {
+    if (this.display === "preview" || this.display === "split") {
       void this.render();
-    } else if (this.display === "split") {
-      this.announcePreview();
     } else {
       this.shell.view.focus();
     }
@@ -257,14 +266,23 @@ export class DocPage {
   }
   private schedulePreview() {
     clearTimeout(this.previewTimer);
-    this.previewTimer = setTimeout(() => this.announcePreview(), 140);
+    this.previewTimer = setTimeout(() => {
+      if (this.display === "preview" || this.display === "split")
+        void this.render();
+    }, 140);
   }
-  private announcePreview() {
-    clearTimeout(this.previewTimer);
-    void post("doc.previewText", {
-      text: this.text(),
-      mode: this.mode,
+  applyEditorText(text: string) {
+    if (this.text() === text) return;
+    this.shell.view.dispatch({
+      changes: { from: 0, to: this.shell.view.state.doc.length, insert: text },
+      annotations: Transaction.addToHistory.of(false),
+      userEvent: "devbar.sync",
     });
+    this.renderKey = "";
+    if (this.display === "split") void this.render();
+  }
+  documentMode() {
+    return this.mode;
   }
   private showMessage(message: string) {
     this.shell.updateInfo(message);
@@ -346,10 +364,11 @@ export class DocPage {
     return this.pending;
   }
   refresh() {
-    if (this.display === "preview" && !this.shell.root.hidden)
+    if (
+      (this.display === "preview" || this.display === "split") &&
+      !this.shell.root.hidden
+    )
       void this.render();
-    else if (this.display === "split" && !this.shell.root.hidden)
-      this.announcePreview();
   }
   async releaseMemory(): Promise<void> {
     clearTimeout(this.timer);
@@ -428,10 +447,12 @@ export class DocPage {
           : "";
     this.documentID =
       typeof state.documentId === "string" ? state.documentId : null;
-    this.shell.showPreview(this.display === "preview");
+    this.shell.showPreview(
+      this.display === "preview" || this.display === "split",
+    );
     this.updateControls();
     this.emitMode();
-    if (this.display === "preview") await this.render();
-    else if (this.display === "split") this.announcePreview();
+    if (this.display === "preview" || this.display === "split")
+      await this.render();
   }
 }

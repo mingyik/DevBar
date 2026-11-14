@@ -336,7 +336,7 @@ button:disabled {
   box-shadow: 0 0 0 0.5px var(--selection-border);
 }
 
-.doc-preview-window {
+.doc-editor-window {
   position: relative;
   display: flex;
   flex: 1;
@@ -345,22 +345,22 @@ button:disabled {
   height: 100%;
   overflow: hidden;
 }
-.doc-preview-window[hidden] {
+.doc-editor-window[hidden] {
   display: none;
 }
-.doc-preview-content {
+.doc-editor-source {
   flex: 1;
   min-width: 0;
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: none;
-  padding: 14px 22px 64px 16px;
-  font:
-    13px ui-monospace,
-    monospace;
+  overflow: hidden;
 }
-.doc-preview-export {
+.doc-editor-window .cm-editor {
+  height: 100%;
+}
+.doc-editor-window .cm-content {
+  padding: 14px 22px 58px 12px;
+}
+.doc-editor-clear {
   position: absolute;
   right: 14px;
   bottom: 14px;
@@ -370,16 +370,4 @@ button:disabled {
   width: 28px;
   height: 28px;
   z-index: 2;
-}
-.doc-preview-status {
-  position: absolute;
-  right: 14px;
-  bottom: 50px;
-  max-width: calc(100% - 28px);
-  font:
-    11px -apple-system,
-    sans-serif;
-  color: var(--text-tertiary);
-  text-align: right;
-  pointer-events: none;
 }

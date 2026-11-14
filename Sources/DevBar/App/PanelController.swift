@@ -16,9 +16,9 @@ final class PanelController {
   let clipboard: ClipboardController
   let documents: DocumentSession
   let documentBrowser = DocumentBrowser()
-  let documentPreviewHost: WebHost
+  let documentEditorHost: WebHost
   private(set) lazy var documentWindows = DocumentWindows(
-    theme: theme, session: documents, browser: documentBrowser, previewHost: documentPreviewHost)
+    theme: theme, session: documents, browser: documentBrowser, editorHost: documentEditorHost)
   private var documentMode = "source"
   private var lastPreviewText = ""
   private var lastPreviewMode = "markdown"
@@ -60,12 +60,12 @@ final class PanelController {
       let clipboard = ClipboardController(theme: theme)
     #endif
     let webHost = WebHost(theme: theme)
-    let previewHost = WebHost(theme: theme, pageMode: .documentPreview)
+    let editorHost = WebHost(theme: theme, pageMode: .documentEditor)
     self.clipboard = clipboard
     self.model = model
     self.theme = theme
     self.webHost = webHost
-    self.documentPreviewHost = previewHost
+    self.documentEditorHost = editorHost
     #if DEBUG
       documents = DocumentSession(defaults: SelfCheckEnvironment.defaults)
     #else
@@ -97,12 +97,11 @@ final class PanelController {
       await self?.saveDocument(text: text, documentID: id) ?? #"{"status":"failed"}"#
     }
     webHost.onDocumentMode = { [weak self] mode in self?.handleDocumentMode(mode) }
-    webHost.onDocumentPreviewText = { [weak self] text, mode in
+    documentEditorHost.onDocumentEditorText = { [weak self] text in
       self?.lastPreviewText = text
-      self?.lastPreviewMode = mode
-      self?.documentPreviewHost.sendDocumentPreview(text: text, mode: mode)
+      self?.webHost.applyEditorText(text)
     }
-    documentPreviewHost.onToast = { text in model.toast = text }
+    documentEditorHost.onToast = { text in model.toast = text }
     documentWindows.onOpen = { [weak self] url in
       Task { await self?.openDocument(url) }
     }
@@ -491,8 +490,8 @@ final class PanelController {
     } onChange: { [weak self] in
       Task { @MainActor in
         self?.updateMaterial()
-        self?.reposition()
         self?.syncDocumentWindows()
+        self?.reposition()
         self?.watchSize()
       }
     }
@@ -517,15 +516,17 @@ final class PanelController {
     let adjusted = documentWindows.adjustedMainFrame(frame, visible: placed.visible)
     guard animated, panel.isVisible else {
       panel.setFrame(adjusted, display: true)
-      documentWindows.position(mainFrame: adjusted, visible: placed.visible)
+      documentWindows.position(
+        mainFrame: adjusted, visible: placed.visible, animated: false)
       return
     }
     NSAnimationContext.runAnimationGroup(
       { context in
-        context.duration = panel.isVisible ? 0.15 : 0
+        context.duration = 0.15
         panel.animator().setFrame(adjusted, display: true)
       }, completionHandler: nil)
-    documentWindows.position(mainFrame: adjusted, visible: placed.visible)
+    documentWindows.position(
+      mainFrame: adjusted, visible: placed.visible, animated: true)
   }
 
   private func handleOutsideClick() {
@@ -549,31 +550,31 @@ final class PanelController {
   private func handleDocumentMode(_ mode: String) {
     let resolved = ["source", "preview", "split"].contains(mode) ? mode : "source"
     documentMode = resolved
-    documentWindows.splitActive = resolved == "split"
     if resolved == "split" {
       documentWindows.closeSidebar()
       model.documentSidebarVisible = false
+      Task { await self.refreshEditorWindow() }
     } else {
-      documentWindows.hidePreview()
+      documentWindows.hideEditor()
+      if panel.isVisible { panel.makeKeyAndOrderFront(nil) }
     }
-    reposition(animated: false)
     syncDocumentWindows()
   }
 
   private func syncDocumentWindows() {
-    documentWindows.splitActive = documentMode == "split"
     guard panel.isVisible, model.page == .doc, let screen = panel.screen ?? NSScreen.main else {
       documentWindows.hideAll()
       model.documentSidebarVisible = false
       return
     }
     if documentMode == "split" {
-      if !documentWindows.isPreviewVisible {
-        documentWindows.showPreview(text: lastPreviewText, mode: lastPreviewMode)
+      if !documentWindows.isEditorVisible {
+        documentWindows.showEditor(text: lastPreviewText, mode: lastPreviewMode)
+        Task { await self.refreshEditorWindow() }
       }
       documentWindows.position(mainFrame: panel.frame, visible: screen.visibleFrame)
     } else {
-      documentWindows.hidePreview()
+      documentWindows.hideEditor()
     }
     if model.documentSidebarVisible {
       documentWindows.position(mainFrame: panel.frame, visible: screen.visibleFrame)
@@ -582,10 +583,22 @@ final class PanelController {
     }
   }
 
+  private func refreshEditorWindow() async {
+    guard panel.isVisible, model.page == .doc, documentMode == "split",
+      let screen = panel.screen ?? NSScreen.main
+    else { return }
+    let text = await webHost.documentText() ?? lastPreviewText
+    let mode = await webHost.documentMode() ?? lastPreviewMode
+    lastPreviewText = text
+    lastPreviewMode = mode
+    documentWindows.showEditor(text: text, mode: mode)
+    documentWindows.position(mainFrame: panel.frame, visible: screen.visibleFrame)
+  }
+
   private func toggleDocumentSidebar() {
-    guard panel.isVisible, model.page == .doc, let screen = panel.screen ?? NSScreen.main else {
-      return
-    }
+    guard panel.isVisible, model.page == .doc, documentMode != "split",
+      let screen = panel.screen ?? NSScreen.main
+    else { return }
     documentWindows.toggleSidebar()
     model.documentSidebarVisible = documentWindows.sidebarVisible
     reposition(animated: false)

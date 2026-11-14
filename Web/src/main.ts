@@ -14,7 +14,7 @@ import { QRPage } from "./qr/page";
 import { JsonPage } from "./tools/json/page";
 import { PageShell, type PageState } from "./editor/page-shell";
 import { installReadOnlyScrollbars } from "./styles/readonly-scroll";
-import { startDocumentPreview } from "./doc/preview-window";
+import { startDocumentEditor } from "./doc/editor-window";
 import "./styles/app.css";
 import "./styles/pages.css";
 import "./styles/contrast.css";
@@ -108,6 +108,11 @@ const bridge = {
         scheduleSave();
         break;
       }
+      case "doc.setEditorText":
+        doc.applyEditorText(
+          typeof payload.text === "string" ? payload.text : "",
+        );
+        break;
       case "state.flush":
         await transitions.catch(() => {});
         await save();
@@ -132,6 +137,9 @@ const bridge = {
   docText() {
     return doc.documentText();
   },
+  docMode() {
+    return doc.documentMode();
+  },
   docMarkSaved(
     text: string,
     fileName: string | null,
@@ -147,8 +155,8 @@ declare global {
   }
 }
 if (typeof document !== "undefined") {
-  if (new URLSearchParams(location.search).has("doc-preview"))
-    startDocumentPreview();
+  if (new URLSearchParams(location.search).has("doc-editor"))
+    startDocumentEditor();
   else void start();
 }
 async function start(): Promise<void> {
