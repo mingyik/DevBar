@@ -47,6 +47,8 @@ else
 fi
 
 echo "== swift build -c $config =="
+swift package resolve
+node Scripts/patch-shortcut-resources.mjs
 swift build -c "$config"
 bin_dir="$(swift build -c "$config" --show-bin-path)"
 binary="$bin_dir/DevBar"
@@ -63,11 +65,17 @@ chmod +x "$app/Contents/MacOS/DevBar"
 cp "$root/Resources/Info.plist" "$app/Contents/Info.plist"
 cp "$root/Resources/AppIcon/AppIcon.icns" "$app/Contents/Resources/AppIcon.icns"
 cp -R "$root/Web/dist/." "$app/Contents/Resources/Web/"
-cp -R "$bin_dir/DevBar_DevBar.bundle" "$app/Contents/Resources/DevBar_DevBar.bundle"
+# Include all SwiftPM dependency resources inside the standard app Resources directory.
+for resource_bundle in "$bin_dir"/*.bundle; do
+  [[ -d "$resource_bundle" ]] || continue
+  resource_name="$(basename "$resource_bundle")"
+  cp -R "$resource_bundle" "$app/Contents/Resources/$resource_name"
+done
 cp -R "$root/Resources/Licenses/." "$app/Contents/Resources/Licenses/"
 printf 'APPL????' > "$app/Contents/PkgInfo"
 
 # Desktop 上的 com.apple.provenance 会使 codesign --strict 失败。
+chmod -R u+w "$app"
 xattr -cr "$app"
 
 identity="${DEVBAR_SIGN_IDENTITY:-}"
