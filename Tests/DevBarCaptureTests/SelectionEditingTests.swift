@@ -31,6 +31,36 @@ import Testing
 
 }
 
+@MainActor @Test func scrollingSelectionIgnoresFurtherDraggingAfterCaptureBegins() throws {
+  _ = NSApplication.shared
+  let window = NSWindow(
+    contentRect: NSRect(x: 0, y: 0, width: 800, height: 600), styleMask: .borderless,
+    backing: .buffered, defer: false)
+  let view = SelectionView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+  window.contentView = view
+  view.screenFrame = view.bounds
+  view.scrollingRequested = true
+  var completions = 0
+  view.complete = { _ in completions += 1 }
+  func event(_ type: NSEvent.EventType, _ point: CGPoint) throws -> NSEvent {
+    try #require(
+      NSEvent.mouseEvent(
+        with: type, location: point, modifierFlags: [], timestamp: 0,
+        windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)
+    )
+  }
+  view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 100, y: 150)))
+  view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 600, y: 450)))
+  view.beginScrollingProgress()
+  for point in [CGPoint(x: 300, y: 300), CGPoint(x: 100, y: 150)] {
+    view.mouseDown(with: try event(.leftMouseDown, point))
+    view.mouseDragged(with: try event(.leftMouseDragged, CGPoint(x: 700, y: 500)))
+    view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 700, y: 500)))
+  }
+  #expect(completions == 1)
+  #expect(view.subviews.isEmpty)
+}
+
 @MainActor @Test func screenshotToolbarUsesConsistentColorsInBothAppearances() throws {
   _ = NSApplication.shared
   for name in [NSAppearance.Name.aqua, .darkAqua] {

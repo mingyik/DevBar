@@ -15,13 +15,14 @@ private actor Frames {
   }
 }
 
-private func frame(offset: Int, footer: Int = 0, salt: Int = 0) -> CGImage {
+private func frame(offset: Int, footer: Int = 0, salt: Int = 0, header: Int = 0) -> CGImage {
   let width = 64
   let height = 120
   var pixels = [UInt8](repeating: 0, count: width * height)
   for row in 0..<height {
     for col in 0..<width {
-      let y = row >= height - footer ? row + 1000 : row + offset
+      let y =
+        row < header ? row + 2000 : (row >= height - footer ? row + 1000 : row - header + offset)
       pixels[row * width + col] = UInt8(salt == 0 ? (y * 17 + col * 31 + (y / 7) * 13) % 251 : 0)
     }
   }
@@ -160,6 +161,102 @@ private func testRegion() throws -> CaptureRegion {
     return
   }
   #expect(image.dataProvider?.data as Data? == reference.dataProvider?.data as Data?)
+}
+
+@MainActor @Test func scrollingRelocatesToOlderCapturedRegionAfterLargeJump() async throws {
+  let offsets = [0, 42, 84, 126, 168, 0, 0, 42, 84, 126, 168, 210]
+  let frames = Frames(offsets.map { frame(offset: $0) })
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), frameLimit: offsets.count + 2,
+    onProgress: { _, _ in }, nextFrame: { await frames.next() })
+  guard case .limited(let image) = result else {
+    Issue.record("expected retained result at frame limit")
+    return
+  }
+  #expect(image.height == 330)
+  let baseline = Frames([0, 42, 84, 126, 168, 210].map { frame(offset: $0) })
+  let expected = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), frameLimit: 8,
+    onProgress: { _, _ in }, nextFrame: { await baseline.next() })
+  guard case .limited(let reference) = expected else {
+    Issue.record("expected baseline image")
+    return
+  }
+  #expect(image.dataProvider?.data as Data? == reference.dataProvider?.data as Data?)
+}
+
+@MainActor @Test func scrollingKeepsFixedHeaderAndFooterOnceInBothDirections() async throws {
+  func capture(_ offsets: [Int]) async throws -> CGImage {
+    let frames = Frames(offsets.map { frame(offset: $0, footer: 16, header: 14) })
+    let result = await ScreenshotScrollingCapture.captureFrames(
+      region: try testRegion(), finishSignal: .init(), frameLimit: offsets.count + 2,
+      onProgress: { _, _ in }, nextFrame: { await frames.next() })
+    guard case .limited(let image) = result else { throw CaptureError.noImage }
+    return image
+  }
+  let forward = try await capture([0, 35, 70, 105])
+  let both = try await capture([70, 35, 0, 35, 70, 105, 70])
+  #expect(forward.height == 225)
+  #expect(both.height == 225)
+  #expect(both.dataProvider?.data as Data? == forward.dataProvider?.data as Data?)
+}
+
+@Test func scrollingAnchorStorageIsBoundedAndKeepsExtremes() {
+  var anchors = ScreenshotSupport.ScrollingAnchors()
+  for index in 0..<40 {
+    let sample = ScreenshotSupport.ScrollingSample(
+      width: 64, height: 120, pixels: Array(frame(offset: index * 10).dataProvider!.data! as Data))
+    anchors.remember(sample, at: index * 10)
+  }
+  #expect(anchors.entries.count <= ScreenshotSupport.ScrollingAnchors.maximumCount)
+  #expect(anchors.retainedBytes <= ScreenshotSupport.ScrollingAnchors.maximumBytes)
+  #expect(anchors.entries.first?.top == 0)
+  #expect(anchors.entries.last?.top == 390)
+  let last = anchors.entries.last!
+  #expect(
+    anchors.registration(matching: last.sample, columns: nil, allowOverlap: false) == .position(390)
+  )
+  let tooLarge = ScreenshotSupport.ScrollingSample(
+    width: 1, height: ScreenshotSupport.ScrollingAnchors.maximumBytes + 1,
+    pixels: Array(repeating: 0, count: ScreenshotSupport.ScrollingAnchors.maximumBytes + 1))
+  anchors.remember(tooLarge, at: 999)
+  #expect(anchors.entries.last?.top == 390)
+  for index in 0..<8 {
+    anchors.remember(
+      .init(
+        width: 128, height: 8192, pixels: Array(repeating: UInt8(index), count: 128 * 8192)),
+      at: 1000 + index * 100)
+  }
+  #expect(anchors.retainedBytes <= ScreenshotSupport.ScrollingAnchors.maximumBytes)
+  #expect(anchors.entries.count <= ScreenshotSupport.ScrollingAnchors.maximumCount)
+}
+
+@Test func scrollingAnchorsFindOverlapAndRejectConflictingPositions() {
+  func sample(_ offset: Int) -> ScreenshotSupport.ScrollingSample {
+    ScreenshotSupport.ScrollingSample(
+      width: 64, height: 120, pixels: Array(frame(offset: offset).dataProvider!.data! as Data))
+  }
+  var anchors = ScreenshotSupport.ScrollingAnchors()
+  anchors.remember(sample(0), at: 0)
+  #expect(
+    anchors.registration(matching: sample(30), columns: nil, allowOverlap: true) == .position(30))
+  anchors.remember(sample(0), at: 500)
+  #expect(
+    anchors.registration(matching: sample(30), columns: nil, allowOverlap: true) == .ambiguous)
+  #expect(
+    anchors.registration(matching: sample(0), columns: nil, allowOverlap: false) == .ambiguous)
+}
+
+@Test func scrollingDoesNotTreatBlankTopBandAsFixedHeader() {
+  func sample(_ offset: Int) -> ScreenshotSupport.ScrollingSample {
+    let pixels = (0..<80).flatMap { row in
+      (0..<8).map { column in UInt8(row < 12 ? 0 : (row * 17 + column * 13 + offset) % 251) }
+    }
+    return .init(width: 8, height: 80, pixels: pixels)
+  }
+  #expect(
+    ScreenshotSupport.scrollingFixedTopRows(
+      previous: sample(0), current: sample(35), overlap: 50, contentColumns: 0..<8) == 0)
 }
 
 @Test func scrollingFrameLimitAndCancellation() async throws {

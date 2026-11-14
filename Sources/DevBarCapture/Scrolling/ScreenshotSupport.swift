@@ -27,6 +27,77 @@ enum ScreenshotSupport {
     }
   }
 
+  /// Only grayscale registration data is retained, never full capture frames.
+  struct ScrollingAnchors {
+    struct Entry {
+      let sample: ScrollingSample
+      let top: Int
+    }
+    private(set) var entries: [Entry] = []
+    static let maximumCount = 8
+    static let maximumBytes = 4 * 1024 * 1024
+    var retainedBytes: Int { entries.reduce(0) { $0 + $1.sample.pixels.count } }
+
+    mutating func remember(_ sample: ScrollingSample, at top: Int) {
+      guard sample.isValid, sample.pixels.count <= Self.maximumBytes,
+        !entries.contains(where: { $0.top == top })
+      else { return }
+      entries.append(Entry(sample: sample, top: top))
+      entries.sort { $0.top < $1.top }
+      while entries.count > Self.maximumCount || retainedBytes > Self.maximumBytes {
+        // Keep the extremes; remove the most redundant interior viewpoint.
+        let removable = entries.count > 2 ? Array(1..<(entries.count - 1)) : [0]
+        let index = removable.min {
+          entries[min($0 + 1, entries.count - 1)].top - entries[max(0, $0 - 1)].top
+            < entries[min($1 + 1, entries.count - 1)].top - entries[max(0, $1 - 1)].top
+        }!
+        entries.remove(at: index)
+      }
+    }
+
+    enum Registration: Equatable {
+      case position(Int)
+      case unavailable
+      case ambiguous
+    }
+
+    func registration(
+      matching sample: ScrollingSample, columns: Range<Int>?, allowOverlap: Bool
+    ) -> Registration {
+      let exact = entries.filter { $0.sample == sample }.map(\.top)
+      if !exact.isEmpty {
+        return exact.allSatisfy { $0 == exact[0] } ? .position(exact[0]) : .ambiguous
+      }
+      guard allowOverlap else { return .unavailable }
+      var positions: [Int] = []
+      for entry in entries {
+        guard
+          case .advanced(let overlap, let direction, _) = scrollingTransition(
+            previous: entry.sample, current: sample, contentColumns: columns)
+        else { continue }
+        let delta = sample.height - overlap
+        positions.append(entry.top + (direction == .forward ? delta : -delta))
+      }
+      // Ambiguous repeated text must not relocate the viewport arbitrarily.
+      guard let first = positions.first else { return .unavailable }
+      guard positions.allSatisfy({ abs($0 - first) <= 1 }) else { return .ambiguous }
+      return .position(first)
+    }
+  }
+
+  static func scrollingContentSample(
+    _ sample: ScrollingSample, top: Int, bottom: Int
+  ) -> ScrollingSample? {
+    guard sample.isValid, top >= 0, bottom >= 0, top + bottom < sample.height else {
+      return nil
+    }
+    if top == 0 && bottom == 0 { return sample }
+    return ScrollingSample(
+      width: sample.width, height: sample.height - top - bottom,
+      pixels: Array(sample.pixels[(top * sample.width)..<((sample.height - bottom) * sample.width)])
+    )
+  }
+
   enum ScrollingDirection: Equatable {
     case forward
     case backward
@@ -270,6 +341,36 @@ enum ScreenshotSupport {
     let minimumRows = max(4, min(12, previous.height / 100))
     guard rows >= minimumRows, rows < overlap else { return 0 }
     return rows
+  }
+
+  static func scrollingFixedTopRows(
+    previous: ScrollingSample, current: ScrollingSample, overlap: Int,
+    contentColumns: Range<Int>
+  ) -> Int {
+    guard previous.isValid, current.isValid else { return 0 }
+    func reversed(_ sample: ScrollingSample) -> ScrollingSample {
+      var pixels: [UInt8] = []
+      pixels.reserveCapacity(sample.pixels.count)
+      for row in (0..<sample.height).reversed() {
+        pixels.append(contentsOf: sample.pixels[(row * sample.width)..<((row + 1) * sample.width)])
+      }
+      return ScrollingSample(width: sample.width, height: sample.height, pixels: pixels)
+    }
+    let rows = scrollingFixedBottomRows(
+      previous: reversed(previous), current: reversed(current), overlap: overlap,
+      contentColumns: contentColumns)
+    guard rows > 0 else { return 0 }
+    // An unchanged blank margin is not evidence of an anchored toolbar.
+    var darkest: UInt8 = 255
+    var lightest: UInt8 = 0
+    for row in 0..<rows {
+      for column in contentColumns {
+        let pixel = previous.pixels[row * previous.width + column]
+        darkest = min(darkest, pixel)
+        lightest = max(lightest, pixel)
+      }
+    }
+    return Int(lightest) - Int(darkest) >= 16 ? rows : 0
   }
 
   /// Rows newly revealed by a forward scroll. A fixed footer shifts this

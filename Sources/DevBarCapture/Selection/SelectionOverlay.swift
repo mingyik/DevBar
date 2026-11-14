@@ -835,6 +835,7 @@ final class SelectionView: NSView {
   }
 
   override func mouseDown(with event: NSEvent) {
+    guard !captureInProgress else { return }
     window?.makeKey()
     window?.makeFirstResponder(self)
     let point = convert(event.locationInWindow, from: nil)
@@ -934,6 +935,7 @@ final class SelectionView: NSView {
   }
 
   override func mouseDragged(with event: NSEvent) {
+    guard !captureInProgress else { return }
     guard let anchor else { return }
     let point = convert(event.locationInWindow, from: nil)
     if let edit = editingArrow {
@@ -1005,6 +1007,7 @@ final class SelectionView: NSView {
   }
 
   override func mouseUp(with event: NSEvent) {
+    guard !captureInProgress else { return }
     let end = convert(event.locationInWindow, from: nil)
     if let anchor, draft != nil, hypot(end.x - anchor.x, end.y - anchor.y) < 3 {
       draft = nil
@@ -1028,6 +1031,7 @@ final class SelectionView: NSView {
   }
 
   override func keyDown(with event: NSEvent) {
+    guard !captureInProgress else { return }
     if event.keyCode == 53 {
       complete?(.failure(CaptureError.cancelled))
     } else if event.keyCode == 36 {
