@@ -357,6 +357,17 @@ enum DesignTokens {
     }
   }
 
+  static func iconPrimary(_ scheme: ColorScheme) -> Color {
+    switch scheme {
+    case .light:
+      return Color(red: 51.0 / 255, green: 51.0 / 255, blue: 51.0 / 255, opacity: 1)
+    case .dark:
+      return Color(red: 217.0 / 255, green: 217.0 / 255, blue: 217.0 / 255, opacity: 1)
+    @unknown default:
+      return Color(red: 51.0 / 255, green: 51.0 / 255, blue: 51.0 / 255, opacity: 1)
+    }
+  }
+
   static func opaqueBackdrop(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:

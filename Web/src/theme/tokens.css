@@ -40,6 +40,7 @@
   --scroll-thumb: rgba(0, 0, 0, 0.22);
   --panel-inset: rgba(0, 0, 0, 0.035);
   --qr-background: rgba(255, 255, 255, 1);
+  --icon-primary: rgba(51, 51, 51, 1);
   --snapshot-background: #fbfbfb;
 }
 
@@ -72,5 +73,6 @@
   --scroll-thumb: rgba(255, 255, 255, 0.22);
   --panel-inset: rgba(0, 0, 0, 0.18);
   --qr-background: rgba(255, 255, 255, 1);
+  --icon-primary: rgba(217, 217, 217, 1);
   --snapshot-background: #101011;
 }

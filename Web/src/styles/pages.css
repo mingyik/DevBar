@@ -346,11 +346,12 @@ button:disabled {
   justify-content: center;
   width: 24px;
   height: 24px;
-  padding: 0;
+  padding: 3px;
+  color: var(--icon-primary);
 }
 .page-toolbar .icon-button svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
 }
 .page-toolbar .icon-button:disabled {
   opacity: 0.6;
