@@ -247,6 +247,16 @@ export class DocPage {
       }),
     });
   }
+  setDisplayMode(mode: DisplayMode) {
+    if (mode === this.display) return;
+    this.display = mode;
+    this.shell.showPreview(mode === "preview" || mode === "split");
+    this.updateControls();
+    this.shell.onStateChange();
+    this.emitMode();
+    if (mode === "preview" || mode === "split") void this.render();
+    else this.shell.view.focus();
+  }
   private cycleDisplayMode() {
     this.display = nextDisplayMode(this.display);
     this.shell.showPreview(

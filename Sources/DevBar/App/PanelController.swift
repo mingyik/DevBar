@@ -617,15 +617,10 @@ final class PanelController {
     guard panel.isVisible, model.page == .doc, let screen = panel.screen ?? NSScreen.main
     else { return }
     if documentMode == "split" {
-      if model.documentSidebarVisible || documentWindows.sidebarVisible {
-        model.documentSidebarVisible = false
-        documentWindows.closeSidebar()
-        Task { await refreshEditorWindow() }
-      } else {
-        model.documentSidebarVisible = true
-        documentWindows.hideEditor()
-        documentWindows.showSidebar()
-      }
+      model.documentSidebarVisible = true
+      documentWindows.hideEditor()
+      documentWindows.showSidebar()
+      webHost.setDocumentDisplay("preview")
       documentWindows.position(mainFrame: panel.frame, visible: screen.visibleFrame)
       return
     }

@@ -120,6 +120,10 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
 
   func cycleDocumentMode() { send(type: "doc.cycleMode", payload: [:]) }
 
+  func setDocumentDisplay(_ mode: String) {
+    send(type: "doc.display", payload: ["mode": .string(mode)])
+  }
+
   func sendEditorInit(text: String, mode: String) {
     send(
       type: "doc.editorInit", payload: ["text": .string(text), "mode": .string(mode)])

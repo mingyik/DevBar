@@ -108,6 +108,15 @@ const bridge = {
         scheduleSave();
         break;
       }
+      case "doc.display":
+        doc.setDisplayMode(
+          payload.mode === "preview"
+            ? "preview"
+            : payload.mode === "split"
+              ? "split"
+              : "source",
+        );
+        break;
       case "doc.setEditorText":
         doc.applyEditorText(
           typeof payload.text === "string" ? payload.text : "",
