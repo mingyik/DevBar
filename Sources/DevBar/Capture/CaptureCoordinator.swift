@@ -7,6 +7,7 @@ import SwiftUI
 @MainActor @Observable
 private final class CaptureHUDState {
   var height = 0
+  var preview: NSImage?
   var unmatched = false
   var message = ""
   var path: URL?
@@ -20,6 +21,7 @@ private final class CaptureHUDState {
   private unowned let panel: PanelController
   private var task: Task<Void, Never>?
   private var hud: NSPanel?
+  private var previewWindow: NSPanel?
   private var activeRegion: CaptureRegion?
   private let state = CaptureHUDState()
   private var noticeTask: Task<Void, Never>?
@@ -84,7 +86,11 @@ private final class CaptureHUDState {
             finish.request()
           }
           let result = await ScreenshotScrollingCapture.capture(
-            region: region, finishSignal: finish
+            region: region, finishSignal: finish,
+            onPreview: { [weak self] image in
+              self?.state.preview = NSImage(
+                cgImage: image, size: NSSize(width: image.width, height: image.height))
+            }
           ) {
             [weak self] height, unmatched in
             self?.state.height = height
@@ -94,6 +100,7 @@ private final class CaptureHUDState {
             }
           }
           self.hud?.orderOut(nil)
+          self.hidePreview()
           selection.dismissScrollingOverlay()
           switch result {
           case .success(let resultImage): image = resultImage
@@ -133,10 +140,13 @@ private final class CaptureHUDState {
         }.value
         self.showNotice(completionMessage, path: result.0)
       } catch is CancellationError {
+        self.hidePreview()
         self.hud?.orderOut(nil)
       } catch CaptureError.cancelled {
+        self.hidePreview()
         self.hud?.orderOut(nil)
       } catch {
+        self.hidePreview()
         self.hud?.orderOut(nil)
         self.showNotice(Strings.captureFailed, path: nil)
       }
@@ -147,6 +157,7 @@ private final class CaptureHUDState {
   {
     activeRegion = region
     state.height = 0
+    state.preview = nil
     state.unmatched = false
     state.message = ""
     state.path = nil
@@ -158,9 +169,54 @@ private final class CaptureHUDState {
     }
     state.cancel = { [weak self] in
       self?.task?.cancel()
+      self?.hidePreview()
       self?.hud?.orderOut(nil)
     }
     showHUD(displayID: region.displayID)
+    showPreview(region: region)
+  }
+
+  private func hidePreview() {
+    previewWindow?.orderOut(nil)
+    state.preview = nil
+  }
+
+  private func showPreview(region: CaptureRegion) {
+    guard
+      let screen = NSScreen.screens.first(where: {
+        ($0.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+          == region.displayID
+      })
+    else { return }
+    let visible = screen.visibleFrame
+    let width: CGFloat = min(160, visible.width)
+    let height: CGFloat = min(400, visible.height * 2 / 3)
+    let rect = CGRect(
+      x: screen.frame.minX + region.rectInPoints.minX,
+      y: screen.frame.maxY - region.rectInPoints.maxY,
+      width: region.rectInPoints.width, height: region.rectInPoints.height)
+    let x = rect.maxX + width + 8 <= visible.maxX ? rect.maxX + 8 : rect.minX - width - 8
+    let frame = PanelLayout.clamp(
+      CGRect(x: x, y: rect.maxY - height, width: width, height: height), in: visible)
+    let window =
+      previewWindow
+      ?? NSPanel(
+        contentRect: frame,
+        styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+    window.isReleasedWhenClosed = false
+    window.level = .statusBar
+    window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+    window.isOpaque = false
+    window.backgroundColor = .clear
+    window.hasShadow = true
+    window.ignoresMouseEvents = true
+    window.animationBehavior = .none
+    window.appearance = panel.theme.appearance()
+    window.contentView = NSHostingView(
+      rootView: ScrollingCapturePreview(state: state, theme: panel.theme))
+    window.setFrame(frame, display: true)
+    previewWindow = window
+    window.orderFrontRegardless()
   }
 
   private func resizeHUDForProgress() {
@@ -178,6 +234,7 @@ private final class CaptureHUDState {
   }
 
   private func showNotice(_ message: String, path: URL?) {
+    hidePreview()
     activeRegion = nil
     state.message = message
     state.unmatched = false
@@ -294,5 +351,23 @@ private struct CaptureHUD: View {
     .background { PanelChrome(theme: theme, scheme: scheme) }
     .clipShape(RoundedRectangle(cornerRadius: DesignTokens.radiusLarge))
     .environment(\.colorScheme, scheme)
+  }
+}
+
+private struct ScrollingCapturePreview: View {
+  @Bindable var state: CaptureHUDState
+  let theme: ThemeManager
+  var body: some View {
+    Group {
+      if let image = state.preview {
+        Image(nsImage: image).resizable().scaledToFit().padding(8)
+      } else {
+        ProgressView().controlSize(.small)
+      }
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background { PanelChrome(theme: theme, scheme: theme.effective) }
+    .clipShape(RoundedRectangle(cornerRadius: 10))
+    .environment(\.colorScheme, theme.effective)
   }
 }

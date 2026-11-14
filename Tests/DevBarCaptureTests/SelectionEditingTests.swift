@@ -3,7 +3,7 @@ import Testing
 
 @testable import DevBarCapture
 
-@MainActor @Test func scrollingSelectionConfirmsManualCaptureWithoutPlayButton() throws {
+@MainActor @Test func scrollingSelectionStartsWhenRegionIsReleased() throws {
   _ = NSApplication.shared
   let window = NSWindow(
     contentRect: NSRect(x: 0, y: 0, width: 800, height: 600), styleMask: .borderless,
@@ -11,6 +11,7 @@ import Testing
   let view = SelectionView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
   window.contentView = view
   view.screenFrame = view.bounds
+  view.scrollingRequested = true
   var completed = false
   view.complete = { result in
     if case .success = result { completed = true }
@@ -24,17 +25,10 @@ import Testing
   }
   view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 100, y: 150)))
   view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 600, y: 450)))
-  let bar = try #require(view.subviews.first as? NSVisualEffectView)
-  #expect(bar.frame.height == 40)
-  let buttons = bar.subviews.compactMap { $0 as? NSButton }
-  #expect(buttons.compactMap { $0.identifier?.rawValue } == ["save", "cancel", "confirm"])
-  #expect(!bar.subviews.contains { $0 is NSBox })
-  #expect(!completed)
-  let confirm = try #require(buttons.first { $0.identifier?.rawValue == "confirm" })
-  confirm.performClick(nil)
   #expect(completed)
   #expect(view.scrollingRequested)
   #expect(!view.saveRequested)
+
 }
 
 @MainActor @Test func screenshotToolbarUsesConsistentColorsInBothAppearances() throws {
@@ -110,16 +104,8 @@ import Testing
         $0.identifier?.rawValue == "scroll"
       })
     scroll.performClick(nil)
-    #expect(!completed)
-    #expect(view.scrollingRequested)
-    #expect(view.frozenFrame == nil)
-    let scrollingBar = try #require(view.subviews.compactMap { $0 as? NSVisualEffectView }.first)
-    let scrollingButtons = scrollingBar.subviews.compactMap { $0 as? NSButton }
-    #expect(
-      scrollingButtons.compactMap { $0.identifier?.rawValue } == ["save", "cancel", "confirm"])
-    let confirm = try #require(scrollingButtons.first { $0.identifier?.rawValue == "confirm" })
-    confirm.performClick(nil)
     #expect(completed)
+    #expect(view.scrollingRequested)
     view.beginScrollingProgress()
     #expect(view.subviews.compactMap { $0 as? NSVisualEffectView }.isEmpty)
   }

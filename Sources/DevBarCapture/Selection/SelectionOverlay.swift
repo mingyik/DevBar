@@ -747,15 +747,7 @@ final class SelectionView: NSView {
     case "cancel": complete?(.failure(CaptureError.cancelled))
     case "scroll":
       scrollingRequested = true
-      frozenFrame = nil
-      tool = "select"
-      marks.removeAll()
-      texts.removeAll()
-      undoKinds.removeAll()
-      selectedMark = nil
-      selectedText = nil
-      showToolbar()
-      needsDisplay = true
+      confirm()
     case "undo":
       selectedMark = nil
       selectedText = nil
@@ -1029,7 +1021,9 @@ final class SelectionView: NSView {
     editingArrow = nil
     moveOrigin = nil
     resizeHandle = nil
-    if !selection.isEmpty { showToolbar() }
+    if !selection.isEmpty {
+      if scrollingRequested && frozenFrame == nil { confirm() } else { showToolbar() }
+    }
     needsDisplay = true
   }
 

@@ -39,6 +39,35 @@ private func testRegion() throws -> CaptureRegion {
     screenFrame: CGRect(x: 0, y: 0, width: 64, height: 120), scale: 1)
 }
 
+@MainActor @Test func scrollingCollectsBothDirectionsWithoutDuplicatingVisitedRows() async throws {
+  for footer in [0, 18] {
+    func capture(_ offsets: [Int]) async throws -> CGImage {
+      let frames = Frames(offsets.map { frame(offset: $0, footer: footer) })
+      let result = await ScreenshotScrollingCapture.captureFrames(
+        region: try testRegion(), finishSignal: .init(), frameLimit: offsets.count + 2,
+        onProgress: { _, _ in }, nextFrame: { await frames.next() })
+      guard case .limited(let image) = result else {
+        Issue.record("expected complete retained pixels at frame limit")
+        throw CaptureError.noImage
+      }
+      return image
+    }
+    let forward = try await capture([0, 42, 84, 126])
+    let both = try await capture([84, 42, 0, 42, 84, 126, 84])
+    #expect(forward.height == 246)
+    #expect(both.height == forward.height)
+    #expect(both.width == forward.width)
+    #expect(both.dataProvider?.data as Data? == forward.dataProvider?.data as Data?)
+  }
+}
+
+@Test func scrollingPreviewUsesBoundedPixelsAndPreservesAspectRatio() {
+  let preview = ScreenshotScrollingCapture.makePreview(Array(repeating: frame(offset: 0), count: 8))
+  #expect(preview?.width == 53)
+  #expect(preview?.height == 800)
+  #expect(ScreenshotScrollingCapture.makePreview([]) == nil)
+}
+
 @Test func scrollingMatchesAndKeepsFixedFooter() async throws {
   let frames = Frames([frame(offset: 0, footer: 18), frame(offset: 42, footer: 18)])
   let finish = ScreenshotScrollingCapture.FinishSignal()
