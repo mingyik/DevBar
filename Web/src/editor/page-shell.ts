@@ -1,6 +1,7 @@
 import captureSymbol from "../assets/icons/capture.png";
 import copySymbol from "../assets/icons/copy.png";
 import clearSymbol from "../assets/icons/clear.png";
+import saveSymbol from "../assets/icons/save.png";
 import toggleSymbol from "../assets/icons/toggle.png";
 import { EditorView } from "@codemirror/view";
 import { StateEffect, type Extension } from "@codemirror/state";
@@ -47,6 +48,7 @@ export function setIcon(button: HTMLButtonElement, name: string): void {
   const symbols: Record<string, string> = {
     copy: copySymbol,
     clear: clearSymbol,
+    save: saveSymbol,
     exportImage: captureSymbol,
     toggle: toggleSymbol,
   };

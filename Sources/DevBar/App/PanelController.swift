@@ -575,26 +575,35 @@ final class PanelController {
       return
     }
     if documentMode == "split" {
-      if !documentWindows.isEditorVisible {
-        documentWindows.showEditor(text: lastPreviewText, mode: lastPreviewMode)
-        Task { await self.refreshEditorWindow() }
+      if model.documentSidebarVisible {
+        documentWindows.hideEditor()
+        documentWindows.showSidebar()
+      } else {
+        documentWindows.closeSidebar()
+        if !documentWindows.isEditorVisible {
+          documentWindows.showEditor(text: lastPreviewText, mode: lastPreviewMode)
+          Task { await self.refreshEditorWindow() }
+        }
       }
       documentWindows.position(mainFrame: panel.frame, visible: screen.visibleFrame)
     } else {
       documentWindows.hideEditor()
-    }
-    if model.documentSidebarVisible {
-      documentWindows.showSidebar()
-      documentWindows.position(mainFrame: panel.frame, visible: screen.visibleFrame)
-    } else {
-      documentWindows.closeSidebar()
+      if model.documentSidebarVisible {
+        documentWindows.showSidebar()
+        documentWindows.position(mainFrame: panel.frame, visible: screen.visibleFrame)
+      } else {
+        documentWindows.closeSidebar()
+      }
     }
   }
 
   private func refreshEditorWindow() async {
     guard panel.isVisible, model.page == .doc, documentMode == "split",
-      let screen = panel.screen ?? NSScreen.main
-    else { return }
+      !model.documentSidebarVisible, let screen = panel.screen ?? NSScreen.main
+    else {
+      documentWindows.hideEditor()
+      return
+    }
     let text = await webHost.documentText() ?? lastPreviewText
     let mode = await webHost.documentMode() ?? lastPreviewMode
     lastPreviewText = text
@@ -605,9 +614,21 @@ final class PanelController {
   }
 
   private func toggleDocumentSidebar() {
-    guard panel.isVisible, model.page == .doc, documentMode != "split",
-      let screen = panel.screen ?? NSScreen.main
+    guard panel.isVisible, model.page == .doc, let screen = panel.screen ?? NSScreen.main
     else { return }
+    if documentMode == "split" {
+      if model.documentSidebarVisible || documentWindows.sidebarVisible {
+        model.documentSidebarVisible = false
+        documentWindows.closeSidebar()
+        Task { await refreshEditorWindow() }
+      } else {
+        model.documentSidebarVisible = true
+        documentWindows.hideEditor()
+        documentWindows.showSidebar()
+      }
+      documentWindows.position(mainFrame: panel.frame, visible: screen.visibleFrame)
+      return
+    }
     documentWindows.toggleSidebar()
     model.documentSidebarVisible = documentWindows.sidebarVisible
     reposition(animated: false)
