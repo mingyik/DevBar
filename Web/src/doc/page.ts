@@ -218,10 +218,6 @@ export class DocPage {
     );
     const dirty = this.dirty();
     this.saveButton.disabled = !dirty || this.saveInProgress;
-    this.saveButton.classList.toggle(
-      "attention",
-      dirty && !this.saveInProgress,
-    );
     setButtonLabel(this.saveButton, strings.saveDocument);
   }
   private dirty() {

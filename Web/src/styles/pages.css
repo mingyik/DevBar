@@ -331,10 +331,6 @@ button:disabled {
 .icon-button:disabled {
   opacity: 0.45;
 }
-.icon-button.attention {
-  color: var(--text-primary);
-  box-shadow: 0 0 0 0.5px var(--selection-border);
-}
 
 .doc-editor-window {
   position: relative;
