@@ -2,6 +2,7 @@ import { json } from "@codemirror/lang-json";
 import { foldGutter } from "@codemirror/language";
 import type { Extension } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { jsonIndentation } from "./indentation";
 
 function marker(open: boolean): HTMLElement {
   const wrapper = document.createElement("span");
@@ -22,6 +23,7 @@ function marker(open: boolean): HTMLElement {
 export function jsonFoldingExtension(): Extension {
   return [
     json(),
+    jsonIndentation,
     foldGutter({ markerDOM: marker }),
     EditorView.theme({
       "& .cm-gutters.cm-gutters-before": {

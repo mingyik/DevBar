@@ -40,6 +40,14 @@
 .source .cm-content {
   padding: 12px 22px 12px 12px;
 }
+#tools .source .cm-content {
+  padding-left: 2px;
+  padding-right: 20px;
+}
+#tools .cm-json-indent {
+  background-size: 1px 4px;
+  background-repeat: repeat-y;
+}
 .preview {
   padding: 12px 22px 12px 12px;
   overflow-x: hidden;
