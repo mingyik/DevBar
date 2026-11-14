@@ -360,6 +360,11 @@ button:disabled {
   height: 18px;
   flex: 0 0 18px;
 }
+.page-shell[data-kind="doc"] .page-toolbar .icon-button svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.7;
+}
 .page-toolbar .pill {
   height: 24px;
 }
