@@ -339,6 +339,15 @@ button:disabled {
   width: 28px;
   height: 28px;
 }
+.page-shell[data-kind="doc"] .page-toolbar .icon-button svg {
+  width: 17px;
+  height: 17px;
+}
+.page-shell[data-kind="doc"] .page-toolbar .icon-button .system-icon {
+  width: 19px;
+  height: 19px;
+  flex: 0 0 19px;
+}
 .icon-button:disabled {
   opacity: 0.45;
 }
