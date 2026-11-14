@@ -3,7 +3,7 @@ import SwiftUI
 
 @MainActor final class ClipboardCard {
   /// 每次展示后的停留时间；切换条目会重新计时。
-  private static let visibleDuration = Duration.milliseconds(2500)
+  private static let visibleDuration = Duration.milliseconds(2000)
   let panel = NSPanel(
     contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered,
     defer: false)
