@@ -9,7 +9,7 @@ extension KeyboardShortcuts.Name {
   static let pageQR = Self("page.qr")
   static let pageDoc = Self("page.doc")
   static let togglePanel = Self(
-    "togglePanel", default: .init(.d, modifiers: [.control, .option]))
+    "togglePanel", default: .init(.w, modifiers: [.command]))
   static let cycleOlder = Self("cycleOlder", default: .init(.v, modifiers: [.command, .shift]))
   static let captureRegion = Self(
     "captureRegion", default: .init(.four, modifiers: [.option, .command]))
@@ -29,8 +29,11 @@ enum ShortcutActions {
         Task { @MainActor in panel.open(page: page, anchor: status.anchor) }
       }
     }
-    let retired = KeyboardShortcuts.Shortcut(.space, modifiers: [.option, .command])
-    if KeyboardShortcuts.getShortcut(for: .togglePanel) == retired {
+    let retired = [
+      KeyboardShortcuts.Shortcut(.space, modifiers: [.option, .command]),
+      KeyboardShortcuts.Shortcut(.d, modifiers: [.control, .option]),
+    ]
+    if let current = KeyboardShortcuts.getShortcut(for: .togglePanel), retired.contains(current) {
       KeyboardShortcuts.reset(.togglePanel)
       logger.notice("shortcut=togglePanel reset retired default")
     }
