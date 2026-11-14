@@ -67,6 +67,7 @@ export function iconButton(
   action: () => void,
 ): HTMLButtonElement {
   const button = element("button", "icon-button");
+  button.classList.add(`icon-${name}`);
   setIcon(button, name);
   button.onclick = action;
   return button;

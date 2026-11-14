@@ -361,6 +361,14 @@ button:disabled {
   height: 18px;
   flex: 0 0 18px;
 }
+.page-toolbar .icon-button.icon-clear {
+  padding: 0;
+}
+.page-toolbar .icon-button.icon-clear .system-icon {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+}
 .page-toolbar .pill {
   height: 24px;
 }
