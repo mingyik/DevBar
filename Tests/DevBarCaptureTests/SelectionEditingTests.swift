@@ -102,6 +102,26 @@ import Testing
       #expect(button.image?.representations.contains { $0 is NSCustomImageRep } == true)
       #expect(NSStringFromClass(type(of: button)) == NSStringFromClass(type(of: arrow)))
     }
+    var completed = false
+    view.complete = { _ in completed = true }
+    let currentBar = try #require(view.subviews.compactMap { $0 as? NSVisualEffectView }.first)
+    let scroll = try #require(
+      currentBar.subviews.compactMap { $0 as? NSButton }.first {
+        $0.identifier?.rawValue == "scroll"
+      })
+    scroll.performClick(nil)
+    #expect(!completed)
+    #expect(view.scrollingRequested)
+    #expect(view.frozenFrame == nil)
+    let scrollingBar = try #require(view.subviews.compactMap { $0 as? NSVisualEffectView }.first)
+    let scrollingButtons = scrollingBar.subviews.compactMap { $0 as? NSButton }
+    #expect(
+      scrollingButtons.compactMap { $0.identifier?.rawValue } == ["save", "cancel", "confirm"])
+    let confirm = try #require(scrollingButtons.first { $0.identifier?.rawValue == "confirm" })
+    confirm.performClick(nil)
+    #expect(completed)
+    view.beginScrollingProgress()
+    #expect(view.subviews.compactMap { $0 as? NSVisualEffectView }.isEmpty)
   }
 }
 

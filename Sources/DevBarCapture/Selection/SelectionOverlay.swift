@@ -98,6 +98,7 @@ public final class SelectionOverlay {
           view.toolbarTintColor = toolbarTintColor
           view.toolbarBorderColor = toolbarBorderColor
           view.frozenFrame = frozenFrames[number.uint32Value]
+          view.scrollingRequested = !freeze
           view.screenFrame = screen.frame
           view.displayID = number.uint32Value
           view.scale = screen.backingScaleFactor
@@ -135,10 +136,22 @@ public final class SelectionOverlay {
     continuation = nil
     timeoutTask?.cancel()
     timeoutTask = nil
-    for panel in panels { panel.orderOut(nil) }
-    panels.removeAll()
+    if case .success = result, scrollingRequested {
+      for panel in panels {
+        (panel.contentView as? SelectionView)?.beginScrollingProgress()
+        panel.ignoresMouseEvents = true
+        if panel.isKeyWindow { panel.resignKey() }
+      }
+    } else {
+      dismissScrollingOverlay()
+    }
     reply.resume(with: result)
   }
+  public func dismissScrollingOverlay() {
+    for panel in panels { panel.orderOut(nil) }
+    panels.removeAll()
+  }
+
 }
 
 @MainActor
@@ -174,6 +187,7 @@ final class SelectionView: NSView {
   var scrollingRequested = false
   var saveRequested = false
   var onInteraction: (() -> Void)?
+  private var captureInProgress = false
   private var tool = "select"
   private struct ToolStyle {
     var color = NSColor.systemRed  // devbar:allow-color
@@ -733,7 +747,15 @@ final class SelectionView: NSView {
     case "cancel": complete?(.failure(CaptureError.cancelled))
     case "scroll":
       scrollingRequested = true
-      confirm()
+      frozenFrame = nil
+      tool = "select"
+      marks.removeAll()
+      texts.removeAll()
+      undoKinds.removeAll()
+      selectedMark = nil
+      selectedText = nil
+      showToolbar()
+      needsDisplay = true
     case "undo":
       selectedMark = nil
       selectedText = nil
@@ -748,6 +770,19 @@ final class SelectionView: NSView {
     default: break
     }
   }
+  func beginScrollingProgress() {
+    captureInProgress = true
+    frozenFrame = nil
+    toolbar?.removeFromSuperview()
+    optionsBar?.removeFromSuperview()
+    toolbar = nil
+    optionsBar = nil
+    marks.removeAll()
+    texts.removeAll()
+    selectedMark = nil
+    selectedText = nil
+    needsDisplay = true
+  }
   override var acceptsFirstResponder: Bool { true }
 
   override func draw(_ dirtyRect: NSRect) {
@@ -756,8 +791,10 @@ final class SelectionView: NSView {
       NSImage(cgImage: frame, size: bounds.size).draw(in: bounds)
     }
     drawMarks(clipped: false)
-    NSColor.black.withAlphaComponent(0.4).setFill()  // devbar:allow-color
-    bounds.fill()
+    if !captureInProgress {
+      NSColor.black.withAlphaComponent(0.4).setFill()  // devbar:allow-color
+      bounds.fill()
+    }
     if !selection.isEmpty {
       if let frame = frozenFrame {
         NSGraphicsContext.saveGraphicsState()

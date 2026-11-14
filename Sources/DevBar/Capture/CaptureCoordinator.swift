@@ -20,6 +20,7 @@ private final class CaptureHUDState {
   private unowned let panel: PanelController
   private var task: Task<Void, Never>?
   private var hud: NSPanel?
+  private var activeRegion: CaptureRegion?
   private let state = CaptureHUDState()
   private var noticeTask: Task<Void, Never>?
 
@@ -64,6 +65,7 @@ private final class CaptureHUDState {
           toolbarTintColor: NSColor(DesignTokens.captureToolbarTint(self.panel.theme.effective)),
           toolbarBorderColor: NSColor(DesignTokens.captureToolbarBorder(self.panel.theme.effective))
         )
+        defer { selection.dismissScrollingOverlay() }
         let selected = scrolling ? nil : try await selection.selectImage()
         let scrolling = scrolling || selection.scrollingRequested
         let image: CGImage
@@ -92,6 +94,7 @@ private final class CaptureHUDState {
             }
           }
           self.hud?.orderOut(nil)
+          selection.dismissScrollingOverlay()
           switch result {
           case .success(let resultImage): image = resultImage
           case .partial(let resultImage):
@@ -142,6 +145,7 @@ private final class CaptureHUDState {
 
   private func showProgress(region: CaptureRegion, finish: ScreenshotScrollingCapture.FinishSignal)
   {
+    activeRegion = region
     state.height = 0
     state.unmatched = false
     state.message = ""
@@ -165,10 +169,16 @@ private final class CaptureHUDState {
     let top = frame.maxY
     frame.size.height = state.unmatched ? 63 : 43
     frame.origin.y = top - frame.height
+    if let region = activeRegion, let screen = hud.screen {
+      frame = Self.progressFrame(
+        region: region, screen: screen.frame,
+        visible: screen.visibleFrame, size: frame.size)
+    }
     hud.setFrame(frame, display: true)
   }
 
   private func showNotice(_ message: String, path: URL?) {
+    activeRegion = nil
     state.message = message
     state.unmatched = false
     state.path = path
@@ -182,6 +192,22 @@ private final class CaptureHUDState {
       guard !Task.isCancelled else { return }
       self?.hud?.orderOut(nil)
     }
+  }
+
+  static func progressFrame(region: CaptureRegion, screen: CGRect, visible: CGRect, size: CGSize)
+    -> CGRect
+  {
+    let rect = CGRect(
+      x: screen.minX + region.rectInPoints.minX,
+      y: screen.maxY - region.rectInPoints.maxY,
+      width: region.rectInPoints.width, height: region.rectInPoints.height)
+    let below = rect.minY - size.height - 8
+    let above = rect.maxY + 8
+    let y = below >= visible.minY ? below : above + size.height <= visible.maxY ? above : below
+    return PanelLayout.clamp(
+      CGRect(
+        x: rect.maxX - size.width, y: y,
+        width: size.width, height: size.height), in: visible)
   }
 
   private func showHUD(displayID: CGDirectDisplayID?) {
@@ -203,15 +229,23 @@ private final class CaptureHUDState {
     window.isOpaque = false
     window.backgroundColor = .clear
     window.hasShadow = true
+    window.animationBehavior = .none
     window.appearance = panel.theme.appearance()
     window.contentView = NSHostingView(rootView: view)
     let height: CGFloat = state.unmatched ? 63 : 43
     let width: CGFloat = 380
     let visible = screen.visibleFrame
-    window.setFrame(
-      NSRect(
-        x: visible.midX - width / 2, y: visible.maxY - height - 8, width: width, height: height),
-      display: true)
+    let frame: CGRect
+    if let region = activeRegion {
+      frame = Self.progressFrame(
+        region: region, screen: screen.frame,
+        visible: visible, size: CGSize(width: width, height: height))
+    } else {
+      frame = CGRect(
+        x: visible.midX - width / 2, y: visible.maxY - height - 8,
+        width: width, height: height)
+    }
+    window.setFrame(frame, display: true)
     hud = window
     window.orderFrontRegardless()
   }
