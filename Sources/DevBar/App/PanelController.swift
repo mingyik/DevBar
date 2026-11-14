@@ -549,6 +549,7 @@ final class PanelController {
   private func handleResignKey() {
     guard panel.isVisible, !model.pinned, !dismissing, !NSApp.isActive else { return }
     if documentWindows.owns(NSApp.keyWindow) { return }
+    if documentMode == "split" || documentWindows.sidebarVisible { return }
     dismiss()
   }
 
@@ -599,6 +600,7 @@ final class PanelController {
     lastPreviewText = text
     lastPreviewMode = mode
     documentWindows.showEditor(text: text, mode: mode)
+    panel.orderFrontRegardless()
     documentWindows.position(mainFrame: panel.frame, visible: screen.visibleFrame)
   }
 

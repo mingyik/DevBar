@@ -356,6 +356,11 @@ button:disabled {
 }
 .doc-editor-window .cm-editor {
   height: 100%;
+  background: transparent;
+}
+.doc-editor-window .cm-gutters,
+.doc-editor-window .cm-scroller {
+  background: transparent;
 }
 .doc-editor-window .cm-content {
   padding: 14px 22px 58px 12px;
