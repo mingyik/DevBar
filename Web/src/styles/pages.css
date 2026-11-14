@@ -379,6 +379,16 @@ button:disabled {
   opacity: 1;
 }
 
+#tools .json-convert:disabled {
+  color: var(--text-primary);
+  opacity: 0.45;
+}
+
+#doc .page-toolbar .icon-save:disabled {
+  color: var(--icon-primary);
+  opacity: 0.45;
+}
+
 .doc-editor-window {
   position: relative;
   display: flex;

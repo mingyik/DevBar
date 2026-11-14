@@ -62,6 +62,7 @@ export class JsonPage {
     this.jsonButton = pill(strings.json, () => {
       void this.convert("toggle");
     });
+    this.jsonButton.classList.add("json-convert");
     this.escapeButton = pill(strings.escape, () => {
       void this.convert(actionLabels(shell.text, this.encoding).escape);
     });
