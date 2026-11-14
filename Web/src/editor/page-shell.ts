@@ -1,4 +1,7 @@
+import captureSymbol from "../assets/icons/capture.png";
+import clearSymbol from "../assets/icons/clear.png";
 import copySymbol from "../assets/icons/copy.png";
+import saveSymbol from "../assets/icons/save.png";
 import toggleSymbol from "../assets/icons/toggle.png";
 import { EditorView } from "@codemirror/view";
 import { StateEffect, type Extension } from "@codemirror/state";
@@ -44,6 +47,9 @@ export function setIcon(button: HTMLButtonElement, name: string): void {
   button.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] ?? ""}</svg>`;
   const symbols: Record<string, string> = {
     copy: copySymbol,
+    clear: clearSymbol,
+    save: saveSymbol,
+    exportImage: captureSymbol,
     toggle: toggleSymbol,
   };
   if (symbols[name]) {

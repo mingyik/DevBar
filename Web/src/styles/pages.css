@@ -355,11 +355,6 @@ button:disabled {
 .page-toolbar .icon-button:disabled {
   opacity: 0.6;
 }
-.page-shell[data-kind="doc"] .page-toolbar .icon-button svg {
-  width: 18px;
-  height: 18px;
-  stroke-width: 1.7;
-}
 .page-toolbar .icon-button .system-icon {
   width: 18px;
   height: 18px;
