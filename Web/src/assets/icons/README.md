@@ -6,6 +6,4 @@ copy.png：macOS SF Symbol `doc.on.doc`。clear.png：macOS SF Symbol `eraser`�
 
 capture.png：macOS SF Symbol `viewfinder.rectangular`，仅用于文稿截全图，不作为复制操作。
 
-save.png：macOS SF Symbol `square.and.arrow.down`（18pt regular，24pt 画布 2× PNG），用于保存 Markdown 原文。
-
 toggle.png：macOS SF Symbol `repeat`（15pt regular，24pt 画布 2× PNG），用于二维码与文稿页的编辑/预览切换图标按钮。
