@@ -343,6 +343,10 @@ button:disabled {
   width: 16px;
   height: 16px;
 }
+.page-toolbar .icon-button.save-button svg {
+  width: 18px;
+  height: 18px;
+}
 .page-toolbar .icon-button .system-icon {
   width: 18px;
   height: 18px;

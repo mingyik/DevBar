@@ -73,6 +73,7 @@ export class DocPage {
     this.saveButton = iconButton("save", () => {
       void this.save();
     });
+    this.saveButton.classList.add("save-button");
     this.contextAction = iconButton("clear", () => {
       if (shell.mode === "preview") {
         void this.export();
