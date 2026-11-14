@@ -274,6 +274,23 @@ final class PanelController {
     }
   }
 
+  /// Complete Markdown synchronization and panel dismissal before freezing the display.
+  func prepareForCapture() async -> Bool {
+    guard !dismissing else { return false }
+    if panel.isVisible {
+      dismissing = true
+      guard await flushSplitEditor() else {
+        dismissing = false
+        return false
+      }
+      finishDismiss()
+    } else {
+      documentWindows.hideAll()
+    }
+    await Task.yield()
+    return true
+  }
+
   private func finishDismiss() {
     panel.orderOut(nil)
     previewHideTask?.cancel()

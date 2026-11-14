@@ -89,7 +89,9 @@ public final class SelectionOverlay {
           panel.level = .screenSaver
           panel.isOpaque = false
           panel.backgroundColor = .clear
-          panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
+          panel.collectionBehavior = [
+            .canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle, .stationary,
+          ]
           let view = SelectionView(frame: CGRect(origin: .zero, size: screen.frame.size))
           view.iconColor = iconColor
           view.disabledIconColor = disabledIconColor
@@ -141,7 +143,19 @@ public final class SelectionOverlay {
 
 @MainActor
 private final class SelectionPanel: NSPanel {
+  override init(
+    contentRect: NSRect, styleMask: NSWindow.StyleMask, backing: NSWindow.BackingStoreType,
+    defer flag: Bool
+  ) {
+    super.init(contentRect: contentRect, styleMask: styleMask, backing: backing, defer: flag)
+    animationBehavior = .none
+    isMovable = false
+    isMovableByWindowBackground = false
+    hasShadow = false
+  }
+  required init?(coder: NSCoder) { nil }
   override var canBecomeKey: Bool { true }
+  override var canBecomeMain: Bool { false }
 }
 
 @MainActor

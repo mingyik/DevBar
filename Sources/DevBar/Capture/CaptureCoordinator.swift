@@ -35,7 +35,6 @@ private final class CaptureHUDState {
 
   func start(scrolling: Bool) {
     guard task == nil else { return }
-    panel.dismiss()
     if !CGPreflightScreenCaptureAccess() {
       let key = "screenCapturePermissionRequested"
       if !UserDefaults.standard.bool(forKey: key) {
@@ -56,6 +55,7 @@ private final class CaptureHUDState {
     task = Task { [weak self] in
       guard let self else { return }
       defer { self.task = nil }
+      guard await self.panel.prepareForCapture() else { return }
       do {
         let selection = SelectionOverlay(
           appearanceName: self.panel.theme.appearance()?.name,
