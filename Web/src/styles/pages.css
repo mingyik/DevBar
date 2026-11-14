@@ -336,21 +336,16 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
-}
-.page-shell[data-kind="doc"] .page-toolbar .icon-button {
   width: 24px;
   height: 24px;
 }
-.page-shell[data-kind="doc"] .page-toolbar .icon-button svg {
-  width: 14px;
-  height: 14px;
-}
-.page-shell[data-kind="doc"] .page-toolbar .icon-button .system-icon {
+.page-toolbar .icon-button .system-icon {
   width: 16px;
   height: 16px;
   flex: 0 0 16px;
+}
+.page-toolbar .pill {
+  height: 24px;
 }
 .icon-button:disabled {
   opacity: 0.45;
