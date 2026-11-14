@@ -6,4 +6,4 @@ copy.png：macOS SF Symbol `doc.on.doc`。clear.png：macOS SF Symbol `eraser`�
 
 capture.png：macOS SF Symbol `viewfinder.rectangular`，仅用于文稿截全图，不作为复制操作。
 
-save.png：按原内联软盘路径绘制的 alpha 蒙版（24pt 画布 2× PNG），只用于文稿保存按钮，颜色与 clear/capture 一样跟随 currentColor。
+save.svg：保留原软盘路径，描边由 1.5 调细为 1.1，24×24 viewBox。只用于文稿保存按钮，通过 alpha 蒙版跟随 currentColor；显示尺寸、正常色与禁用色不变。

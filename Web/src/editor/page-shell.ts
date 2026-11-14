@@ -1,7 +1,7 @@
 import captureSymbol from "../assets/icons/capture.png";
 import clearSymbol from "../assets/icons/clear.png";
 import copySymbol from "../assets/icons/copy.png";
-import saveSymbol from "../assets/icons/save.png";
+import saveSymbol from "../assets/icons/save.svg";
 import { EditorView } from "@codemirror/view";
 import { StateEffect, type Extension } from "@codemirror/state";
 import {
