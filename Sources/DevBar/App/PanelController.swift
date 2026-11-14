@@ -630,6 +630,11 @@ final class PanelController {
       documents.adopt(opened)
       model.page = .doc
       webHost.importDocument(opened)
+      if documentMode == "split" {
+        lastPreviewText = opened.text
+        lastPreviewMode = opened.mode?.rawValue ?? "markdown"
+        documentWindows.showEditor(text: opened.text, mode: lastPreviewMode)
+      }
       model.documentSidebarVisible = documentWindows.sidebarVisible
       syncDocumentWindows()
     }

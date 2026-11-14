@@ -154,7 +154,7 @@ private struct DocumentFileRow: View {
         if selected {
           RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
             .strokeBorder(
-              DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline)
+              DesignTokens.lineBorder(scheme), lineWidth: 1)
         }
       }
     }
@@ -204,7 +204,7 @@ private struct DocumentRecentRow: View {
         if selected {
           RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
             .strokeBorder(
-              DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline)
+              DesignTokens.lineBorder(scheme), lineWidth: 1)
         }
       }
     }

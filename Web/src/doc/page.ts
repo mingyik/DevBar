@@ -163,8 +163,6 @@ export class DocPage {
     mode?: DocMode,
     documentId: string | null = null,
   ) {
-    this.display = "source";
-    this.shell.showPreview(false);
     this.shell.view.dispatch({
       changes: { from: 0, to: this.shell.view.state.doc.length, insert: text },
       effects: documentMetadata.of({
@@ -183,6 +181,11 @@ export class DocPage {
     this.documentID = documentId;
     this.updateControls();
     this.emitMode();
+    this.shell.showPreview(
+      this.display === "preview" || this.display === "split",
+    );
+    if (this.display === "preview" || this.display === "split")
+      void this.render();
   }
   private updateControls() {
     this.shell.fileDirty = this.dirty();
