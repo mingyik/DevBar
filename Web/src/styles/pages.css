@@ -344,11 +344,6 @@ button:disabled {
   width: 16px;
   height: 16px;
 }
-.page-toolbar .icon-button.save-button svg {
-  width: 18px;
-  height: 18px;
-  stroke-width: 1.7;
-}
 .page-toolbar .icon-button:disabled {
   opacity: 0.6;
 }
