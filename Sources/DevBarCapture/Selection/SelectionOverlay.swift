@@ -998,6 +998,7 @@ final class SelectionView: NSView {
 }
 
 @MainActor private final class CaptureToolbarButton: NSButton {
+  override var allowsVibrancy: Bool { false }
   var toolSelected = false
   var highlightColor: NSColor = .labelColor
   private var hovered = false

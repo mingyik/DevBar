@@ -70,6 +70,7 @@ import Testing
     let buttons = bar.subviews.compactMap { $0 as? NSButton }
     for button in buttons {
       #expect(button.frame.height == 30)
+      #expect(!button.allowsVibrancy)
       #expect(bar.bounds.contains(button.frame))
       #expect(button.image?.size == NSSize(width: 18, height: 18))
       #expect(button.image?.isTemplate == true)

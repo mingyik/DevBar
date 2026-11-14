@@ -404,11 +404,11 @@ enum DesignTokens {
   static func captureToolbarIcon(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 28.0 / 255, green: 28.0 / 255, blue: 30.0 / 255, opacity: 1)
+      return Color(red: 0, green: 0, blue: 0, opacity: 1)
     case .dark:
       return Color(red: 1, green: 1, blue: 1, opacity: 1)
     @unknown default:
-      return Color(red: 28.0 / 255, green: 28.0 / 255, blue: 30.0 / 255, opacity: 1)
+      return Color(red: 0, green: 0, blue: 0, opacity: 1)
     }
   }
 

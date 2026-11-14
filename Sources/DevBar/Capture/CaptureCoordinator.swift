@@ -230,18 +230,22 @@ private struct CaptureHUD: View {
         if let finish = state.finish, let cancel = state.cancel {
           if let save = state.save {
             Button(action: save) {
-              Image(systemName: "arrow.down.to.line").devbarIconColor(scheme).font(
+              Image(systemName: "arrow.down.to.line").foregroundStyle(
+                DesignTokens.captureToolbarIcon(scheme)
+              ).font(
                 .system(size: 12))
             }
             .help(
               Strings.captureSave)
           }
           Button(action: cancel) {
-            Image(systemName: "xmark").devbarIconColor(scheme).font(.system(size: 12))
+            Image(systemName: "xmark").foregroundStyle(DesignTokens.captureToolbarIcon(scheme))
+              .font(.system(size: 12))
           }.help(
             Strings.captureCancel)
           Button(action: finish) {
-            Image(systemName: "checkmark").devbarIconColor(scheme).font(.system(size: 12))
+            Image(systemName: "checkmark").foregroundStyle(DesignTokens.captureToolbarIcon(scheme))
+              .font(.system(size: 12))
           }.help(
             Strings.captureFinish)
         } else if let path = state.path {
