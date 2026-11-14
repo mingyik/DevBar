@@ -12,7 +12,6 @@ public final class SelectionOverlay {
   private var frozenFrames: [CGDirectDisplayID: CGImage] = [:]
   public private(set) var scrollingRequested = false
   public private(set) var saveRequested = false
-  public private(set) var completionRequested = false
   private var renderedFrame: CGImage?
   private var preparing = false
   private var continuation: CheckedContinuation<CaptureRegion, any Error>?
@@ -97,7 +96,6 @@ public final class SelectionOverlay {
           view.complete = { [weak self, weak view] result in
             self?.scrollingRequested = view?.scrollingRequested ?? false
             self?.saveRequested = view?.saveRequested ?? false
-            self?.completionRequested = view?.completionRequested ?? false
             self?.renderedFrame = view?.exportFrame()
             self?.finish(result)
           }
@@ -152,7 +150,6 @@ final class SelectionView: NSView {
   private var selection = CGRect.zero
   var scrollingRequested = false
   var saveRequested = false
-  var completionRequested = false
   var onInteraction: (() -> Void)?
   private var tool = "select"
   private struct ToolStyle {
@@ -361,11 +358,11 @@ final class SelectionView: NSView {
     ]
     if frozenFrame == nil {
       tools = [
-        ("play.fill", "scroll"), ("arrow.down.to.line", "save"), ("xmark", "cancel"),
+        ("arrow.down.to.line", "save"), ("xmark", "cancel"),
         ("checkmark", "confirm"),
       ]
     }
-    let breaks: Set<Int> = frozenFrame == nil ? [1] : [1, 7, 9]
+    let breaks: Set<Int> = frozenFrame == nil ? [] : [1, 7, 9]
     let width = CGFloat(tools.count * 44 + 24 + breaks.count * 12)
     let x = min(max(selection.maxX - width, 8), bounds.maxX - width - 8)
     let y = selection.minY > 64 ? selection.minY - 60 : min(selection.maxY + 10, bounds.maxY - 54)
@@ -564,7 +561,6 @@ final class SelectionView: NSView {
       saveRequested = true
       confirm()
     case "confirm":
-      completionRequested = true
       scrollingRequested = true
       confirm()
     case "cancel": complete?(.failure(CaptureError.cancelled))

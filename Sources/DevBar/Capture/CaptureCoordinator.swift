@@ -77,8 +77,6 @@ private final class CaptureHUDState {
           if selection.saveRequested {
             self.state.saveToDisk = true
             finish.request()
-          } else if selection.completionRequested {
-            finish.request()
           }
           let result = await ScreenshotScrollingCapture.capture(
             region: region, finishSignal: finish
