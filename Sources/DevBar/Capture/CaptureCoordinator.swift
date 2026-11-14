@@ -160,7 +160,7 @@ private final class CaptureHUDState {
     guard let hud else { return }
     var frame = hud.frame
     let top = frame.maxY
-    frame.size.height = state.unmatched ? 68 : 48
+    frame.size.height = state.unmatched ? 63 : 43
     frame.origin.y = top - frame.height
     hud.setFrame(frame, display: true)
   }
@@ -202,7 +202,7 @@ private final class CaptureHUDState {
     window.hasShadow = true
     window.appearance = panel.theme.appearance()
     window.contentView = NSHostingView(rootView: view)
-    let height: CGFloat = state.unmatched ? 68 : 48
+    let height: CGFloat = state.unmatched ? 63 : 43
     let width: CGFloat = 380
     let visible = screen.visibleFrame
     window.setFrame(
@@ -226,13 +226,20 @@ private struct CaptureHUD: View {
         Spacer(minLength: 4)
         if let finish = state.finish, let cancel = state.cancel {
           if let save = state.save {
-            Button(action: save) { Image(systemName: "arrow.down.to.line").devbarIconColor(scheme) }
-              .help(
-                Strings.captureSave)
+            Button(action: save) {
+              Image(systemName: "arrow.down.to.line").devbarIconColor(scheme).font(
+                .system(size: 12))
+            }
+            .help(
+              Strings.captureSave)
           }
-          Button(action: cancel) { Image(systemName: "xmark").devbarIconColor(scheme) }.help(
+          Button(action: cancel) {
+            Image(systemName: "xmark").devbarIconColor(scheme).font(.system(size: 12))
+          }.help(
             Strings.captureCancel)
-          Button(action: finish) { Image(systemName: "checkmark").devbarIconColor(scheme) }.help(
+          Button(action: finish) {
+            Image(systemName: "checkmark").devbarIconColor(scheme).font(.system(size: 12))
+          }.help(
             Strings.captureFinish)
         } else if let path = state.path {
           Button(Strings.captureReveal) { NSWorkspace.shared.activateFileViewerSelecting([path]) }

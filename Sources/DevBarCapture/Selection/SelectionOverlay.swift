@@ -365,12 +365,12 @@ final class SelectionView: NSView {
     let breaks: Set<Int> = frozenFrame == nil ? [] : [1, 7, 9]
     let width = CGFloat(tools.count * 44 + 24 + breaks.count * 12)
     let x = min(max(selection.maxX - width, 8), bounds.maxX - width - 8)
-    let y = selection.minY > 64 ? selection.minY - 60 : min(selection.maxY + 10, bounds.maxY - 54)
-    bar.frame = NSRect(x: x, y: y, width: width, height: 50)
+    let y = selection.minY > 59 ? selection.minY - 55 : min(selection.maxY + 10, bounds.maxY - 49)
+    bar.frame = NSRect(x: x, y: y, width: width, height: 45)
     var offset: CGFloat = 12
     for (index, entry) in tools.enumerated() {
       if breaks.contains(index) {
-        let separator = NSBox(frame: NSRect(x: offset + 5, y: 13, width: 1, height: 24))
+        let separator = NSBox(frame: NSRect(x: offset + 5, y: 11, width: 1, height: 23))
         separator.boxType = .separator
         bar.addSubview(separator)
         offset += 12
@@ -378,10 +378,11 @@ final class SelectionView: NSView {
       let button = CaptureToolbarButton(
         image: toolbarImage(symbol: entry.0, tool: entry.1), target: self,
         action: #selector(toolClicked(_:)))
-      button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .medium)
+      button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
       let action = ["save", "cancel", "confirm", "undo", "scroll"].contains(entry.1)
       let selected = !action && entry.1 == tool
       button.toolSelected = selected
+      button.highlightColor = iconColor
       button.isEnabled = entry.1 != "undo" || !undoKinds.isEmpty
       if !button.isEnabled {
         button.contentTintColor = disabledIconColor
@@ -394,11 +395,11 @@ final class SelectionView: NSView {
       button.wantsLayer = true
       button.layer?.cornerRadius = 7
       button.layer?.backgroundColor =
-        selected ? NSColor.labelColor.withAlphaComponent(0.12).cgColor : nil
+        selected ? iconColor.withAlphaComponent(0.12).cgColor : nil
       button.setAccessibilityValue(selected ? "1" : "0")
       button.identifier = NSUserInterfaceItemIdentifier(entry.1)
       button.isBordered = false
-      button.frame = NSRect(x: offset, y: 5, width: 42, height: 40)
+      button.frame = NSRect(x: offset, y: 5, width: 42, height: 35)
       offset += 44
       bar.addSubview(button)
     }
@@ -414,7 +415,7 @@ final class SelectionView: NSView {
       ("T" as NSString).draw(
         at: NSPoint(x: 5, y: 0),
         withAttributes: [
-          .font: NSFont.systemFont(ofSize: 23, weight: .medium),
+          .font: NSFont.systemFont(ofSize: 21, weight: .medium),
           .foregroundColor: NSColor.labelColor,
         ])
       image.unlockFocus()
@@ -455,18 +456,20 @@ final class SelectionView: NSView {
     if offset > 0 {
       for index in 0..<2 {
         let title = tool == "arrow" ? (index == 0 ? "大头" : "普通") : (index == 0 ? "涂抹" : "框选")
-        let button = NSButton(
+        let button = CaptureToolbarButton(
           image: modeImage(index: index), target: self, action: #selector(modeChanged(_:)))
         button.toolTip = title
-        button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .medium)
+        button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
         button.tag = index
         button.isBordered = false
         button.wantsLayer = true
         let active = tool == "arrow" ? (largeArrow == (index == 0)) : (mosaicBrush == (index == 0))
+        button.toolSelected = active
+        button.highlightColor = iconColor
         button.contentTintColor = active ? .systemBlue : iconColor  // devbar:allow-color
         button.layer?.cornerRadius = 5
         button.layer?.backgroundColor =
-          active ? NSColor.labelColor.withAlphaComponent(0.12).cgColor : nil
+          active ? iconColor.withAlphaComponent(0.12).cgColor : nil
         button.frame = CGRect(x: 6 + index * 46, y: 7, width: 44, height: 32)
         bar.addSubview(button)
       }
@@ -852,6 +855,7 @@ final class SelectionView: NSView {
 
 @MainActor private final class CaptureToolbarButton: NSButton {
   var toolSelected = false
+  var highlightColor: NSColor = .labelColor
   private var hovered = false
   override func updateTrackingAreas() {
     super.updateTrackingAreas()
@@ -872,6 +876,6 @@ final class SelectionView: NSView {
   private func refreshBackground() {
     layer?.backgroundColor =
       isEnabled && (toolSelected || hovered)
-      ? NSColor.labelColor.withAlphaComponent(toolSelected ? 0.12 : 0.08).cgColor : nil
+      ? highlightColor.withAlphaComponent(toolSelected ? 0.12 : 0.08).cgColor : nil
   }
 }

@@ -106,7 +106,7 @@ enum Strings {
   static let captureAllowed = "已授权"
   static let captureDenied = "未授权"
   static func captureHeight(_ pixels: Int) -> String { "已拼接 \(pixels) px" }
-  static let shortcutCapture = "区域截图"
+  static let shortcutCapture = "截图"
   static let shortcutLong = "长图"
   static let documentSidebar = "目录"
   static let documentFolderSection = "文件夹"

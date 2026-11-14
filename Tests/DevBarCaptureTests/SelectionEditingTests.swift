@@ -25,6 +25,7 @@ import Testing
   view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 100, y: 150)))
   view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 600, y: 450)))
   let bar = try #require(view.subviews.first as? NSVisualEffectView)
+  #expect(bar.frame.height == 45)
   let buttons = bar.subviews.compactMap { $0 as? NSButton }
   #expect(buttons.compactMap { $0.identifier?.rawValue } == ["save", "cancel", "confirm"])
   #expect(!bar.subviews.contains { $0 is NSBox })
@@ -34,6 +35,60 @@ import Testing
   #expect(completed)
   #expect(view.scrollingRequested)
   #expect(!view.saveRequested)
+}
+
+@MainActor @Test func screenshotToolbarUsesConsistentColorsInBothAppearances() throws {
+  _ = NSApplication.shared
+  for name in [NSAppearance.Name.aqua, .darkAqua] {
+    let window = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 800, height: 600), styleMask: .borderless,
+      backing: .buffered, defer: false)
+    window.appearance = NSAppearance(named: name)
+    let view = SelectionView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+    window.contentView = view
+    view.screenFrame = view.bounds
+    view.iconColor = .secondaryLabelColor
+    view.disabledIconColor = .tertiaryLabelColor
+    let bitmap = try #require(
+      NSBitmapImageRep(
+        bitmapDataPlanes: nil, pixelsWide: 800, pixelsHigh: 600,
+        bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+        colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+    view.frozenFrame = bitmap.cgImage
+    func event(_ type: NSEvent.EventType, _ point: CGPoint) throws -> NSEvent {
+      try #require(
+        NSEvent.mouseEvent(
+          with: type, location: point, modifierFlags: [], timestamp: 0,
+          windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1,
+          pressure: 1))
+    }
+    view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 100, y: 150)))
+    view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 600, y: 450)))
+    let bar = try #require(view.subviews.first as? NSVisualEffectView)
+    #expect(bar.frame.height == 45)
+    let buttons = bar.subviews.compactMap { $0 as? NSButton }
+    for button in buttons {
+      #expect(button.frame.height == 35)
+      #expect(bar.bounds.contains(button.frame))
+      if button.identifier?.rawValue == "select" {
+        #expect(button.contentTintColor == .systemBlue)  // devbar:allow-color
+      } else if button.identifier?.rawValue == "undo" {
+        #expect(!button.isEnabled)
+        #expect(button.contentTintColor == view.disabledIconColor)
+      } else {
+        #expect(button.contentTintColor == view.iconColor)
+      }
+    }
+    let arrow = try #require(buttons.first { $0.identifier?.rawValue == "arrow" })
+    arrow.performClick(nil)
+    let bars = view.subviews.compactMap { $0 as? NSVisualEffectView }
+    let options = try #require(bars.last)
+    let modeButtons = options.subviews.compactMap { $0 as? NSButton }.prefix(2)
+    #expect(modeButtons.count == 2)
+    for button in modeButtons {
+      #expect(NSStringFromClass(type(of: button)) == NSStringFromClass(type(of: arrow)))
+    }
+  }
 }
 
 @MainActor @Test func selectionStaysOpenUntilSaveAndExportsNativePixels() throws {
