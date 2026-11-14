@@ -42,6 +42,9 @@
   --qr-background: rgba(255, 255, 255, 1);
   --icon-primary: rgba(51, 51, 51, 1);
   --icon-disabled: rgba(153, 153, 153, 1);
+  --capture-toolbarTint: rgba(255, 255, 255, 0.72);
+  --capture-toolbarBorder: rgba(0, 0, 0, 0.22);
+  --capture-toolbarIcon: rgba(28, 28, 30, 1);
   --snapshot-background: #fbfbfb;
 }
 
@@ -76,5 +79,8 @@
   --qr-background: rgba(255, 255, 255, 1);
   --icon-primary: rgba(217, 217, 217, 1);
   --icon-disabled: rgba(119, 119, 119, 1);
+  --capture-toolbarTint: rgba(0, 0, 0, 0.18);
+  --capture-toolbarBorder: rgba(255, 255, 255, 0.24);
+  --capture-toolbarIcon: rgba(255, 255, 255, 1);
   --snapshot-background: #101011;
 }

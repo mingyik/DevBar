@@ -20,13 +20,18 @@ public final class SelectionOverlay {
   private let appearanceName: NSAppearance.Name?
   private let iconColor: NSColor
   private let disabledIconColor: NSColor
+  private let toolbarTintColor: NSColor
+  private let toolbarBorderColor: NSColor
   public init(
     appearanceName: NSAppearance.Name? = nil,
-    iconColor: NSColor = .labelColor, disabledIconColor: NSColor = .disabledControlTextColor
+    iconColor: NSColor = .labelColor, disabledIconColor: NSColor = .disabledControlTextColor,
+    toolbarTintColor: NSColor = .clear, toolbarBorderColor: NSColor = .separatorColor
   ) {
     self.appearanceName = appearanceName
     self.iconColor = iconColor
     self.disabledIconColor = disabledIconColor
+    self.toolbarTintColor = toolbarTintColor
+    self.toolbarBorderColor = toolbarBorderColor
   }
 
   public func selectImage(timeout: Duration = .seconds(60)) async throws -> (CaptureRegion, CGImage)
@@ -88,6 +93,8 @@ public final class SelectionOverlay {
           let view = SelectionView(frame: CGRect(origin: .zero, size: screen.frame.size))
           view.iconColor = iconColor
           view.disabledIconColor = disabledIconColor
+          view.toolbarTintColor = toolbarTintColor
+          view.toolbarBorderColor = toolbarBorderColor
           view.frozenFrame = frozenFrames[number.uint32Value]
           view.screenFrame = screen.frame
           view.displayID = number.uint32Value
@@ -141,6 +148,8 @@ private final class SelectionPanel: NSPanel {
 final class SelectionView: NSView {
   var iconColor: NSColor = .labelColor
   var disabledIconColor: NSColor = .disabledControlTextColor
+  var toolbarTintColor: NSColor = .clear
+  var toolbarBorderColor: NSColor = .separatorColor
   var frozenFrame: CGImage?
   var screenFrame = CGRect.zero
   var displayID: CGDirectDisplayID = 0
@@ -339,21 +348,32 @@ final class SelectionView: NSView {
       size: texts[index].0.size(withAttributes: [.font: NSFont.systemFont(ofSize: texts[index].3)]))
   }
 
-  private func showToolbar() {
-    toolbar?.removeFromSuperview()
-    optionsBar?.removeFromSuperview()
+  private func makeToolbar(cornerRadius: CGFloat) -> NSVisualEffectView {
     let bar = NSVisualEffectView()
     bar.material = .hudWindow
     bar.blendingMode = .withinWindow
     bar.state = .active
     bar.wantsLayer = true
-    bar.layer?.cornerRadius = 10
-    bar.layer?.borderWidth = 0.5
-    bar.layer?.borderColor = NSColor.separatorColor.cgColor
+    bar.layer?.cornerRadius = cornerRadius
+    bar.layer?.masksToBounds = true
+    bar.layer?.borderWidth = 1
+    bar.layer?.borderColor = toolbarBorderColor.cgColor
+    let tint = CaptureToolbarTintView(frame: bar.bounds)
+    tint.autoresizingMask = [.width, .height]
+    tint.wantsLayer = true
+    tint.layer?.backgroundColor = toolbarTintColor.cgColor
+    bar.addSubview(tint)
+    return bar
+  }
+
+  private func showToolbar() {
+    toolbar?.removeFromSuperview()
+    optionsBar?.removeFromSuperview()
+    let bar = makeToolbar(cornerRadius: 10)
     var tools = [
       ("hand.draw", "select"), ("rectangle", "rect"), ("circle", "ellipse"),
-      ("arrow.up.right", "arrow"), ("pencil.tip", "pen"), ("textformat", "text"),
-      ("aqi.medium", "mosaic"), ("arrow.uturn.backward", "undo"),
+      ("arrow.up.right", "arrow"), ("pencil", "pen"), ("textformat", "text"),
+      ("square.on.square", "mosaic"), ("arrow.uturn.backward", "undo"),
       ("rectangle.stack", "scroll"), ("arrow.down.to.line", "save"), ("xmark", "cancel"),
     ]
     if frozenFrame == nil {
@@ -365,12 +385,12 @@ final class SelectionView: NSView {
     let breaks: Set<Int> = frozenFrame == nil ? [] : [1, 7, 9]
     let width = CGFloat(tools.count * 44 + 24 + breaks.count * 12)
     let x = min(max(selection.maxX - width, 8), bounds.maxX - width - 8)
-    let y = selection.minY > 59 ? selection.minY - 55 : min(selection.maxY + 10, bounds.maxY - 49)
-    bar.frame = NSRect(x: x, y: y, width: width, height: 45)
+    let y = selection.minY > 54 ? selection.minY - 50 : min(selection.maxY + 10, bounds.maxY - 44)
+    bar.frame = NSRect(x: x, y: y, width: width, height: 40)
     var offset: CGFloat = 12
     for (index, entry) in tools.enumerated() {
       if breaks.contains(index) {
-        let separator = NSBox(frame: NSRect(x: offset + 5, y: 11, width: 1, height: 23))
+        let separator = NSBox(frame: NSRect(x: offset + 5, y: 10, width: 1, height: 20))
         separator.boxType = .separator
         bar.addSubview(separator)
         offset += 12
@@ -378,7 +398,7 @@ final class SelectionView: NSView {
       let button = CaptureToolbarButton(
         image: toolbarImage(symbol: entry.0, tool: entry.1), target: self,
         action: #selector(toolClicked(_:)))
-      button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
+      button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 18, weight: .regular)
       let action = ["save", "cancel", "confirm", "undo", "scroll"].contains(entry.1)
       let selected = !action && entry.1 == tool
       button.toolSelected = selected
@@ -399,7 +419,7 @@ final class SelectionView: NSView {
       button.setAccessibilityValue(selected ? "1" : "0")
       button.identifier = NSUserInterfaceItemIdentifier(entry.1)
       button.isBordered = false
-      button.frame = NSRect(x: offset, y: 5, width: 42, height: 35)
+      button.frame = NSRect(x: offset, y: 5, width: 42, height: 30)
       offset += 44
       bar.addSubview(button)
     }
@@ -409,21 +429,153 @@ final class SelectionView: NSView {
   }
 
   private func toolbarImage(symbol: String, tool: String) -> NSImage {
-    if tool == "text" {
-      let image = NSImage(size: NSSize(width: 24, height: 24))
+    if [
+      "select", "rect", "ellipse", "text", "arrow", "pen", "mosaic", "undo", "scroll", "save",
+      "cancel", "confirm",
+    ].contains(tool) {
+      let image = NSImage(size: NSSize(width: 18, height: 18))
       image.lockFocus()
-      ("T" as NSString).draw(
-        at: NSPoint(x: 5, y: 0),
-        withAttributes: [
-          .font: NSFont.systemFont(ofSize: 21, weight: .medium),
-          .foregroundColor: NSColor.labelColor,
-        ])
+      NSColor.labelColor.setStroke()
+      let path = NSBezierPath()
+      path.lineWidth = 1.35
+      path.lineCapStyle = .round
+      path.lineJoinStyle = .round
+      switch tool {
+      case "select":
+        path.move(to: CGPoint(x: 6, y: 7))
+        path.line(to: CGPoint(x: 6, y: 15))
+        path.curve(
+          to: CGPoint(x: 8.5, y: 15), controlPoint1: CGPoint(x: 6, y: 17),
+          controlPoint2: CGPoint(x: 8.5, y: 17))
+        path.line(to: CGPoint(x: 8.5, y: 10))
+        path.move(to: CGPoint(x: 8.5, y: 12))
+        path.curve(
+          to: CGPoint(x: 11, y: 12), controlPoint1: CGPoint(x: 8.5, y: 14),
+          controlPoint2: CGPoint(x: 11, y: 14))
+        path.line(to: CGPoint(x: 11, y: 9.5))
+        path.move(to: CGPoint(x: 11, y: 11))
+        path.curve(
+          to: CGPoint(x: 13.5, y: 11), controlPoint1: CGPoint(x: 11, y: 13),
+          controlPoint2: CGPoint(x: 13.5, y: 13))
+        path.line(to: CGPoint(x: 13.5, y: 8.5))
+        path.move(to: CGPoint(x: 13.5, y: 9.5))
+        path.curve(
+          to: CGPoint(x: 16, y: 9.5), controlPoint1: CGPoint(x: 13.5, y: 11.5),
+          controlPoint2: CGPoint(x: 16, y: 11.5))
+        path.line(to: CGPoint(x: 16, y: 6))
+        path.curve(
+          to: CGPoint(x: 11, y: 2), controlPoint1: CGPoint(x: 16, y: 3),
+          controlPoint2: CGPoint(x: 14, y: 2))
+        path.line(to: CGPoint(x: 9, y: 2))
+        path.curve(
+          to: CGPoint(x: 6.5, y: 3.5), controlPoint1: CGPoint(x: 8, y: 2),
+          controlPoint2: CGPoint(x: 7, y: 2.5))
+        path.line(to: CGPoint(x: 2, y: 9))
+        path.curve(
+          to: CGPoint(x: 4.5, y: 11), controlPoint1: CGPoint(x: 0.5, y: 11),
+          controlPoint2: CGPoint(x: 3, y: 12.5))
+        path.line(to: CGPoint(x: 6, y: 9))
+      case "rect":
+        path.append(
+          NSBezierPath(
+            roundedRect: CGRect(x: 2, y: 3, width: 14, height: 12), xRadius: 1.5, yRadius: 1.5))
+      case "ellipse":
+        path.appendOval(in: CGRect(x: 2, y: 2, width: 14, height: 14))
+      case "mosaic":
+        path.append(
+          NSBezierPath(
+            roundedRect: CGRect(x: 2, y: 6, width: 10, height: 10), xRadius: 1.5, yRadius: 1.5))
+        path.append(
+          NSBezierPath(
+            roundedRect: CGRect(x: 6, y: 2, width: 10, height: 10), xRadius: 1.5, yRadius: 1.5))
+      case "undo":
+        path.move(to: CGPoint(x: 3, y: 11))
+        path.line(to: CGPoint(x: 11, y: 11))
+        path.curve(
+          to: CGPoint(x: 11, y: 3), controlPoint1: CGPoint(x: 18, y: 11),
+          controlPoint2: CGPoint(x: 18, y: 3))
+        path.line(to: CGPoint(x: 7, y: 3))
+        path.move(to: CGPoint(x: 7, y: 15))
+        path.line(to: CGPoint(x: 3, y: 11))
+        path.line(to: CGPoint(x: 7, y: 7))
+      case "scroll":
+        path.append(
+          NSBezierPath(
+            roundedRect: CGRect(x: 2, y: 2, width: 14, height: 10), xRadius: 1.5, yRadius: 1.5))
+        path.move(to: CGPoint(x: 3, y: 14))
+        path.line(to: CGPoint(x: 15, y: 14))
+        path.move(to: CGPoint(x: 5, y: 16))
+        path.line(to: CGPoint(x: 13, y: 16))
+      case "save":
+        path.move(to: CGPoint(x: 9, y: 16))
+        path.line(to: CGPoint(x: 9, y: 5))
+        path.move(to: CGPoint(x: 4.5, y: 9.5))
+        path.line(to: CGPoint(x: 9, y: 5))
+        path.line(to: CGPoint(x: 13.5, y: 9.5))
+        path.move(to: CGPoint(x: 2, y: 6))
+        path.line(to: CGPoint(x: 2, y: 2))
+        path.line(to: CGPoint(x: 16, y: 2))
+        path.line(to: CGPoint(x: 16, y: 6))
+      case "cancel":
+        path.move(to: CGPoint(x: 3, y: 3))
+        path.line(to: CGPoint(x: 15, y: 15))
+        path.move(to: CGPoint(x: 3, y: 15))
+        path.line(to: CGPoint(x: 15, y: 3))
+      case "confirm":
+        path.move(to: CGPoint(x: 2, y: 9))
+        path.line(to: CGPoint(x: 7, y: 4))
+        path.line(to: CGPoint(x: 16, y: 15))
+      case "arrow":
+        path.move(to: CGPoint(x: 3, y: 3))
+        path.line(to: CGPoint(x: 15, y: 15))
+        path.move(to: CGPoint(x: 5, y: 15))
+        path.line(to: CGPoint(x: 15, y: 15))
+        path.line(to: CGPoint(x: 15, y: 5))
+      case "pen":
+        path.move(to: CGPoint(x: 3, y: 3))
+        path.line(to: CGPoint(x: 4, y: 7))
+        path.line(to: CGPoint(x: 13, y: 16))
+        path.line(to: CGPoint(x: 16, y: 13))
+        path.line(to: CGPoint(x: 7, y: 4))
+        path.close()
+        path.move(to: CGPoint(x: 11, y: 14))
+        path.line(to: CGPoint(x: 14, y: 11))
+        path.move(to: CGPoint(x: 3, y: 1))
+        path.line(to: CGPoint(x: 15, y: 1))
+      default:
+        path.move(to: CGPoint(x: 3, y: 15))
+        path.line(to: CGPoint(x: 15, y: 15))
+        path.move(to: CGPoint(x: 9, y: 15))
+        path.line(to: CGPoint(x: 9, y: 3))
+        path.move(to: CGPoint(x: 6, y: 3))
+        path.line(to: CGPoint(x: 12, y: 3))
+      }
+      path.stroke()
       image.unlockFocus()
       image.isTemplate = true
       return image
     }
-    return NSImage(systemSymbolName: symbol, accessibilityDescription: tool)
-      ?? NSImage(size: NSSize(width: 24, height: 24))
+    let symbolImage =
+      NSImage(systemSymbolName: symbol, accessibilityDescription: tool)
+      ?? NSImage(size: NSSize(width: 18, height: 18))
+    return normalizedToolbarImage(
+      symbolImage.withSymbolConfiguration(
+        NSImage.SymbolConfiguration(pointSize: 18, weight: .regular)) ?? symbolImage)
+  }
+
+  private func normalizedToolbarImage(_ source: NSImage) -> NSImage {
+    let image = NSImage(size: NSSize(width: 18, height: 18))
+    guard source.size.width > 0, source.size.height > 0 else { return image }
+    let scale = min(18 / source.size.width, 18 / source.size.height)
+    let size = NSSize(width: source.size.width * scale, height: source.size.height * scale)
+    image.lockFocus()
+    source.draw(
+      in: NSRect(
+        x: (18 - size.width) / 2, y: (18 - size.height) / 2,
+        width: size.width, height: size.height))
+    image.unlockFocus()
+    image.isTemplate = true
+    return image
   }
 
   private var palette: [NSColor] {
@@ -437,14 +589,7 @@ final class SelectionView: NSView {
     guard frozenFrame != nil,
       ["rect", "ellipse", "arrow", "pen", "text", "mosaic"].contains(tool)
     else { return }
-    let bar = NSVisualEffectView()
-    bar.material = .hudWindow
-    bar.blendingMode = .withinWindow
-    bar.state = .active
-    bar.wantsLayer = true
-    bar.layer?.cornerRadius = 9
-    bar.layer?.borderWidth = 0.5
-    bar.layer?.borderColor = NSColor.separatorColor.cgColor
+    let bar = makeToolbar(cornerRadius: 9)
     let offset: CGFloat = tool == "arrow" || tool == "mosaic" ? 100 : 0
     let width: CGFloat = (tool == "mosaic" ? 180 : 430) + offset
     let y = frame.minY >= 56 ? frame.minY - 54 : min(frame.maxY + 6, bounds.maxY - 48)
@@ -459,7 +604,7 @@ final class SelectionView: NSView {
         let button = CaptureToolbarButton(
           image: modeImage(index: index), target: self, action: #selector(modeChanged(_:)))
         button.toolTip = title
-        button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
+        button.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 18, weight: .regular)
         button.tag = index
         button.isBordered = false
         button.wantsLayer = true
@@ -496,8 +641,7 @@ final class SelectionView: NSView {
 
   private func modeImage(index: Int) -> NSImage {
     if tool == "mosaic", index == 0 {
-      return NSImage(systemSymbolName: "hand.point.up.left", accessibilityDescription: nil)
-        ?? NSImage(size: NSSize(width: 24, height: 24))
+      return toolbarImage(symbol: "hand.point.up.left", tool: "mosaicBrush")
     }
     let image = NSImage(size: NSSize(width: 24, height: 24))
     image.lockFocus()
@@ -509,7 +653,7 @@ final class SelectionView: NSView {
       if index == 0 {
         path.fill()
       } else {
-        path.lineWidth = 2
+        path.lineWidth = 1.5
         path.stroke()
       }
     } else {
@@ -525,7 +669,7 @@ final class SelectionView: NSView {
     }
     image.unlockFocus()
     image.isTemplate = true
-    return image
+    return normalizedToolbarImage(image)
   }
 
   @objc private func modeChanged(_ sender: NSButton) {
@@ -878,4 +1022,8 @@ final class SelectionView: NSView {
       isEnabled && (toolSelected || hovered)
       ? highlightColor.withAlphaComponent(toolSelected ? 0.12 : 0.08).cgColor : nil
   }
+}
+
+@MainActor private final class CaptureToolbarTintView: NSView {
+  override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }

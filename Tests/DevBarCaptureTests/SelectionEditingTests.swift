@@ -25,7 +25,7 @@ import Testing
   view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 100, y: 150)))
   view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 600, y: 450)))
   let bar = try #require(view.subviews.first as? NSVisualEffectView)
-  #expect(bar.frame.height == 45)
+  #expect(bar.frame.height == 40)
   let buttons = bar.subviews.compactMap { $0 as? NSButton }
   #expect(buttons.compactMap { $0.identifier?.rawValue } == ["save", "cancel", "confirm"])
   #expect(!bar.subviews.contains { $0 is NSBox })
@@ -47,7 +47,7 @@ import Testing
     let view = SelectionView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
     window.contentView = view
     view.screenFrame = view.bounds
-    view.iconColor = .secondaryLabelColor
+    view.iconColor = .textColor
     view.disabledIconColor = .tertiaryLabelColor
     let bitmap = try #require(
       NSBitmapImageRep(
@@ -65,11 +65,14 @@ import Testing
     view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 100, y: 150)))
     view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 600, y: 450)))
     let bar = try #require(view.subviews.first as? NSVisualEffectView)
-    #expect(bar.frame.height == 45)
+    #expect(bar.frame.height == 40)
+    #expect(bar.layer?.borderWidth == 1)
     let buttons = bar.subviews.compactMap { $0 as? NSButton }
     for button in buttons {
-      #expect(button.frame.height == 35)
+      #expect(button.frame.height == 30)
       #expect(bar.bounds.contains(button.frame))
+      #expect(button.image?.size == NSSize(width: 18, height: 18))
+      #expect(button.image?.isTemplate == true)
       if button.identifier?.rawValue == "select" {
         #expect(button.contentTintColor == .systemBlue)  // devbar:allow-color
       } else if button.identifier?.rawValue == "undo" {
@@ -80,12 +83,20 @@ import Testing
       }
     }
     let arrow = try #require(buttons.first { $0.identifier?.rawValue == "arrow" })
+    if let directory = ProcessInfo.processInfo.environment["DEVBAR_TOOLBAR_REVIEW_DIR"],
+      let bitmap = bar.bitmapImageRepForCachingDisplay(in: bar.bounds)
+    {
+      bar.cacheDisplay(in: bar.bounds, to: bitmap)
+      try bitmap.representation(using: .png, properties: [:])?.write(
+        to: URL(fileURLWithPath: directory).appending(path: "toolbar-\(name.rawValue).png"))
+    }
     arrow.performClick(nil)
     let bars = view.subviews.compactMap { $0 as? NSVisualEffectView }
     let options = try #require(bars.last)
     let modeButtons = options.subviews.compactMap { $0 as? NSButton }.prefix(2)
     #expect(modeButtons.count == 2)
     for button in modeButtons {
+      #expect(button.image?.size == NSSize(width: 18, height: 18))
       #expect(NSStringFromClass(type(of: button)) == NSStringFromClass(type(of: arrow)))
     }
   }

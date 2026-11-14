@@ -59,8 +59,11 @@ private final class CaptureHUDState {
       do {
         let selection = SelectionOverlay(
           appearanceName: self.panel.theme.appearance()?.name,
-          iconColor: NSColor(DesignTokens.iconPrimary(self.panel.theme.effective)),
-          disabledIconColor: NSColor(DesignTokens.iconDisabled(self.panel.theme.effective)))
+          iconColor: NSColor(DesignTokens.captureToolbarIcon(self.panel.theme.effective)),
+          disabledIconColor: NSColor(DesignTokens.iconDisabled(self.panel.theme.effective)),
+          toolbarTintColor: NSColor(DesignTokens.captureToolbarTint(self.panel.theme.effective)),
+          toolbarBorderColor: NSColor(DesignTokens.captureToolbarBorder(self.panel.theme.effective))
+        )
         let selected = scrolling ? nil : try await selection.selectImage()
         let scrolling = scrolling || selection.scrollingRequested
         let image: CGImage
