@@ -114,6 +114,11 @@ final class DocumentWindows {
   private(set) var sidebarVisible = false
   var isEditorVisible: Bool { editorPanel.isVisible }
 
+  func owns(_ window: NSWindow?) -> Bool {
+    guard let window else { return false }
+    return window === editorPanel || window === sidebarPanel
+  }
+
   func contains(_ point: NSPoint) -> Bool {
     if editorPanel.isVisible, editorPanel.frame.contains(point) { return true }
     if sidebarVisible, sidebarPanel.frame.contains(point) { return true }

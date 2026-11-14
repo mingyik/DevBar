@@ -87,7 +87,7 @@ struct DocumentSidebarView: View {
     HStack {
       Spacer(minLength: 0)
       Button(Strings.documentChooseFile, action: onPick)
-        .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
+        .buttonStyle(SidebarOutlineButtonStyle(scheme: scheme))
         .font(.system(size: 12))
         .frame(width: 130, height: 30)
       Spacer(minLength: 0)
@@ -144,13 +144,17 @@ private struct DocumentFileRow: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .background {
         RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
-          .fill(DesignTokens.panelControl(scheme).opacity(selected ? 1 : hovered ? 0.55 : 0))
+          .fill(
+            selected
+              ? Color.clear
+              : DesignTokens.panelControl(scheme).opacity(hovered ? 0.35 : 0)
+          )
       }
       .overlay {
         if selected {
           RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
             .strokeBorder(
-              DesignTokens.selectionBorder(scheme), lineWidth: DesignTokens.strokeHairline)
+              DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline)
         }
       }
     }
@@ -173,9 +177,9 @@ private struct DocumentRecentRow: View {
     Button(action: onOpen) {
       HStack(spacing: 6) {
         Image(systemName: "clock")
-          .font(.system(size: 15))
-          .foregroundStyle(DesignTokens.textSecondary(scheme))
-          .frame(width: 18)
+          .font(.system(size: 12))
+          .foregroundStyle(DesignTokens.textTertiary(scheme))
+          .frame(width: 16)
         Text(url.lastPathComponent)
           .font(.system(size: 13))
           .foregroundStyle(
@@ -190,13 +194,17 @@ private struct DocumentRecentRow: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .background {
         RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
-          .fill(DesignTokens.panelControl(scheme).opacity(selected ? 1 : hovered ? 0.55 : 0))
+          .fill(
+            selected
+              ? Color.clear
+              : DesignTokens.panelControl(scheme).opacity(hovered ? 0.35 : 0)
+          )
       }
       .overlay {
         if selected {
           RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
             .strokeBorder(
-              DesignTokens.selectionBorder(scheme), lineWidth: DesignTokens.strokeHairline)
+              DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline)
         }
       }
     }
@@ -204,5 +212,33 @@ private struct DocumentRecentRow: View {
     .onHover { hovered = $0 }
     .help(url.path)
     .accessibilityLabel(url.lastPathComponent)
+  }
+}
+
+private struct SidebarOutlineButtonStyle: ButtonStyle {
+  let scheme: ColorScheme
+  func makeBody(configuration: Configuration) -> some View {
+    Surface(configuration: configuration, scheme: scheme)
+  }
+  private struct Surface: View {
+    let configuration: ButtonStyle.Configuration
+    let scheme: ColorScheme
+    @State private var hovered = false
+    var body: some View {
+      configuration.label
+        .foregroundStyle(DesignTokens.textPrimary(scheme))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background {
+          RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
+            .fill(DesignTokens.panelControl(scheme).opacity(hovered ? 0.5 : 0))
+        }
+        .overlay {
+          RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
+            .strokeBorder(
+              DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline)
+        }
+        .scaleEffect(configuration.isPressed ? 0.97 : 1)
+        .onHover { hovered = $0 }
+    }
   }
 }

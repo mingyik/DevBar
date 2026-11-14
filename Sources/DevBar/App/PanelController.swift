@@ -548,6 +548,7 @@ final class PanelController {
 
   private func handleResignKey() {
     guard panel.isVisible, !model.pinned, !dismissing, !NSApp.isActive else { return }
+    if documentWindows.owns(NSApp.keyWindow) { return }
     dismiss()
   }
 
