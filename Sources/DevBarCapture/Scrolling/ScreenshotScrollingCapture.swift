@@ -125,11 +125,6 @@ public enum ScreenshotScrollingCapture {
             result: .limited)
         }
 
-        if hasUnmatchedContent {
-          try await Task.sleep(for: .milliseconds(90))
-          continue
-        }
-
         // Observe pixels throughout the session. Wheel monitors miss
         // scrollbar drags, keyboard scrolling and some other apps.
         let sinceLastCapture = now - lastCaptureAt
@@ -164,6 +159,7 @@ public enum ScreenshotScrollingCapture {
 
         switch transition {
         case .end:
+          if hasUnmatchedContent { await onProgress(totalHeight + fixedBottomPixels, false) }
           hasUnmatchedContent = false
 
         case .advanced(let sampleOverlap, let direction, let matchedColumns):

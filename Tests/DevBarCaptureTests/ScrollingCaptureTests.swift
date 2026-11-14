@@ -97,6 +97,71 @@ private func testRegion() throws -> CaptureRegion {
   #expect(image.height == 120)
 }
 
+@MainActor @Test func scrollingRecoversAfterTransientUnmatchedFrames() async throws {
+  let frames = Frames(
+    [frame(offset: 0)] + Array(repeating: frame(offset: 0, salt: 111), count: 5)
+      + [frame(offset: 42)])
+  let finish = ScreenshotScrollingCapture.FinishSignal()
+  let timeout = Task {
+    try? await Task.sleep(for: .seconds(2))
+    finish.request()
+  }
+  defer { timeout.cancel() }
+  var sawUnmatched = false
+  var recovered = false
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: finish, frameLimit: 18,
+    onProgress: { height, unmatched in
+      if unmatched { sawUnmatched = true }
+      if sawUnmatched && height > 120 && !unmatched {
+        recovered = true
+        finish.request()
+      }
+    }, nextFrame: { await frames.next() })
+  #expect(sawUnmatched)
+  #expect(recovered)
+  guard case .success(let image) = result else {
+    Issue.record("expected recovery using the last matched frame")
+    return
+  }
+  #expect(image.height == 162)
+}
+
+@MainActor @Test func scrollingRecoversWhileReversingDirection() async throws {
+  let frames = Frames(
+    [frame(offset: 84), frame(offset: 42)]
+      + Array(repeating: frame(offset: 0, salt: 111), count: 5)
+      + [0, 42, 84, 126].map { frame(offset: $0) })
+  let finish = ScreenshotScrollingCapture.FinishSignal()
+  let timeout = Task {
+    try? await Task.sleep(for: .seconds(3))
+    finish.request()
+  }
+  defer { timeout.cancel() }
+  var sawUnmatched = false
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: finish, frameLimit: 30,
+    onProgress: { height, unmatched in
+      if unmatched { sawUnmatched = true }
+      if height == 246 && !unmatched { finish.request() }
+    }, nextFrame: { await frames.next() })
+  #expect(sawUnmatched)
+  guard case .success(let image) = result else {
+    Issue.record("expected recovery followed by bidirectional capture")
+    return
+  }
+  #expect(image.height == 246)
+  let baseline = Frames([0, 42, 84, 126].map { frame(offset: $0) })
+  let expected = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), frameLimit: 6,
+    onProgress: { _, _ in }, nextFrame: { await baseline.next() })
+  guard case .limited(let reference) = expected else {
+    Issue.record("expected baseline image")
+    return
+  }
+  #expect(image.dataProvider?.data as Data? == reference.dataProvider?.data as Data?)
+}
+
 @Test func scrollingFrameLimitAndCancellation() async throws {
   let frames = Frames([frame(offset: 0)])
   let finish = ScreenshotScrollingCapture.FinishSignal()

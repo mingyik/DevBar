@@ -343,7 +343,7 @@ private struct CaptureHUD: View {
           Button(Strings.captureReveal) { NSWorkspace.shared.activateFileViewerSelecting([path]) }
         }
       }
-      if state.unmatched { Text(Strings.capturePartial).font(.system(size: 10)).lineLimit(1) }
+      if state.unmatched { Text(Strings.captureRealigning).font(.system(size: 10)).lineLimit(1) }
     }
     .foregroundStyle(DesignTokens.textPrimary(scheme))
     .padding(.horizontal, 12).padding(.vertical, 9)

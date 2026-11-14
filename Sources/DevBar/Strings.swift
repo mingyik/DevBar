@@ -98,6 +98,7 @@ enum Strings {
   static let captureSave = "保存"
   static let captureSaved = "已保存"
   static let captureReveal = "在 Finder 中显示"
+  static let captureRealigning = "暂未对齐，请缓慢滚回刚才的位置；已拼内容保留"
   static let capturePartial = "从这里开始无法对齐，已保留前面的部分"
   static let captureLimit = "已达到长度上限"
   static let captureFailed = "截图失败，请重试"
