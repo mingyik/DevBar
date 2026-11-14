@@ -42,7 +42,6 @@ struct PanelView: View {
         if model.dropActive { FileDropOverlay(document: model.dropDocument, scheme: scheme) }
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .onDrop(of: [.fileURL], delegate: PanelFileDrop(model: model))
       if !model.dropActive && !model.toast.isEmpty {
         Text(model.toast).font(.system(size: 11))
           .foregroundStyle(DesignTokens.textSecondary(scheme)).lineLimit(1)
@@ -52,6 +51,7 @@ struct PanelView: View {
     .padding(.horizontal, 10)
     .padding(.top, 12)
     .padding(.bottom, 10)
+    .onDrop(of: [.fileURL], delegate: PanelFileDrop(model: model))
     .background { PanelChrome(theme: theme, scheme: scheme) }
     .clipShape(panelShape)
     .environment(\.colorScheme, scheme)

@@ -129,10 +129,10 @@ import UniformTypeIdentifiers
   let model: PanelModel
   func validateDrop(info: DropInfo) -> Bool { info.hasItemsConforming(to: [.fileURL]) }
   func dropEntered(info: DropInfo) {
-    model.fileDrop?.enteredPanel(x: info.location.x, width: model.panelSize.width - 32)
+    model.fileDrop?.enteredPanel(x: info.location.x, width: model.panelSize.width)
   }
   func dropUpdated(info: DropInfo) -> DropProposal? {
-    model.fileDrop?.enteredPanel(x: info.location.x, width: model.panelSize.width - 32)
+    model.fileDrop?.enteredPanel(x: info.location.x, width: model.panelSize.width)
     return DropProposal(operation: .copy)
   }
   func dropExited(info: DropInfo) { model.fileDrop?.exited() }
