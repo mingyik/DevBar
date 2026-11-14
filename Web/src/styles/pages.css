@@ -362,12 +362,12 @@ button:disabled {
   flex: 0 0 18px;
 }
 .page-toolbar .icon-button.icon-clear {
-  padding: 0;
+  padding: 2px;
 }
 .page-toolbar .icon-button.icon-clear .system-icon {
-  width: 24px;
-  height: 24px;
-  flex: 0 0 24px;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
 }
 .page-toolbar .pill {
   height: 24px;
