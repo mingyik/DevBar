@@ -339,10 +339,14 @@ button:disabled {
   width: 24px;
   height: 24px;
 }
-.page-toolbar .icon-button .system-icon {
+.page-toolbar .icon-button svg {
   width: 16px;
   height: 16px;
-  flex: 0 0 16px;
+}
+.page-toolbar .icon-button .system-icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
 }
 .page-toolbar .pill {
   height: 24px;
