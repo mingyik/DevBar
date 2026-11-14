@@ -338,6 +338,7 @@ button:disabled {
   justify-content: center;
   width: 24px;
   height: 24px;
+  padding: 0;
 }
 .page-toolbar .icon-button svg {
   width: 16px;
