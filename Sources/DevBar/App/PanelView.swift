@@ -83,7 +83,11 @@ struct PanelView: View {
         Button {
           model.leaveSettings()
         } label: {
-          Label(Strings.settingsBack, systemImage: "chevron.left").font(.system(size: 13))
+          Label {
+            Text(Strings.settingsBack)
+          } icon: {
+            Image(systemName: "chevron.left").devbarIconColor(scheme)
+          }.font(.system(size: 13))
             .foregroundStyle(DesignTokens.textPrimary(scheme))
         }.buttonStyle(.plain)
       } else {
@@ -134,7 +138,7 @@ struct PanelView: View {
 
   private func sidebarButton(_ scheme: ColorScheme) -> some View {
     Button(action: { model.onToggleDocumentSidebar?() }) {
-      Image(systemName: "sidebar.left")
+      Image(systemName: "sidebar.left").devbarIconColor(scheme)
         .font(.system(size: 13, weight: .regular))
         .frame(width: 24, height: 24)
         .foregroundStyle(DesignTokens.textSecondary(scheme))
@@ -242,9 +246,10 @@ struct PanelView: View {
               CaptureCoordinator.openScreenSettings()
             } label: {
               HStack(spacing: 6) {
-                Image(systemName: "gearshape").font(.system(size: 12))
+                Image(systemName: "gearshape").devbarIconColor(scheme).font(.system(size: 12))
                 Text(Strings.systemSettingsButton)
-                Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .medium))
+                Image(systemName: "arrow.up.right").devbarIconColor(scheme).font(
+                  .system(size: 9, weight: .medium))
               }.font(.system(size: 12)).padding(.horizontal, 10).frame(
                 width: SettingsControlLayout.width, height: 30)
             }.buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
@@ -367,9 +372,10 @@ struct PanelView: View {
       Spacer(minLength: 32)
       Button(action: action) {
         HStack(spacing: 6) {
-          Image(systemName: "folder").font(.system(size: 12))
+          Image(systemName: "folder").devbarIconColor(scheme).font(.system(size: 12))
           Text(URL(fileURLWithPath: path).lastPathComponent).lineLimit(1).truncationMode(.middle)
-          Image(systemName: "chevron.down").font(.system(size: 9, weight: .medium))
+          Image(systemName: "chevron.down").devbarIconColor(scheme).font(
+            .system(size: 9, weight: .medium))
         }
         .font(.system(size: 12)).padding(.horizontal, 10).frame(
           width: SettingsControlLayout.width, height: 30)
@@ -394,9 +400,10 @@ struct PanelView: View {
         clipboard.openAccessibilitySettings()
       } label: {
         HStack(spacing: 6) {
-          Image(systemName: "gearshape").font(.system(size: 12))
+          Image(systemName: "gearshape").devbarIconColor(scheme).font(.system(size: 12))
           Text(Strings.systemSettingsButton)
-          Image(systemName: "arrow.up.right").font(.system(size: 9, weight: .medium))
+          Image(systemName: "arrow.up.right").devbarIconColor(scheme).font(
+            .system(size: 9, weight: .medium))
         }.font(.system(size: 12)).padding(.horizontal, 10).frame(
           width: SettingsControlLayout.width, height: 30)
       }.buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
@@ -511,7 +518,7 @@ private struct ActionIcon: View {
   let action: () -> Void
   var body: some View {
     Button(action: action) {
-      Image(systemName: symbol)
+      Image(systemName: symbol).devbarIconColor(scheme)
         .font(.system(size: 13, weight: .regular))
         .frame(width: 24, height: 24)
         .foregroundStyle(DesignTokens.textSecondary(scheme))

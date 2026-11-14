@@ -177,6 +177,7 @@ button:disabled {
   cursor: default;
 }
 .icon-button {
+  color: var(--icon-primary);
   padding: 5px;
   width: 24px;
   height: 24px;
@@ -354,7 +355,8 @@ button:disabled {
   height: 18px;
 }
 .page-toolbar .icon-button:disabled {
-  opacity: 0.6;
+  color: var(--icon-disabled);
+  opacity: 1;
 }
 .page-toolbar .icon-button .system-icon {
   width: 18px;
@@ -373,7 +375,8 @@ button:disabled {
   height: 24px;
 }
 .icon-button:disabled {
-  opacity: 0.45;
+  color: var(--icon-disabled);
+  opacity: 1;
 }
 
 .doc-editor-window {

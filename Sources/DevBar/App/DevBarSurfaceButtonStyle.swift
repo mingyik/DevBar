@@ -1,5 +1,20 @@
 import SwiftUI
 
+private struct DevBarIconColor: ViewModifier {
+  let scheme: ColorScheme
+  @Environment(\.isEnabled) private var enabled
+  func body(content: Content) -> some View {
+    content.foregroundStyle(
+      enabled ? DesignTokens.iconPrimary(scheme) : DesignTokens.iconDisabled(scheme))
+  }
+}
+
+extension View {
+  func devbarIconColor(_ scheme: ColorScheme) -> some View {
+    modifier(DevBarIconColor(scheme: scheme))
+  }
+}
+
 struct DevBarSurfaceButtonStyle: ButtonStyle {
   let scheme: ColorScheme
   func makeBody(configuration: Configuration) -> some View {

@@ -39,7 +39,7 @@ struct DocumentSidebarView: View {
       section(Strings.documentFolderSection)
       Spacer(minLength: 0)
       Button(action: onPick) {
-        Image(systemName: "folder")
+        Image(systemName: "folder").devbarIconColor(scheme)
           .font(.system(size: 13))
           .foregroundStyle(DesignTokens.textSecondary(scheme))
           .frame(width: 22, height: 22)
@@ -192,7 +192,7 @@ private struct DocumentRecentRow: View {
   var body: some View {
     Button(action: onOpen) {
       HStack(spacing: 6) {
-        Image(systemName: "clock")
+        Image(systemName: "clock").devbarIconColor(scheme)
           .font(.system(size: 12))
           .foregroundStyle(DesignTokens.textTertiary(scheme))
           .frame(width: 16)

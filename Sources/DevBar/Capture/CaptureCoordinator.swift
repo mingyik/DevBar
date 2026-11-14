@@ -57,7 +57,10 @@ private final class CaptureHUDState {
       guard let self else { return }
       defer { self.task = nil }
       do {
-        let selection = SelectionOverlay(appearanceName: self.panel.theme.appearance()?.name)
+        let selection = SelectionOverlay(
+          appearanceName: self.panel.theme.appearance()?.name,
+          iconColor: NSColor(DesignTokens.iconPrimary(self.panel.theme.effective)),
+          disabledIconColor: NSColor(DesignTokens.iconDisabled(self.panel.theme.effective)))
         let selected = scrolling ? nil : try await selection.selectImage()
         let scrolling = scrolling || selection.scrollingRequested
         let image: CGImage
@@ -225,11 +228,14 @@ private struct CaptureHUD: View {
         Spacer(minLength: 4)
         if let finish = state.finish, let cancel = state.cancel {
           if let save = state.save {
-            Button(action: save) { Image(systemName: "arrow.down.to.line") }.help(
-              Strings.captureSave)
+            Button(action: save) { Image(systemName: "arrow.down.to.line").devbarIconColor(scheme) }
+              .help(
+                Strings.captureSave)
           }
-          Button(action: cancel) { Image(systemName: "xmark") }.help(Strings.captureCancel)
-          Button(action: finish) { Image(systemName: "checkmark") }.help(Strings.captureFinish)
+          Button(action: cancel) { Image(systemName: "xmark").devbarIconColor(scheme) }.help(
+            Strings.captureCancel)
+          Button(action: finish) { Image(systemName: "checkmark").devbarIconColor(scheme) }.help(
+            Strings.captureFinish)
         } else if let path = state.path {
           Button(Strings.captureReveal) { NSWorkspace.shared.activateFileViewerSelecting([path]) }
         }

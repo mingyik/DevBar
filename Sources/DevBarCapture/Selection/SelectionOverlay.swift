@@ -19,7 +19,16 @@ public final class SelectionOverlay {
   private var timeoutTask: Task<Void, Never>?
 
   private let appearanceName: NSAppearance.Name?
-  public init(appearanceName: NSAppearance.Name? = nil) { self.appearanceName = appearanceName }
+  private let iconColor: NSColor
+  private let disabledIconColor: NSColor
+  public init(
+    appearanceName: NSAppearance.Name? = nil,
+    iconColor: NSColor = .labelColor, disabledIconColor: NSColor = .disabledControlTextColor
+  ) {
+    self.appearanceName = appearanceName
+    self.iconColor = iconColor
+    self.disabledIconColor = disabledIconColor
+  }
 
   public func selectImage(timeout: Duration = .seconds(60)) async throws -> (CaptureRegion, CGImage)
   {
@@ -78,6 +87,8 @@ public final class SelectionOverlay {
           panel.backgroundColor = .clear
           panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
           let view = SelectionView(frame: CGRect(origin: .zero, size: screen.frame.size))
+          view.iconColor = iconColor
+          view.disabledIconColor = disabledIconColor
           view.frozenFrame = frozenFrames[number.uint32Value]
           view.screenFrame = screen.frame
           view.displayID = number.uint32Value
@@ -130,6 +141,8 @@ private final class SelectionPanel: NSPanel {
 
 @MainActor
 final class SelectionView: NSView {
+  var iconColor: NSColor = .labelColor
+  var disabledIconColor: NSColor = .disabledControlTextColor
   var frozenFrame: CGImage?
   var screenFrame = CGRect.zero
   var displayID: CGDirectDisplayID = 0
@@ -374,12 +387,12 @@ final class SelectionView: NSView {
       button.toolSelected = selected
       button.isEnabled = entry.1 != "undo" || !undoKinds.isEmpty
       if !button.isEnabled {
-        button.contentTintColor = .disabledControlTextColor
+        button.contentTintColor = disabledIconColor
       } else if selected {
         button.contentTintColor = .systemBlue
       }  // devbar:allow-color
       else {
-        button.contentTintColor = .labelColor
+        button.contentTintColor = iconColor
       }
       button.wantsLayer = true
       button.layer?.cornerRadius = 7
@@ -453,7 +466,7 @@ final class SelectionView: NSView {
         button.isBordered = false
         button.wantsLayer = true
         let active = tool == "arrow" ? (largeArrow == (index == 0)) : (mosaicBrush == (index == 0))
-        button.contentTintColor = active ? .systemBlue : .labelColor  // devbar:allow-color
+        button.contentTintColor = active ? .systemBlue : iconColor  // devbar:allow-color
         button.layer?.cornerRadius = 5
         button.layer?.backgroundColor =
           active ? NSColor.labelColor.withAlphaComponent(0.12).cgColor : nil

@@ -49,10 +49,10 @@
   z-index: 1;
   width: 24px;
   height: 24px;
-  color: var(--text-primary);
+  color: var(--icon-primary);
   background: transparent;
   border: none;
-  opacity: 0.75;
+  opacity: 1;
   border-radius: var(--radius-small);
   padding: 0;
 }
@@ -94,4 +94,9 @@
 }
 .snapshot-root.prose .mmd-scroll svg[aria-roledescription="gantt"] {
   min-width: 0;
+}
+
+.diagram-copy.icon-button:disabled {
+  color: var(--icon-disabled);
+  opacity: 1;
 }
