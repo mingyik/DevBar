@@ -42,7 +42,10 @@ struct DocumentSidebarView: View {
     } else if !browser.status.isEmpty {
       message(browser.status)
     } else if browser.files.isEmpty {
-      message(Strings.documentEmptyFolder)
+      Image(systemName: "folder")
+        .font(.system(size: 28, weight: .light))
+        .foregroundStyle(DesignTokens.textTertiary(scheme))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     } else {
       ScrollView(.vertical) {
         LazyVStack(alignment: .leading, spacing: 2) {

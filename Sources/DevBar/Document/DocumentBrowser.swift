@@ -48,7 +48,7 @@ final class DocumentBrowser {
       switch listing {
       case .success(let found):
         files = found.map { DocumentNode(url: $0.url, created: $0.created) }
-        status = files.isEmpty ? Strings.documentEmptyFolder : ""
+        status = ""
       case .failure:
         files = []
         status = Strings.documentFolderUnreadable

@@ -98,6 +98,7 @@ export class PageShell {
     this.root = root;
     this.kind = kind;
     root.classList.add("page-shell");
+    root.dataset.kind = kind;
     const toolbar = element("div", "page-toolbar");
     toolbar.append(this.actions, this.fixed);
     this.preview.hidden = true;

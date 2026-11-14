@@ -79,6 +79,17 @@
 .has-file .preview {
   top: 24px;
 }
+.page-shell[data-kind="doc"].has-file .source,
+.page-shell[data-kind="doc"].has-file .preview {
+  top: 0;
+}
+.page-shell[data-kind="doc"] .file-label {
+  top: auto;
+  bottom: 16px;
+  left: 46px;
+  right: 130px;
+  font-size: 11px;
+}
 .page-toolbar {
   position: absolute;
   left: 12px;
