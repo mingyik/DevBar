@@ -324,8 +324,10 @@ struct ClipboardDragView: NSViewRepresentable {
           x: textX + shift, y: bounds.midY - 20 + (40 - side) - shift, width: side, height: side)
         NSGraphicsContext.saveGraphicsState()
         NSBezierPath(roundedRect: slot, xRadius: 6, yRadius: 6).addClip()
+        let imageFrame =
+          fileCount > 0 ? slot : DragCard.imageFillFrame(size: thumbnail.size, in: slot)
         thumbnail.draw(
-          in: slot, from: .zero, operation: .sourceOver, fraction: layer == 0 ? 1 : 0.45)
+          in: imageFrame, from: .zero, operation: .sourceOver, fraction: layer == 0 ? 1 : 0.45)
         NSGraphicsContext.restoreGraphicsState()
       }
       textX += 48

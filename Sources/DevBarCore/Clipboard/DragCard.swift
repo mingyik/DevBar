@@ -6,6 +6,18 @@ public enum DragCard: Sendable {
   public static let minWidth: CGFloat = 160
   public static let maxWidth: CGFloat = 260
 
+  /// Preserve the image ratio while filling the slot; callers clip to its bounds.
+  public static func imageFillFrame(size: CGSize, in slot: CGRect) -> CGRect {
+    guard size.width.isFinite, size.height.isFinite,
+      size.width > 0, size.height > 0, slot.width > 0, slot.height > 0
+    else { return .zero }
+    let scale = max(slot.width / size.width, slot.height / size.height)
+    let width = size.width * scale
+    let height = size.height * scale
+    return CGRect(
+      x: slot.midX - width / 2, y: slot.midY - height / 2, width: width, height: height)
+  }
+
   /// Bound work before AppKit text layout; clipboard bytes are never truncated.
   public static func firstLine(_ text: String) -> String {
     var result = ""

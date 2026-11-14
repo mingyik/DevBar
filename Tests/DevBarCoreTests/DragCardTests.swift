@@ -1,6 +1,17 @@
+import CoreGraphics
 import Testing
 
 @testable import DevBarCore
+
+@Test func clipboardThumbnailFillsAndCenterCropsWithoutDistortion() {
+  let slot = CGRect(x: 12, y: 8, width: 40, height: 40)
+  let wide = DragCard.imageFillFrame(size: CGSize(width: 200, height: 100), in: slot)
+  #expect(wide == CGRect(x: -8, y: 8, width: 80, height: 40))
+  let tall = DragCard.imageFillFrame(size: CGSize(width: 100, height: 200), in: slot)
+  #expect(tall == CGRect(x: 12, y: -12, width: 40, height: 80))
+  #expect(DragCard.imageFillFrame(size: CGSize(width: 100, height: 100), in: slot) == slot)
+  #expect(DragCard.imageFillFrame(size: .zero, in: slot) == .zero)
+}
 
 @Test func dragCardClampsWidthAndKeepsHeight() {
   #expect(DragCard.height == 56)
