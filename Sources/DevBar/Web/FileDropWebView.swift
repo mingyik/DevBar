@@ -5,6 +5,7 @@ import WebKit
 @MainActor final class FileDropWebView: WKWebView {
   var acceptsFiles: (() -> Bool)?
   var receivedFiles: (([URL]) -> Void)?
+  override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
   private func files(_ sender: any NSDraggingInfo) -> [URL] {
     sender.draggingPasteboard.readObjects(
       forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []

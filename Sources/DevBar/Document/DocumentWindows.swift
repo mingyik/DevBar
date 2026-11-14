@@ -114,6 +114,12 @@ final class DocumentWindows {
   private(set) var sidebarVisible = false
   var isEditorVisible: Bool { editorPanel.isVisible }
 
+  func contains(_ point: NSPoint) -> Bool {
+    if editorPanel.isVisible, editorPanel.frame.contains(point) { return true }
+    if sidebarVisible, sidebarPanel.frame.contains(point) { return true }
+    return false
+  }
+
   init(
     theme: ThemeManager, session: DocumentSession, browser: DocumentBrowser,
     editorHost: WebHost
@@ -206,6 +212,13 @@ final class DocumentWindows {
     } else {
       sidebarPanel.orderOut(nil)
     }
+  }
+
+  func showSidebar() {
+    guard !sidebarVisible else { return }
+    sidebarVisible = true
+    sidebarPanel.appearance = theme.appearance()
+    sidebarPanel.orderFrontRegardless()
   }
 
   func closeSidebar() {

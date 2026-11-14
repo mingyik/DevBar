@@ -148,7 +148,14 @@ final class PanelController {
     outsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown])
     { [weak self] _ in
       MainActor.assumeIsolated {
-        self?.handleOutsideClick()
+        guard let self else { return }
+        let location = NSEvent.mouseLocation
+        if self.panel.isVisible, self.panel.frame.contains(location),
+          !self.panel.isKeyWindow
+        {
+          self.panel.makeKeyAndOrderFront(nil)
+        }
+        self.handleOutsideClick()
       }
     }
     model.onPageChange = { [weak self] in
@@ -162,7 +169,6 @@ final class PanelController {
       }
       if self.model.page != .doc {
         self.documentWindows.hideAll()
-        self.model.documentSidebarVisible = false
       }
       self.updateMaterial()
       self.reposition(animated: false)
@@ -234,7 +240,6 @@ final class PanelController {
     previewHideTask?.cancel()
     hideClipboardPreview()
     documentWindows.hideAll()
-    model.documentSidebarVisible = false
     webHost.setPanelVisible(false)
     dismissing = false
   }
@@ -444,7 +449,7 @@ final class PanelController {
 
   private func installChrome() {
     host.translatesAutoresizingMaskIntoConstraints = false
-    let container = NSView()
+    let container = FirstMouseContainer()
     container.addSubview(host)
     panel.contentView = container
     NSLayoutConstraint.activate([
@@ -459,7 +464,6 @@ final class PanelController {
   private func updateMaterial() {
     if model.page != .doc {
       documentWindows.hideAll()
-      model.documentSidebarVisible = false
     }
     if model.page != .clipboard {
       previewHideTask?.cancel()
@@ -534,6 +538,8 @@ final class PanelController {
     let location = NSEvent.mouseLocation
     if panel.frame.contains(location)
       || (clipboardPreview?.isVisible == true && clipboardPreview?.frame.contains(location) == true)
+      || documentWindows.contains(location)
+      || (NSApp.modalWindow?.frame.contains(location) == true)
     {
       return
     }
@@ -564,7 +570,6 @@ final class PanelController {
   private func syncDocumentWindows() {
     guard panel.isVisible, model.page == .doc, let screen = panel.screen ?? NSScreen.main else {
       documentWindows.hideAll()
-      model.documentSidebarVisible = false
       return
     }
     if documentMode == "split" {
@@ -577,6 +582,7 @@ final class PanelController {
       documentWindows.hideEditor()
     }
     if model.documentSidebarVisible {
+      documentWindows.showSidebar()
       documentWindows.position(mainFrame: panel.frame, visible: screen.visibleFrame)
     } else {
       documentWindows.closeSidebar()
@@ -608,10 +614,12 @@ final class PanelController {
   func openDocument(_ url: URL) async {
     openGeneration += 1
     let generation = openGeneration
+    logger.notice("documentOpen start")
     guard await confirmReplaceIfNeeded(generation: generation) else { return }
     guard generation == openGeneration else { return }
     let result = await documents.read(url)
     guard generation == openGeneration else { return }
+    logger.notice("documentOpen read done")
     switch result {
     case .failure(let error):
       model.toast = Strings.fileDropError(Self.dropReason(error))
@@ -719,4 +727,10 @@ final class PanelController {
     let parts = elapsed.components
     return Double(parts.seconds) * 1000 + Double(parts.attoseconds) / 1_000_000_000_000_000
   }
+}
+
+/// Borderless panels are inactive while the split editor holds key focus;
+/// allow the first click on the preview to reach its controls.
+private final class FirstMouseContainer: NSView {
+  override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }

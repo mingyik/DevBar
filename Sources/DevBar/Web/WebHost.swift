@@ -130,19 +130,22 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   }
 
   func documentMode() async -> String? {
-    try? await webView.callAsyncJavaScript(
+    guard ready, !webViewReleased else { return nil }
+    return try? await webView.callAsyncJavaScript(
       "return window.__devbar.docMode()", arguments: [:], in: nil, contentWorld: .page
     ) as? String
   }
 
   func documentStatus() async -> [String: Any]? {
-    try? await webView.callAsyncJavaScript(
+    guard ready, !webViewReleased else { return nil }
+    return try? await webView.callAsyncJavaScript(
       "return window.__devbar.docStatus()", arguments: [:], in: nil, contentWorld: .page
     ) as? [String: Any]
   }
 
   func documentText() async -> String? {
-    try? await webView.callAsyncJavaScript(
+    guard ready, !webViewReleased else { return nil }
+    return try? await webView.callAsyncJavaScript(
       "return window.__devbar.docText()", arguments: [:], in: nil, contentWorld: .page
     ) as? String
   }
