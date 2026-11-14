@@ -7,12 +7,6 @@ cd "$root"
 echo "== swift format lint =="
 swift format lint --strict -r Sources Tests
 
-echo "== swift build =="
-swift build
-
-echo "== swift test =="
-swift test
-
 echo "== web =="
 (
   cd Web
@@ -23,6 +17,12 @@ echo "== web =="
   npm test
   npm run build
 )
+
+echo "== swift build =="
+swift build
+
+echo "== swift test =="
+swift test
 
 echo "== tokens =="
 node --test Scripts/gen-tokens.test.ts

@@ -161,28 +161,26 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
   #expect(controller.message == Strings.imageTooLarge)
 }
 
-@MainActor @Test func clipboardDetailUsesOriginalAndReturnsToListAfterRemoval() async throws {
+@MainActor @Test func clipboardKeyboardNavigationRemainsAvailable() async throws {
   _ = NSApplication.shared
   let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
   defer { try? FileManager.default.removeItem(at: root) }
   let controller = ClipboardController(
     theme: ThemeManager(), directory: root, startMonitoring: false)
-  let text = String(repeating: "原文\n", count: 300)
-  let payload = ClipboardPayload(
-    type: NSPasteboard.PasteboardType.string.rawValue, data: Data(text.utf8))
-  await controller.record(ClipboardCapture(payloads: [payload])!, source: nil)
+  let payloads = ["较旧内容", "最新内容"].map {
+    ClipboardPayload(type: NSPasteboard.PasteboardType.string.rawValue, data: Data($0.utf8))
+  }
+  for payload in payloads {
+    await controller.record(ClipboardCapture(payloads: [payload])!, source: nil)
+  }
   let board = NSPasteboard.withUniqueName()
   defer { board.releaseGlobally() }
-  controller.showDetail(0, board: board)
-  let id = try #require(controller.detailID)
-  #expect(controller.originals[id]?.first?.data == Data(text.utf8))
-  #expect(board.string(forType: .string) == text)
-  #expect(!controller.handleKey(125))
-  controller.detailID = nil
   #expect(controller.handleKey(125))
-  controller.showDetail(0, board: board)
-  await controller.remove(id)
-  #expect(controller.detailID == nil)
+  #expect(controller.focusedIndex == 1)
+  #expect(controller.handleKey(126))
+  #expect(controller.focusedIndex == 0)
+  #expect(controller.handleKey(36, board: board))
+  #expect(board.string(forType: .string) == controller.items[0].preview)
 }
 
 @Test func fileURLsConvertToDecodedPathsInOrder() {

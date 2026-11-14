@@ -17,7 +17,6 @@ final class ClipboardController {
   private(set) var thumbnails: [UUID: NSImage] = [:]
   private(set) var cycler = ClipboardCycler()
   private(set) var needsVisualCacheReload = false
-  var detailID: UUID?
   private(set) var hoverID: UUID?
   private(set) var isDragging = false
   var onHoverPreview: ((UUID?) -> Void)?
@@ -129,7 +128,6 @@ final class ClipboardController {
       return result
     }.value
     guard generation == reloadGeneration else { return }
-    if !updated.contains(where: { $0.id == detailID }) { detailID = nil }
     if let hoverID, !updated.contains(where: { $0.id == hoverID }) {
       self.hoverID = nil
       onHoverPreview?(nil)
@@ -374,14 +372,7 @@ final class ClipboardController {
     }
   }
 
-  func showDetail(_ index: Int, board: NSPasteboard = .general) {
-    guard items.indices.contains(index) else { return }
-    select(index, board: board)
-    detailID = items[index].id
-  }
-
   func handleKey(_ code: UInt16, board: NSPasteboard = .general) -> Bool {
-    guard detailID == nil else { return false }
     switch code {
     case 125:
       guard !items.isEmpty else { return false }
@@ -406,7 +397,6 @@ final class ClipboardController {
       try await store.remove(id)
       reloadGeneration += 1
       let updated = await store.items
-      if detailID == id { detailID = nil }
       if hoverID == id {
         hoverID = nil
         onHoverPreview?(nil)
