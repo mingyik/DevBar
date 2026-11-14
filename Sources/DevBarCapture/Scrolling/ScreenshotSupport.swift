@@ -310,67 +310,65 @@ enum ScreenshotSupport {
   /// advances. Keeping that suffix in every new strip repeats it throughout
   /// the final image, so identify it separately from the moving overlap.
   static func scrollingFixedBottomRows(
-    previous: ScrollingSample,
-    current: ScrollingSample,
-    overlap: Int,
+    previous: ScrollingSample, current: ScrollingSample, overlap: Int,
     contentColumns: Range<Int>
   ) -> Int {
-    guard previous.isValid, current.isValid,
-      previous.width == current.width,
-      previous.height == current.height,
-      overlap > 0, overlap < previous.height,
-      contentColumns.lowerBound >= 0,
-      contentColumns.upperBound <= previous.width,
-      !contentColumns.isEmpty
-    else { return 0 }
-
-    var rows = 0
-    for row in stride(from: previous.height - 1, through: 0, by: -1) {
-      let start = row * previous.width
-      var difference = 0
-      for column in contentColumns {
-        difference += abs(
-          Int(previous.pixels[start + column])
-            - Int(current.pixels[start + column]))
-      }
-      let average = Double(difference) / Double(contentColumns.count)
-      guard average <= 2 else { break }
-      rows += 1
-    }
-
-    let minimumRows = max(4, min(12, previous.height / 100))
-    guard rows >= minimumRows, rows < overlap else { return 0 }
-    return rows
+    scrollingFixedRows(
+      previous: previous, current: current, overlap: overlap,
+      contentColumns: contentColumns, fromTop: false)
   }
 
   static func scrollingFixedTopRows(
     previous: ScrollingSample, current: ScrollingSample, overlap: Int,
     contentColumns: Range<Int>
   ) -> Int {
-    guard previous.isValid, current.isValid else { return 0 }
-    func reversed(_ sample: ScrollingSample) -> ScrollingSample {
-      var pixels: [UInt8] = []
-      pixels.reserveCapacity(sample.pixels.count)
-      for row in (0..<sample.height).reversed() {
-        pixels.append(contentsOf: sample.pixels[(row * sample.width)..<((row + 1) * sample.width)])
+    scrollingFixedRows(
+      previous: previous, current: current, overlap: overlap,
+      contentColumns: contentColumns, fromTop: true)
+  }
+
+  private static func scrollingFixedRows(
+    previous: ScrollingSample, current: ScrollingSample, overlap: Int,
+    contentColumns: Range<Int>, fromTop: Bool
+  ) -> Int {
+    guard previous.isValid, current.isValid,
+      previous.width == current.width, previous.height == current.height,
+      overlap > 0, overlap < previous.height,
+      contentColumns.lowerBound >= 0, contentColumns.upperBound <= previous.width,
+      !contentColumns.isEmpty
+    else { return 0 }
+    var rows = 0
+    for index in 0..<previous.height {
+      let row = fromTop ? index : previous.height - 1 - index
+      let start = row * previous.width
+      var difference = 0
+      for column in contentColumns {
+        difference += abs(
+          Int(previous.pixels[start + column]) - Int(current.pixels[start + column]))
       }
-      return ScrollingSample(width: sample.width, height: sample.height, pixels: pixels)
+      guard Double(difference) / Double(contentColumns.count) <= 2 else { break }
+      rows += 1
     }
-    let rows = scrollingFixedBottomRows(
-      previous: reversed(previous), current: reversed(current), overlap: overlap,
-      contentColumns: contentColumns)
-    guard rows > 0 else { return 0 }
-    // An unchanged blank margin is not evidence of an anchored toolbar.
+    let minimumRows = max(4, min(12, previous.height / 100))
+    guard rows >= minimumRows, rows < overlap else { return 0 }
+    let band = fromTop ? 0..<rows : (previous.height - rows)..<previous.height
+    return scrollingBandHasDetail(previous, rows: band, columns: contentColumns) ? rows : 0
+  }
+
+  private static func scrollingBandHasDetail(
+    _ sample: ScrollingSample, rows: Range<Int>, columns: Range<Int>
+  ) -> Bool {
+    // A stationary solid margin is not evidence of a fixed toolbar.
     var darkest: UInt8 = 255
     var lightest: UInt8 = 0
-    for row in 0..<rows {
-      for column in contentColumns {
-        let pixel = previous.pixels[row * previous.width + column]
+    for row in rows {
+      for column in columns {
+        let pixel = sample.pixels[row * sample.width + column]
         darkest = min(darkest, pixel)
         lightest = max(lightest, pixel)
       }
     }
-    return Int(lightest) - Int(darkest) >= 16 ? rows : 0
+    return Int(lightest) - Int(darkest) >= 16
   }
 
   /// Rows newly revealed by a forward scroll. A fixed footer shifts this

@@ -183,7 +183,7 @@ final class SelectionView: NSView {
   var scale: CGFloat = 1
   var complete: ((Result<CaptureRegion, any Error>) -> Void)?
   private var anchor: CGPoint?
-  private var selection = CGRect.zero
+  private(set) var selection = CGRect.zero
   var scrollingRequested = false
   var saveRequested = false
   var onInteraction: (() -> Void)?

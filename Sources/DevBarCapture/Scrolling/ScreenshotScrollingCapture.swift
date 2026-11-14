@@ -36,6 +36,20 @@ public enum ScreenshotScrollingCapture {
     case failed
   }
 
+  /// One provisional append may contain the first appearance of a sticky bar.
+  /// This snapshot shares existing slices; it does not copy the long image.
+  private struct AppendRollback {
+    let slices: [CGImage]
+    let height: Int
+    let top: Int
+    let bottom: Int
+    let viewport: Int
+    let pixels: Int
+    let sample: ScreenshotSupport.ScrollingSample
+    let direction: ScreenshotSupport.ScrollingDirection?
+    let footer: CGImage?
+  }
+
   private static let sampleInterval: TimeInterval = 0.09
   private static let settleInterval: TimeInterval = 0.22
   private static let finishGraceInterval: TimeInterval = 0.85
@@ -94,6 +108,8 @@ public enum ScreenshotScrollingCapture {
       var fixedBottomPixels = 0
       var footerSlice: CGImage?
       func contentWithHeader() -> [CGImage] { headerSlice.map { [$0] + slices } ?? slices }
+      var rollback: AppendRollback?
+      var fixedLayoutChanged = false
       var hasUnmatchedContent = false
       var lastChangedAt = startedAt
       var lastCaptureAt = ProcessInfo.processInfo.systemUptime
@@ -156,6 +172,7 @@ public enum ScreenshotScrollingCapture {
           lastObservedSample,
           currentSample,
           contentColumns: contentSampleColumns)
+        let observedBefore = lastObservedSample
         lastObservedSample = currentSample
         if !frameIsStable { lastChangedAt = lastCaptureAt }
         var transition: ScreenshotSupport.ScrollingTransition = .unmatched
@@ -220,6 +237,52 @@ public enum ScreenshotScrollingCapture {
             contentColumns: contentSampleColumns)
         }
 
+        if !frameIsStable, let columns = contentSampleColumns,
+          case .advanced = transition
+        {
+          // Recheck stationary edges during actual movement, including bars
+          // that become sticky later. Changing the crop after committing slices
+          // would silently change coordinates, so pause instead of guessing.
+          // These are consecutive observations, not the last registered pair.
+          // The accumulated displacement must not truncate this edge scan.
+          let rawOverlap = current.height - 1
+          let top = ScreenshotSupport.scrollingFixedTopRows(
+            previous: observedBefore, current: currentSample,
+            overlap: rawOverlap, contentColumns: columns)
+          let bottom = ScreenshotSupport.scrollingFixedBottomRows(
+            previous: observedBefore, current: currentSample,
+            overlap: rawOverlap, contentColumns: columns)
+          fixedLayoutChanged = abs(top - fixedTopPixels) > 2 || abs(bottom - fixedBottomPixels) > 2
+        }
+        if fixedLayoutChanged && currentSample == previousSample {
+          fixedLayoutChanged = false
+        }
+        if fixedLayoutChanged {
+          if let saved = rollback {
+            slices = saved.slices
+            totalHeight = saved.height
+            capturedTop = saved.top
+            capturedBottom = saved.bottom
+            viewportTop = saved.viewport
+            retainedPixels = saved.pixels
+            previousSample = saved.sample
+            anchors = .init()
+            anchors.remember(saved.sample, at: saved.viewport)
+            previousDirection = saved.direction
+            footerSlice = saved.footer
+            rollback = nil
+            if let preview = makePreview(
+              footerSlice.map { contentWithHeader() + [$0] } ?? contentWithHeader())
+            {
+              await onPreview(preview)
+            }
+          }
+          hasUnmatchedContent = true
+          scrollPending = false
+          await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, true)
+          continue
+        }
+
         var position: Int?
         var direction: ScreenshotSupport.ScrollingDirection?
         var tryAnchorOverlap = false
@@ -234,16 +297,17 @@ public enum ScreenshotScrollingCapture {
         case .unmatched:
           tryAnchorOverlap = true
         }
-        // Exact revisits always override cumulative offsets. At a reversal or
-        // loss of overlap, use bounded grayscale anchors to re-register; never
-        // overwrite slices and never guess between conflicting positions.
-        switch anchors.registration(
-          matching: currentContent, columns: contentSampleColumns,
-          allowOverlap: contentSampleColumns != nil && tryAnchorOverlap)
-        {
-        case .position(let anchored): position = anchored
-        case .ambiguous: position = nil
-        case .unavailable: break
+        // A repeated viewport is not proof of a revisit. Keep a trustworthy
+        // continuous displacement; consult old anchors only at a reversal or
+        // while recovering from a loss of overlap.
+        if contentSampleColumns != nil && (tryAnchorOverlap || hasUnmatchedContent) {
+          switch anchors.registration(
+            matching: currentContent, columns: contentSampleColumns, allowOverlap: true)
+          {
+          case .position(let anchored): position = anchored
+          case .ambiguous: position = nil
+          case .unavailable: break
+          }
         }
 
         if let position {
@@ -261,6 +325,12 @@ public enum ScreenshotScrollingCapture {
             continue
           }
           if let columns = contentPixelColumns {
+            if extra > 0 {
+              rollback = AppendRollback(
+                slices: slices, height: totalHeight, top: capturedTop, bottom: capturedBottom,
+                viewport: viewportTop, pixels: retainedPixels, sample: previousSample,
+                direction: previousDirection, footer: footerSlice)
+            }
             if fixedBottomPixels > 0 {
               footerSlice = copiedStrip(
                 from: current, columns: columns,

@@ -51,12 +51,29 @@ import Testing
   }
   view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 100, y: 150)))
   view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 600, y: 450)))
+  let original = view.selection
   view.beginScrollingProgress()
-  for point in [CGPoint(x: 300, y: 300), CGPoint(x: 100, y: 150)] {
+  for point in [
+    CGPoint(x: original.midX, y: original.midY),
+    CGPoint(x: original.minX, y: original.minY), CGPoint(x: original.midX, y: original.minY),
+    CGPoint(x: original.maxX, y: original.minY), CGPoint(x: original.maxX, y: original.midY),
+    CGPoint(x: original.maxX, y: original.maxY), CGPoint(x: original.midX, y: original.maxY),
+    CGPoint(x: original.minX, y: original.maxY), CGPoint(x: original.minX, y: original.midY),
+  ] {
     view.mouseDown(with: try event(.leftMouseDown, point))
     view.mouseDragged(with: try event(.leftMouseDragged, CGPoint(x: 700, y: 500)))
     view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 700, y: 500)))
   }
+  for code: UInt16 in [36, 53, 123, 124, 125, 126] {
+    view.keyDown(
+      with: try #require(
+        NSEvent.keyEvent(
+          with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+          windowNumber: window.windowNumber, context: nil, characters: "",
+          charactersIgnoringModifiers: "",
+          isARepeat: false, keyCode: code)))
+  }
+  #expect(view.selection == original)
   #expect(completions == 1)
   #expect(view.subviews.isEmpty)
 }

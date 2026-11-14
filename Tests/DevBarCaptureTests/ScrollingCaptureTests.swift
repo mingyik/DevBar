@@ -199,6 +199,23 @@ private func testRegion() throws -> CaptureRegion {
   #expect(forward.height == 225)
   #expect(both.height == 225)
   #expect(both.dataProvider?.data as Data? == forward.dataProvider?.data as Data?)
+  func gray(_ image: CGImage) throws -> Data {
+    var bytes = [UInt8](repeating: 0, count: image.width * image.height)
+    let context = try #require(
+      CGContext(
+        data: &bytes, width: image.width, height: image.height, bitsPerComponent: 8,
+        bytesPerRow: image.width, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: 0))
+    context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+    return Data(bytes)
+  }
+  let source = frame(offset: 0, footer: 16, header: 14)
+  let expectedTop = try #require(source.cropping(to: CGRect(x: 0, y: 0, width: 64, height: 14)))
+  let actualTop = try #require(both.cropping(to: CGRect(x: 0, y: 0, width: 64, height: 14)))
+  let expectedBottom = try #require(
+    source.cropping(to: CGRect(x: 0, y: 104, width: 64, height: 16)))
+  let actualBottom = try #require(both.cropping(to: CGRect(x: 0, y: 209, width: 64, height: 16)))
+  #expect(try gray(actualTop) == gray(expectedTop))
+  #expect(try gray(actualBottom) == gray(expectedBottom))
 }
 
 @Test func scrollingAnchorStorageIsBoundedAndKeepsExtremes() {
@@ -257,6 +274,91 @@ private func testRegion() throws -> CaptureRegion {
   #expect(
     ScreenshotSupport.scrollingFixedTopRows(
       previous: sample(0), current: sample(35), overlap: 50, contentColumns: 0..<8) == 0)
+}
+
+@MainActor @Test func scrollingRepeatedNewRegionsDoNotJumpToAnOldAnchor() async throws {
+  func repeated(_ offset: Int) -> CGImage {
+    let pixels = (0..<120).flatMap { row in
+      (0..<64).map { column -> UInt8 in
+        var value =
+          UInt32((row + offset) % 240) &* 747_796_405 &+ UInt32(column * 19 + 2_891_336_453)
+        value = ((value >> ((value >> 28) + 4)) ^ value) &* 277_803_737
+        return UInt8(truncatingIfNeeded: (value >> 22) ^ value)
+      }
+    }
+    return CGImage(
+      width: 64, height: 120, bitsPerComponent: 8, bitsPerPixel: 8, bytesPerRow: 64,
+      space: CGColorSpaceCreateDeviceGray(), bitmapInfo: .init(rawValue: 0),
+      provider: CGDataProvider(data: Data(pixels) as CFData)!, decode: nil,
+      shouldInterpolate: false, intent: .defaultIntent)!
+  }
+  let frames = Frames(stride(from: 0, through: 560, by: 40).map(repeated))
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), frameLimit: 17,
+    onProgress: { _, _ in }, nextFrame: { await frames.next() })
+  guard case .limited(let image) = result else { throw CaptureError.noImage }
+  #expect(image.height == 680)
+}
+
+@Test func scrollingDoesNotTreatBlankBottomBandAsFixedFooter() {
+  func sample(_ offset: Int) -> ScreenshotSupport.ScrollingSample {
+    let pixels = (0..<80).flatMap { row in
+      (0..<8).map { column in UInt8(row >= 68 ? 0 : (row * 17 + column * 13 + offset) % 251) }
+    }
+    return .init(width: 8, height: 80, pixels: pixels)
+  }
+  #expect(
+    ScreenshotSupport.scrollingFixedBottomRows(
+      previous: sample(0), current: sample(35), overlap: 50, contentColumns: 0..<8) == 0)
+}
+
+@MainActor @Test func scrollingPausesWhenAFixedBarAppearsLater() async throws {
+  for top in [true, false] {
+    let images =
+      [frame(offset: 0), frame(offset: 35)]
+      + [70, 105, 140].map {
+        frame(offset: $0, footer: top ? 0 : 16, header: top ? 14 : 0)
+      }
+    let frames = Frames(images)
+    var pausedAt: Int?
+    var grewAfterPause = false
+    let result = await ScreenshotScrollingCapture.captureFrames(
+      region: try testRegion(), finishSignal: .init(), frameLimit: 10,
+      onProgress: { height, unmatched in
+        if let pausedAt, height > pausedAt { grewAfterPause = true }
+        if unmatched && pausedAt == nil { pausedAt = height }
+      }, nextFrame: { await frames.next() })
+    #expect(pausedAt != nil)
+    #expect(!grewAfterPause)
+    guard case .limited(let image) = result else { throw CaptureError.noImage }
+    #expect(image.height == pausedAt)
+    #expect(image.height == 155)
+  }
+}
+
+@MainActor @Test func scrollingResumesAfterReturningToOriginalFixedLayout() async throws {
+  let frames = Frames(
+    [frame(offset: 0), frame(offset: 35)]
+      + [70, 105, 140].map { frame(offset: $0, header: 14) }
+      + [35, 70, 105, 140, 175].map { frame(offset: $0) })
+  var paused = false
+  var resumed = false
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), frameLimit: 14,
+    onProgress: { height, unmatched in
+      if unmatched { paused = true }
+      if paused && !unmatched && height > 155 { resumed = true }
+    }, nextFrame: { await frames.next() })
+  #expect(paused)
+  #expect(resumed)
+  guard case .limited(let image) = result else { throw CaptureError.noImage }
+  #expect(image.height == 295)
+  let baseline = Frames([0, 35, 70, 105, 140, 175].map { frame(offset: $0) })
+  let expected = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), frameLimit: 8,
+    onProgress: { _, _ in }, nextFrame: { await baseline.next() })
+  guard case .limited(let reference) = expected else { throw CaptureError.noImage }
+  #expect(image.dataProvider?.data as Data? == reference.dataProvider?.data as Data?)
 }
 
 @Test func scrollingFrameLimitAndCancellation() async throws {
