@@ -355,6 +355,10 @@ button:disabled {
 .page-toolbar .icon-button:disabled {
   opacity: 0.6;
 }
+.page-toolbar .icon-button.save-button svg {
+  width: 18px;
+  height: 18px;
+}
 .page-toolbar .icon-button .system-icon {
   width: 18px;
   height: 18px;
