@@ -179,8 +179,8 @@ import Testing
       with: .keyDown, location: .zero, modifierFlags: [.command, .shift], timestamp: 0,
       windowNumber: 0, context: nil, characters: "P", charactersIgnoringModifiers: "p",
       isARepeat: false, keyCode: 35))
-  #expect(!panel.performKeyEquivalent(with: shiftP))
-  #expect(modeCalls == 0)
+  #expect(panel.performKeyEquivalent(with: shiftP))
+  #expect(modeCalls == 1)
 
   let cmdE = try #require(
     NSEvent.keyEvent(
@@ -188,7 +188,7 @@ import Testing
       windowNumber: 0, context: nil, characters: "e", charactersIgnoringModifiers: "e",
       isARepeat: false, keyCode: 14))
   #expect(panel.performKeyEquivalent(with: cmdE))
-  #expect(modeCalls == 1)
+  #expect(modeCalls == 2)
   #expect(cycleCalls == 0)
 }
 

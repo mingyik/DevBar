@@ -71,7 +71,9 @@ final class PanelModel {
   }
   var dropActive = false
   var dropDocument = false
+  var documentSidebarVisible = false
   @ObservationIgnored var fileDrop: FileDropCoordinator?
+  @ObservationIgnored var onToggleDocumentSidebar: (() -> Void)?
   var toast = ""
   #if DEBUG
     var showsWebViewForSelfCheck =

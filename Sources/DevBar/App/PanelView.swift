@@ -76,6 +76,9 @@ struct PanelView: View {
 
   private func titleRow(_ scheme: ColorScheme) -> some View {
     HStack(spacing: 8) {
+      if model.page == .doc {
+        sidebarButton(scheme)
+      }
       if model.page == .settings {
         Button {
           model.leaveSettings()
@@ -127,6 +130,18 @@ struct PanelView: View {
     action: @escaping () -> Void
   ) -> some View {
     ActionIcon(symbol: symbol, label: label, scheme: scheme, action: action)
+  }
+
+  private func sidebarButton(_ scheme: ColorScheme) -> some View {
+    Button(action: { model.onToggleDocumentSidebar?() }) {
+      Image(systemName: "sidebar.left")
+        .font(.system(size: 13, weight: .regular))
+        .frame(width: 24, height: 24)
+        .foregroundStyle(DesignTokens.textSecondary(scheme))
+    }
+    .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
+    .help(Strings.documentSidebar)
+    .accessibilityLabel(Strings.documentSidebar)
   }
 
   @ViewBuilder

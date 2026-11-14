@@ -14,6 +14,7 @@ import { QRPage } from "./qr/page";
 import { JsonPage } from "./tools/json/page";
 import { PageShell, type PageState } from "./editor/page-shell";
 import { installReadOnlyScrollbars } from "./styles/readonly-scroll";
+import { startDocumentPreview } from "./doc/preview-window";
 import "./styles/app.css";
 import "./styles/pages.css";
 import "./styles/contrast.css";
@@ -82,6 +83,7 @@ const bridge = {
         break;
       }
       case "doc.toggleMode":
+      case "doc.cycleMode":
         await transitions.catch(() => {});
         if (current === "doc") await doc.togglePreview();
         else if (current === "qr") await qr.togglePreview();
@@ -101,6 +103,7 @@ const bridge = {
             : payload.docMode === "markdown"
               ? "markdown"
               : undefined,
+          typeof payload.documentId === "string" ? payload.documentId : null,
         );
         scheduleSave();
         break;
@@ -123,13 +126,31 @@ const bridge = {
     }
     return {};
   },
+  docStatus() {
+    return doc.documentStatus();
+  },
+  docText() {
+    return doc.documentText();
+  },
+  docMarkSaved(
+    text: string,
+    fileName: string | null,
+    documentId: string | null,
+  ) {
+    doc.markSaved(text, fileName, documentId);
+    return { ok: true };
+  },
 };
 declare global {
   interface Window {
     __devbar: typeof bridge;
   }
 }
-if (typeof document !== "undefined") void start();
+if (typeof document !== "undefined") {
+  if (new URLSearchParams(location.search).has("doc-preview"))
+    startDocumentPreview();
+  else void start();
+}
 async function start(): Promise<void> {
   installReadOnlyScrollbars(document);
   for (const [page, id] of [

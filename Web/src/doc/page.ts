@@ -20,23 +20,40 @@ import { strings } from "../strings";
 import { exportPreview } from "../preview/export";
 import { releaseDocumentPreview, renderDocument } from "./document";
 import { bindPreviewLinks } from "./preview";
-import { detectDocMode, type DocMode } from "./mode";
+import {
+  detectDocMode,
+  isDirty,
+  nextDisplayMode,
+  type DisplayMode,
+  type DocMode,
+} from "./mode";
 import { releaseMermaidCache, svgToPngBase64 } from "./mermaid";
 import { releaseHighlighter } from "./highlight";
 
 export type DocumentState = PageState & {
   docMode?: DocMode;
   modeLocked?: boolean;
+  display?: DisplayMode;
+  savedText?: string;
+  documentId?: string | null;
 };
 export class DocPage {
   private language = new Compartment();
   private mode: DocMode = "markdown";
   private languageMode: DocMode = "markdown";
   private locked = false;
+  private display: DisplayMode = "source";
+  private savedText = "";
+  private documentID: string | null = null;
+  private saveInProgress = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
+  private previewTimer: ReturnType<typeof setTimeout> | undefined;
+  private infoTimer: ReturnType<typeof setTimeout> | undefined;
   private renderKey = "";
   private pending: Promise<void> = Promise.resolve();
   private toggle: HTMLButtonElement;
+  private saveButton: HTMLButtonElement;
+  private contextAction: HTMLButtonElement;
   readonly shell: PageShell;
   constructor(shell: PageShell) {
     this.shell = shell;
@@ -48,23 +65,23 @@ export class DocPage {
         }),
       ),
     );
-    this.toggle = iconButton("toggle", () => {
-      void this.togglePreview();
+    this.toggle = iconButton("preview", () => {
+      this.cycleDisplayMode();
     });
-    setButtonLabel(this.toggle, strings.preview);
     shell.actions.append(this.toggle);
-    shell.fixed.append(
-      iconButton("exportImage", () => {
+    this.saveButton = iconButton("save", () => {
+      void this.save();
+    });
+    this.contextAction = iconButton("clear", () => {
+      if (shell.mode === "preview") {
         void this.export();
-      }),
-      iconButton("clear", () => {
-        shell.showPreview(false);
+      } else {
         shell.replace("", "devbar.clear");
         this.locked = false;
         this.setMode("markdown");
-        setButtonLabel(this.toggle, strings.preview);
-      }),
-    );
+      }
+    });
+    shell.fixed.append(this.saveButton, this.contextAction);
     shell.preview.classList.add("prose");
     bindPreviewLinks(shell.preview, (url) => {
       void post("link.open", { url });
@@ -93,7 +110,6 @@ export class DocPage {
       const metadata = shell.view.state.field(metadataField);
       this.locked = metadata.locked;
       shell.fileName = metadata.fileName;
-      shell.updateInfo();
       this.mode = metadata.mode;
       queueMicrotask(() => this.setMode(this.mode));
       this.renderKey = "";
@@ -104,9 +120,11 @@ export class DocPage {
       }
       this.timer = setTimeout(() => {
         if (!this.locked) this.setMode(detectDocMode(shell.text));
-        if (shell.mode === "preview") void this.render();
+        if (this.display === "preview") void this.render();
       }, 400);
+      this.afterEdit();
     };
+    this.updateControls();
   }
   private theme() {
     return document.documentElement.dataset.theme === "dark"
@@ -136,8 +154,15 @@ export class DocPage {
           : [],
       ),
     });
+    if (this.display === "split") this.announcePreview();
   }
-  import(text: string, fileName: string | null, mode?: DocMode) {
+  import(
+    text: string,
+    fileName: string | null,
+    mode?: DocMode,
+    documentId: string | null = null,
+  ) {
+    this.display = "source";
     this.shell.showPreview(false);
     this.shell.view.dispatch({
       changes: { from: 0, to: this.shell.view.state.doc.length, insert: text },
@@ -153,19 +178,135 @@ export class DocPage {
     this.locked = !!mode && text !== "";
     this.setMode(text === "" ? "markdown" : (mode ?? detectDocMode(text)));
     this.shell.fileName = fileName;
+    this.savedText = text;
+    this.documentID = documentId;
+    this.updateControls();
+    this.emitMode();
+  }
+  private updateControls() {
+    this.shell.fileDirty = this.dirty();
     this.shell.updateInfo();
-    setButtonLabel(this.toggle, strings.preview);
+    const next = nextDisplayMode(this.display);
+    setIcon(
+      this.toggle,
+      next === "preview" ? "preview" : next === "split" ? "split" : "edit",
+    );
+    setButtonLabel(
+      this.toggle,
+      next === "preview"
+        ? strings.modePreview
+        : next === "split"
+          ? strings.modeSplit
+          : strings.modeEdit,
+    );
+    setIcon(
+      this.contextAction,
+      this.display === "preview" ? "exportImage" : "clear",
+    );
+    setButtonLabel(
+      this.contextAction,
+      this.display === "preview" ? strings.exportImage : strings.clear,
+    );
+    const dirty = this.dirty();
+    this.saveButton.disabled = !dirty || this.saveInProgress;
+    this.saveButton.classList.toggle(
+      "attention",
+      dirty && !this.saveInProgress,
+    );
+    setButtonLabel(this.saveButton, strings.saveDocument);
+  }
+  private dirty() {
+    return isDirty(this.text(), this.savedText);
+  }
+  private afterEdit() {
+    this.updateControls();
+    if (this.display === "split") this.schedulePreview();
   }
   private text() {
     const raw = this.shell.view.state.field(metadataField).rawText;
     return sourceText(this.shell.text, raw);
   }
-  async togglePreview() {
-    const preview = this.shell.mode !== "preview";
-    this.shell.showPreview(preview);
-    setButtonLabel(this.toggle, preview ? strings.edit : strings.preview);
+  private updateMetadata() {
+    const metadata = this.shell.view.state.field(metadataField);
+    this.shell.view.dispatch({
+      annotations: Transaction.addToHistory.of(false),
+      effects: documentMetadata.of({
+        ...metadata,
+        mode: this.mode,
+        locked: this.locked,
+        fileName: this.shell.fileName,
+      }),
+    });
+  }
+  private cycleDisplayMode() {
+    this.display = nextDisplayMode(this.display);
+    this.shell.showPreview(this.display === "preview");
+    this.updateControls();
     this.shell.onStateChange();
-    if (preview) await this.render();
+    this.emitMode();
+    if (this.display === "preview") {
+      void this.render();
+    } else if (this.display === "split") {
+      this.announcePreview();
+    } else {
+      this.shell.view.focus();
+    }
+  }
+  private emitMode() {
+    void post("doc.mode", { mode: this.display });
+  }
+  private schedulePreview() {
+    clearTimeout(this.previewTimer);
+    this.previewTimer = setTimeout(() => this.announcePreview(), 140);
+  }
+  private announcePreview() {
+    clearTimeout(this.previewTimer);
+    void post("doc.previewText", {
+      text: this.text(),
+      mode: this.mode,
+    });
+  }
+  private showMessage(message: string) {
+    this.shell.updateInfo(message);
+    clearTimeout(this.infoTimer);
+    this.infoTimer = setTimeout(() => {
+      this.shell.updateInfo();
+    }, 2600);
+  }
+  async save() {
+    if (this.saveInProgress || !this.dirty()) return;
+    const snapshot = this.text();
+    this.saveInProgress = true;
+    this.updateControls();
+    try {
+      const reply = await post("doc.save", {
+        text: snapshot,
+        documentId: this.documentID,
+      });
+      if (reply.status === "saved") {
+        this.savedText = snapshot;
+        if (typeof reply.documentId === "string")
+          this.documentID = reply.documentId;
+        if (typeof reply.fileName === "string")
+          this.shell.fileName = reply.fileName;
+        this.shell.updateInfo();
+        this.updateMetadata();
+      } else if (reply.status === "externalChanged") {
+        this.showMessage(strings.saveExternalChanged);
+      } else if (reply.status === "missing") {
+        this.showMessage(strings.saveMissing);
+      } else if (reply.status === "failed") {
+        this.showMessage(strings.saveFailedDocument);
+      }
+    } catch {
+      this.showMessage(strings.saveFailedDocument);
+    } finally {
+      this.saveInProgress = false;
+      this.updateControls();
+    }
+  }
+  async togglePreview() {
+    this.cycleDisplayMode();
   }
   async render() {
     if (!this.locked) this.setMode(detectDocMode(this.shell.text));
@@ -205,11 +346,15 @@ export class DocPage {
     return this.pending;
   }
   refresh() {
-    if (this.shell.mode === "preview" && !this.shell.root.hidden)
+    if (this.display === "preview" && !this.shell.root.hidden)
       void this.render();
+    else if (this.display === "split" && !this.shell.root.hidden)
+      this.announcePreview();
   }
   async releaseMemory(): Promise<void> {
     clearTimeout(this.timer);
+    clearTimeout(this.previewTimer);
+    clearTimeout(this.infoTimer);
     await this.pending;
     this.shell.preview.replaceChildren();
     this.renderKey = "";
@@ -218,17 +363,38 @@ export class DocPage {
     await releaseHighlighter();
   }
   async export() {
-    if (this.shell.mode !== "preview") await this.togglePreview();
-    else await this.render();
+    if (this.display !== "preview") this.cycleDisplayMode();
+    await this.render();
     await this.pending;
     await exportPreview(this.shell);
+  }
+  documentStatus() {
+    return {
+      dirty: this.dirty(),
+      documentId: this.documentID,
+      fileName: this.shell.fileName,
+    };
+  }
+  documentText() {
+    return this.text();
+  }
+  markSaved(text: string, fileName: string | null, documentId: string | null) {
+    this.savedText = text;
+    if (fileName !== null) this.shell.fileName = fileName;
+    this.documentID = documentId;
+    this.updateMetadata();
+    this.updateControls();
   }
   state(): DocumentState {
     return {
       ...this.shell.state(),
+      view: this.display,
       text: this.text(),
       docMode: this.mode,
       modeLocked: this.locked,
+      display: this.display,
+      savedText: this.savedText,
+      documentId: this.documentID,
     };
   }
   async restore(state: Partial<DocumentState>) {
@@ -247,9 +413,25 @@ export class DocPage {
         ? state.docMode
         : detectDocMode(this.shell.text),
     );
-    if (state.view === "preview") {
-      this.shell.showPreview(true);
-      setButtonLabel(this.toggle, strings.edit);
-    }
+    this.display =
+      state.display ??
+      (state.view === "preview"
+        ? "preview"
+        : state.view === "split"
+          ? "split"
+          : "source");
+    this.savedText =
+      typeof state.savedText === "string"
+        ? state.savedText
+        : typeof state.text === "string"
+          ? state.text
+          : "";
+    this.documentID =
+      typeof state.documentId === "string" ? state.documentId : null;
+    this.shell.showPreview(this.display === "preview");
+    this.updateControls();
+    this.emitMode();
+    if (this.display === "preview") await this.render();
+    else if (this.display === "split") this.announcePreview();
   }
 }

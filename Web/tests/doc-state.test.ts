@@ -58,7 +58,7 @@ it("clearing unlocks imported or manually selected modes", () => {
     imported
       .update({ changes: { from: 0, to: imported.doc.length } })
       .state.field(metadataField),
-  ).toEqual({ mode: "markdown", locked: false, fileName: null });
+  ).toEqual({ mode: "markdown", locked: false, fileName: "x.mmd" });
 });
 
 it.each([

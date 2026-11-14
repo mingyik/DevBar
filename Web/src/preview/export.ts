@@ -1,6 +1,11 @@
 import type { PageShell } from "../editor/page-shell";
 import { post } from "../bridge/client";
 import { strings } from "../strings";
+
+export type PreviewExportTarget = Pick<
+  PageShell,
+  "kind" | "preview" | "content" | "info" | "updateInfo"
+>;
 export function imageDimensions(
   width: number,
   height: number,
@@ -30,7 +35,7 @@ export function collectCSS(): string {
   return parts.join("\n");
 }
 export async function exportPreview(
-  shell: PageShell,
+  shell: PreviewExportTarget,
   content?: Node,
 ): Promise<void> {
   const root = document.createElement("div");
@@ -75,9 +80,7 @@ export async function exportPreview(
     });
     if (result.status === "saved" && typeof result.path === "string") {
       shell.updateInfo(strings.saved);
-      shell.info.replaceChildren(
-        document.createTextNode(strings.saved + " · "),
-      );
+      shell.info.textContent = strings.saved + " · ";
       const reveal = document.createElement("button");
       reveal.textContent = strings.showInFinder;
       reveal.onclick = () => {

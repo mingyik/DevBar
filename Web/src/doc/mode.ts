@@ -43,3 +43,13 @@ export function detectDocMode(text: string): DocMode {
     return "markdown";
   return "mermaid";
 }
+
+export type DisplayMode = "source" | "preview" | "split";
+export function nextDisplayMode(mode: DisplayMode): DisplayMode {
+  if (mode === "source") return "preview";
+  if (mode === "preview") return "split";
+  return "source";
+}
+export function isDirty(text: string, savedText: string): boolean {
+  return text !== savedText;
+}

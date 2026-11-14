@@ -14,7 +14,7 @@ export const metadataField = StateField.define<DocumentMetadata>({
     for (const effect of transaction.effects)
       if (effect.is(documentMetadata)) value = effect.value;
     if (transaction.docChanged && transaction.newDoc.length === 0)
-      return { mode: "markdown", locked: false, fileName: null };
+      return { ...value, mode: "markdown", locked: false };
     return value;
   },
 });

@@ -2,6 +2,7 @@ import AppKit
 import DevBarCore
 import QuartzCore
 import SwiftUI
+import UniformTypeIdentifiers
 import os
 
 @MainActor
@@ -13,6 +14,16 @@ final class PanelController {
   let webHost: WebHost
   let storage = StorageSettings()
   let clipboard: ClipboardController
+  let documents: DocumentSession
+  let documentBrowser = DocumentBrowser()
+  let documentPreviewHost: WebHost
+  private(set) lazy var documentWindows = DocumentWindows(
+    theme: theme, session: documents, browser: documentBrowser, previewHost: documentPreviewHost)
+  private var documentMode = "source"
+  private var lastPreviewText = ""
+  private var lastPreviewMode = "markdown"
+  private var openGeneration = 0
+  private var documentAlertVisible = false
   private let host: NSHostingView<PanelView>
   private var outsideMonitor: Any?
   private var activationObserver: NSObjectProtocol?
@@ -49,15 +60,23 @@ final class PanelController {
       let clipboard = ClipboardController(theme: theme)
     #endif
     let webHost = WebHost(theme: theme)
+    let previewHost = WebHost(theme: theme, pageMode: .documentPreview)
     self.clipboard = clipboard
     self.model = model
     self.theme = theme
     self.webHost = webHost
+    self.documentPreviewHost = previewHost
+    #if DEBUG
+      documents = DocumentSession(defaults: SelfCheckEnvironment.defaults)
+    #else
+      documents = DocumentSession()
+    #endif
     panel = DevBarPanel()
     host = NSHostingView(
       rootView: PanelView(
         model: model, theme: theme, webHost: webHost, clipboard: clipboard, storage: storage))
     storage.clipboard = clipboard
+    model.onToggleDocumentSidebar = { [weak self] in self?.toggleDocumentSidebar() }
     storage.saveState = { [weak webHost] in
       guard let webHost else { throw WebHost.StateError.saveFailed }
       try await webHost.saveState()
@@ -74,6 +93,20 @@ final class PanelController {
     }
     webHost.onClipboardWrite = { [weak clipboard] count in clipboard?.monitor.markSelfWrite(count) }
     webHost.onMemoryFlush = { [weak self] in self?.releaseHiddenVisualCaches() }
+    webHost.saveDocument = { [weak self] text, id in
+      await self?.saveDocument(text: text, documentID: id) ?? #"{"status":"failed"}"#
+    }
+    webHost.onDocumentMode = { [weak self] mode in self?.handleDocumentMode(mode) }
+    webHost.onDocumentPreviewText = { [weak self] text, mode in
+      self?.lastPreviewText = text
+      self?.lastPreviewMode = mode
+      self?.documentPreviewHost.sendDocumentPreview(text: text, mode: mode)
+    }
+    documentPreviewHost.onToast = { text in model.toast = text }
+    documentWindows.onOpen = { [weak self] url in
+      Task { await self?.openDocument(url) }
+    }
+    documentWindows.onPick = { [weak self] in self?.pickDocument() }
     panel.onClipboardKey = { [weak self] code in
       guard self?.model.page == .clipboard else { return false }
       return self?.clipboard.handleKey(code) ?? false
@@ -94,7 +127,11 @@ final class PanelController {
     }
     panel.onDocumentMode = { [weak self] in
       guard let self, Self.supportsModeToggle(self.model.page) else { return false }
-      self.webHost.toggleDocumentMode()
+      if self.model.page == .doc {
+        self.webHost.cycleDocumentMode()
+      } else {
+        self.webHost.toggleDocumentMode()
+      }
       return true
     }
     panel.onCyclePage = { [weak self] backwards in
@@ -124,11 +161,17 @@ final class PanelController {
       if self.model.page == .clipboard, self.clipboard.needsVisualCacheReload {
         Task { await self.clipboard.restoreVisualCaches() }
       }
+      if self.model.page != .doc {
+        self.documentWindows.hideAll()
+        self.model.documentSidebarVisible = false
+      }
       self.updateMaterial()
       self.reposition(animated: false)
+      self.syncDocumentWindows()
     }
     previousPage = model.page
     clipboard.releaseVisualCaches()
+    documentBrowser.setDirectory(DataLocations.root.appending(path: "Markdown"))
     watchSize()
   }
 
@@ -172,6 +215,7 @@ final class PanelController {
     } else {
       panel.orderFrontRegardless()
     }
+    syncDocumentWindows()
     Task {
       if model.page == .clipboard, clipboard.needsVisualCacheReload {
         await clipboard.restoreVisualCaches()
@@ -190,6 +234,8 @@ final class PanelController {
     panel.orderOut(nil)
     previewHideTask?.cancel()
     hideClipboardPreview()
+    documentWindows.hideAll()
+    model.documentSidebarVisible = false
     webHost.setPanelVisible(false)
     dismissing = false
   }
@@ -412,6 +458,10 @@ final class PanelController {
   }
 
   private func updateMaterial() {
+    if model.page != .doc {
+      documentWindows.hideAll()
+      model.documentSidebarVisible = false
+    }
     if model.page != .clipboard {
       previewHideTask?.cancel()
       hideClipboardPreview()
@@ -442,6 +492,7 @@ final class PanelController {
       Task { @MainActor in
         self?.updateMaterial()
         self?.reposition()
+        self?.syncDocumentWindows()
         self?.watchSize()
       }
     }
@@ -463,15 +514,18 @@ final class PanelController {
     let frame = PanelLayout.frame(
       iconCenterX: placed.centerX, menuBarBottomY: placed.menuBottom,
       size: size, visibleFrame: placed.visible)
+    let adjusted = documentWindows.adjustedMainFrame(frame, visible: placed.visible)
     guard animated, panel.isVisible else {
-      panel.setFrame(frame, display: true)
+      panel.setFrame(adjusted, display: true)
+      documentWindows.position(mainFrame: adjusted, visible: placed.visible)
       return
     }
     NSAnimationContext.runAnimationGroup(
       { context in
         context.duration = panel.isVisible ? 0.15 : 0
-        panel.animator().setFrame(frame, display: true)
+        panel.animator().setFrame(adjusted, display: true)
       }, completionHandler: nil)
+    documentWindows.position(mainFrame: adjusted, visible: placed.visible)
   }
 
   private func handleOutsideClick() {
@@ -488,6 +542,164 @@ final class PanelController {
   private func handleResignKey() {
     guard panel.isVisible, !model.pinned, !dismissing, !NSApp.isActive else { return }
     dismiss()
+  }
+
+  // MARK: - Markdown document
+
+  private func handleDocumentMode(_ mode: String) {
+    let resolved = ["source", "preview", "split"].contains(mode) ? mode : "source"
+    documentMode = resolved
+    documentWindows.splitActive = resolved == "split"
+    if resolved == "split" {
+      documentWindows.closeSidebar()
+      model.documentSidebarVisible = false
+    } else {
+      documentWindows.hidePreview()
+    }
+    reposition(animated: false)
+    syncDocumentWindows()
+  }
+
+  private func syncDocumentWindows() {
+    documentWindows.splitActive = documentMode == "split"
+    guard panel.isVisible, model.page == .doc, let screen = panel.screen ?? NSScreen.main else {
+      documentWindows.hideAll()
+      model.documentSidebarVisible = false
+      return
+    }
+    if documentMode == "split" {
+      if !documentWindows.isPreviewVisible {
+        documentWindows.showPreview(text: lastPreviewText, mode: lastPreviewMode)
+      }
+      documentWindows.position(mainFrame: panel.frame, visible: screen.visibleFrame)
+    } else {
+      documentWindows.hidePreview()
+    }
+    if model.documentSidebarVisible {
+      documentWindows.position(mainFrame: panel.frame, visible: screen.visibleFrame)
+    } else {
+      documentWindows.closeSidebar()
+    }
+  }
+
+  private func toggleDocumentSidebar() {
+    guard panel.isVisible, model.page == .doc, let screen = panel.screen ?? NSScreen.main else {
+      return
+    }
+    documentWindows.toggleSidebar()
+    model.documentSidebarVisible = documentWindows.sidebarVisible
+    reposition(animated: false)
+    documentWindows.position(mainFrame: panel.frame, visible: screen.visibleFrame)
+  }
+
+  func openDocument(_ url: URL) async {
+    openGeneration += 1
+    let generation = openGeneration
+    guard await confirmReplaceIfNeeded(generation: generation) else { return }
+    guard generation == openGeneration else { return }
+    let result = await documents.read(url)
+    guard generation == openGeneration else { return }
+    switch result {
+    case .failure(let error):
+      model.toast = Strings.fileDropError(Self.dropReason(error))
+    case .success(let opened):
+      documents.adopt(opened)
+      model.page = .doc
+      webHost.importDocument(opened)
+      model.documentSidebarVisible = documentWindows.sidebarVisible
+      syncDocumentWindows()
+    }
+  }
+
+  private func confirmReplaceIfNeeded(generation: Int) async -> Bool {
+    let status = await webHost.documentStatus()
+    guard status?["dirty"] as? Bool == true else { return true }
+    let alert = NSAlert()
+    alert.messageText = Strings.documentUnsavedTitle
+    alert.informativeText = Strings.documentUnsavedBody
+    alert.addButton(withTitle: Strings.documentSave)
+    alert.addButton(withTitle: Strings.documentDoNotSave)
+    alert.addButton(withTitle: Strings.documentCancel)
+    alert.window.level = .modalPanel
+    switch alert.runModal() {
+    case .alertFirstButtonReturn:
+      guard let text = await webHost.documentText() else { return false }
+      guard generation == openGeneration else { return false }
+      let outcome = await documents.save(text, saveAs: false)
+      switch outcome {
+      case .saved(let saved):
+        await webHost.markDocumentSaved(
+          text: text, fileName: saved.fileName, documentId: saved.id)
+        documentBrowser.reload()
+        return generation == openGeneration
+      case .canceled, .failed:
+        return false
+      case .externalChanged:
+        showDocumentAlert(
+          title: Strings.documentExternalTitle, body: Strings.documentExternalBody)
+        return false
+      case .missing:
+        showDocumentAlert(
+          title: Strings.documentMissingTitle, body: Strings.documentMissingBody)
+        return false
+      }
+    case .alertSecondButtonReturn:
+      return true
+    default:
+      return false
+    }
+  }
+
+  private func saveDocument(text: String, documentID: String?) async -> String {
+    if let documentID, let current = documents.documentID, documentID != current {
+      return #"{"status":"failed"}"#
+    }
+    let outcome = await documents.save(text, saveAs: false)
+    switch outcome {
+    case .saved(let saved):
+      let id = documents.ensureID(documentID)
+      documentBrowser.reload()
+      return BridgeJSON.object([
+        "status": .string("saved"), "fileName": .string(saved.fileName),
+        "documentId": .string(id),
+      ]).canonical()
+    case .canceled: return #"{"status":"canceled"}"#
+    case .failed: return #"{"status":"failed"}"#
+    case .externalChanged: return #"{"status":"externalChanged"}"#
+    case .missing: return #"{"status":"missing"}"#
+    }
+  }
+
+  private func pickDocument() {
+    let panel = NSOpenPanel()
+    panel.allowsMultipleSelection = false
+    panel.canChooseDirectories = false
+    panel.allowedContentTypes = ["md", "markdown", "mmd", "mermaid", "txt"].compactMap {
+      UTType(filenameExtension: $0)
+    }
+    guard panel.runModal() == .OK, let url = panel.url else { return }
+    Task { await openDocument(url) }
+  }
+
+  private func showDocumentAlert(title: String, body: String) {
+    guard !documentAlertVisible else { return }
+    documentAlertVisible = true
+    defer { documentAlertVisible = false }
+    let alert = NSAlert()
+    alert.messageText = title
+    alert.informativeText = body
+    alert.addButton(withTitle: Strings.captureCancel)
+    alert.window.level = .modalPanel
+    _ = alert.runModal()
+  }
+
+  private static func dropReason(_ error: DocumentOpenError) -> FileDropReason {
+    switch error {
+    case .tooLarge: .tooLarge
+    case .notUTF8: .notUTF8
+    case .unsupported: .unsupportedType
+    case .unreadable: .unreadable
+    }
   }
 
   private func milliseconds(_ elapsed: Duration) -> Double {

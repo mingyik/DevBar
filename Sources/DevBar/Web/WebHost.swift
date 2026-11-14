@@ -17,6 +17,12 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   var lastPreviewImagePath: String? { previewImage.lastSavedPath }
   var acceptsFiles: (() -> Bool)?
   var receivedFiles: (([URL]) -> Void)?
+  var saveDocument: ((String, String?) async -> String)?
+  var onDocumentMode: ((String) -> Void)?
+  var onDocumentPreviewText: ((String, String) -> Void)?
+
+  enum PageMode { case main, documentPreview }
+  let pageMode: PageMode
 
   private let previewImage = PreviewImage()
   private let theme: ThemeManager
@@ -34,10 +40,11 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
 
   init(
     theme: ThemeManager, webRoot: URL? = nil,
-    store: ScreenStateStore = ScreenStateStore()
+    store: ScreenStateStore = ScreenStateStore(), pageMode: PageMode = .main
   ) {
     self.theme = theme
     self.store = store
+    self.pageMode = pageMode
     #if DEBUG
       if SelfCheckEnvironment.isActive { autoImport = false }
     #endif
@@ -96,7 +103,46 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     send(type: document ? "doc.import" : "tools.import", payload: payload)
   }
 
+  func importDocument(_ document: OpenedDocument) {
+    guard MemoryBudget.allows(bytes: document.text.utf8.count) else {
+      onToast?(Strings.insufficientMemory)
+      return
+    }
+    var payload: [String: BridgeJSON] = [
+      "text": .string(document.text), "fileName": .string(document.fileName),
+      "documentId": .string(document.id), "mode": .string("replace"),
+    ]
+    if let mode = document.mode { payload["docMode"] = .string(mode.rawValue) }
+    send(type: "doc.import", payload: payload)
+  }
+
   func toggleDocumentMode() { send(type: "doc.toggleMode", payload: [:]) }
+
+  func cycleDocumentMode() { send(type: "doc.cycleMode", payload: [:]) }
+
+  func sendDocumentPreview(text: String, mode: String) {
+    send(
+      type: "doc.preview", payload: ["text": .string(text), "mode": .string(mode)])
+  }
+
+  func documentStatus() async -> [String: Any]? {
+    try? await webView.callAsyncJavaScript(
+      "return window.__devbar.docStatus()", arguments: [:], in: nil, contentWorld: .page
+    ) as? [String: Any]
+  }
+
+  func documentText() async -> String? {
+    try? await webView.callAsyncJavaScript(
+      "return window.__devbar.docText()", arguments: [:], in: nil, contentWorld: .page
+    ) as? String
+  }
+
+  func markDocumentSaved(text: String, fileName: String?, documentId: String?) async {
+    _ = try? await webView.callAsyncJavaScript(
+      "return window.__devbar.docMarkSaved(text, fileName, documentId)",
+      arguments: ["text": text, "fileName": fileName ?? "", "documentId": documentId ?? ""],
+      in: nil, contentWorld: .page)
+  }
 
   func hideScreen() { send(type: "screen.hide", payload: [:]) }
 
@@ -197,7 +243,10 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       view.isInspectable = false
     #endif
     webView = view
-    view.load(URLRequest(url: URL(string: "devbar://app/index.html")!))
+    let address =
+      pageMode == .documentPreview
+      ? "devbar://app/index.html?doc-preview=1" : "devbar://app/index.html"
+    view.load(URLRequest(url: URL(string: address)!))
     logger.notice("webViewLoad generation=\(self.generation, privacy: .public)")
   }
 
@@ -266,9 +315,22 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       return "{}"
     case "qr.show":
       return QRGenerator.reply(text: payload["text"]?.stringValue ?? "")
+    case "doc.save":
+      guard let saveDocument else { return #"{"status":"failed"}"# }
+      return await saveDocument(
+        payload["text"]?.stringValue ?? "", payload["documentId"]?.stringValue)
+    case "doc.mode":
+      onDocumentMode?(payload["mode"]?.stringValue ?? "source")
+      return "{}"
+    case "doc.previewText":
+      onDocumentPreviewText?(
+        payload["text"]?.stringValue ?? "", payload["mode"]?.stringValue ?? "markdown")
+      return "{}"
     case "state.save":
       if let screen = payload["screen"]?.stringValue, let state = payload["state"] {
         let saved = await store.save(screen: screen, json: state.canonical())
+        logger.notice(
+          "stateSave screen=\(screen, privacy: .public) ok=\(saved, privacy: .public)")
         return saved ? #"{"ok":true}"# : #"{"ok":false}"#
       }
       return #"{"ok":true}"#
@@ -328,7 +390,9 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
           in: nil,
           contentWorld: .page
         )
-      } catch { onToast?(Strings.stateSaveFailed) }
+      } catch {
+        logger.error("bridgeOutFailed")
+      }
     }
     logger.notice("bridgeOut bytes=\(envelope.utf8.count, privacy: .public)")
   }
@@ -374,7 +438,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       let replied = await requestMemoryFlush(envelope)
       logger.notice("memoryFlushReply=\(replied, privacy: .public)")
       guard replied else {
-        onToast?(Strings.stateSaveFailed)
+        logger.error("memoryFlushReply=false")
         scheduleHiddenMemoryFlush()
         return
       }

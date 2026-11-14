@@ -13,7 +13,7 @@ import {
 } from "./editor";
 import { strings } from "../strings";
 export type PageState = EditorSnapshot & {
-  view: "source" | "preview";
+  view: "source" | "preview" | "split";
   fileName: string | null;
   encoding?: "url" | "base64";
   wholeURL?: boolean;
@@ -32,6 +32,9 @@ const icons: Record<string, string> = {
   preview:
     '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
   edit: '<path d="m4 16-1 5 5-1L20 8l-4-4L4 16Z"/>',
+  split:
+    '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>',
+  save: '<path d="M4 4h12l4 4v12H4V4Z"/><path d="M8 4v6h8V4M8 20v-6h8v6"/>',
   copy: '<rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 5V3H3v13h2"/>',
   exportImage:
     '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="m8 16 4-4 4 4M12 6v6"/>',
@@ -83,6 +86,7 @@ export class PageShell {
   readonly actions = element("div", "page-actions");
   readonly fixed = element("div", "page-fixed");
   fileName: string | null = null;
+  fileDirty = false;
   mode: "source" | "preview" = "source";
   private readonly extensions: Extension[];
   onChange: () => void = () => {};
@@ -109,7 +113,6 @@ export class PageShell {
       EditorView.updateListener.of((update) => {
         if (update.docChanged) {
           this.revision++;
-          if (this.text === "") this.fileName = null;
           this.updateInfo();
           this.onChange();
           this.onStateChange();
@@ -140,7 +143,7 @@ export class PageShell {
     this.info.hidden = !message;
     this.content.classList.toggle("has-info", !!message);
     this.file.textContent = this.fileName
-      ? strings.fileHint(this.fileName)
+      ? strings.fileHint(this.fileName, this.fileDirty)
       : "";
     this.file.hidden = !this.fileName;
     this.content.classList.toggle("has-file", !!this.fileName);

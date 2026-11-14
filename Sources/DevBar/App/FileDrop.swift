@@ -69,6 +69,15 @@ import UniformTypeIdentifiers
     openedForDrag = false
     generation += 1
     let current = generation
+    if let first = urls.first {
+      let route = FileRoute.route(
+        fileName: first.lastPathComponent, sniff: FileDropReader.sniff(first))
+      if case .doc = route {
+        if urls.count > 1 { panel.model.toast = Strings.fileDropFirst }
+        Task { await panel.openDocument(first) }
+        return
+      }
+    }
     Task {
       let result = await Task.detached { FileDropReader.read(urls) }.value
       guard current == generation else { return }

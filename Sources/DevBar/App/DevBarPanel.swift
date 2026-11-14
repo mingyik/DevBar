@@ -75,6 +75,11 @@ final class DevBarPanel: NSPanel {
     if flags == .command, event.charactersIgnoringModifiers?.lowercased() == "e" {
       return onDocumentMode?() ?? false
     }
+    if flags == [.command, .shift],
+      event.charactersIgnoringModifiers?.lowercased() == "p"
+    {
+      return onDocumentMode?() ?? false
+    }
     if flags == .command,
       event.charactersIgnoringModifiers?.lowercased() == "r"
     {
