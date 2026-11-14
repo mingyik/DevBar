@@ -85,11 +85,24 @@ struct DocumentSidebarView: View {
 
   private var pickButton: some View {
     HStack {
-      Spacer(minLength: 0)
-      Button(Strings.documentChooseFile, action: onPick)
-        .buttonStyle(SidebarOutlineButtonStyle(scheme: scheme))
-        .font(.system(size: 12))
-        .frame(width: 130, height: 30)
+      Button(action: onPick) {
+        Image(systemName: "folder")
+          .font(.system(size: 14))
+          .foregroundStyle(DesignTokens.textSecondary(scheme))
+          .frame(width: 24, height: 24)
+          .background {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+              .fill(DesignTokens.panelControl(scheme))
+          }
+          .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+              .strokeBorder(
+                DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline)
+          }
+      }
+      .buttonStyle(.plain)
+      .help(Strings.documentChooseFile)
+      .accessibilityLabel(Strings.documentChooseFile)
       Spacer(minLength: 0)
     }
     .padding(.top, 4)
@@ -212,33 +225,5 @@ private struct DocumentRecentRow: View {
     .onHover { hovered = $0 }
     .help(url.path)
     .accessibilityLabel(url.lastPathComponent)
-  }
-}
-
-private struct SidebarOutlineButtonStyle: ButtonStyle {
-  let scheme: ColorScheme
-  func makeBody(configuration: Configuration) -> some View {
-    Surface(configuration: configuration, scheme: scheme)
-  }
-  private struct Surface: View {
-    let configuration: ButtonStyle.Configuration
-    let scheme: ColorScheme
-    @State private var hovered = false
-    var body: some View {
-      configuration.label
-        .foregroundStyle(DesignTokens.textPrimary(scheme))
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background {
-          RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
-            .fill(DesignTokens.panelControl(scheme).opacity(hovered ? 0.5 : 0))
-        }
-        .overlay {
-          RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
-            .strokeBorder(
-              DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline)
-        }
-        .scaleEffect(configuration.isPressed ? 0.97 : 1)
-        .onHover { hovered = $0 }
-    }
   }
 }
