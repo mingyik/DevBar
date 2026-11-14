@@ -11,7 +11,7 @@ export const strings = {
   saveDocument: "保存原文",
   modePreview: "预览",
   modeSplit: "分栏",
-  modeEdit: "仅编辑",
+  modeEdit: "编辑",
   exportImage: "截全预览图",
   escape: "转义",
   unescape: "反转义",

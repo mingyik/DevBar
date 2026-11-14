@@ -187,21 +187,18 @@ export class DocPage {
   private updateControls() {
     this.shell.fileDirty = this.dirty();
     this.shell.updateInfo();
+    const next = nextDisplayMode(this.display);
     setIcon(
       this.toggle,
-      this.display === "source"
-        ? "edit"
-        : this.display === "preview"
-          ? "preview"
-          : "split",
+      next === "preview" ? "preview" : next === "split" ? "split" : "edit",
     );
     setButtonLabel(
       this.toggle,
-      this.display === "source"
-        ? strings.modeEdit
-        : this.display === "preview"
-          ? strings.modePreview
-          : strings.modeSplit,
+      next === "preview"
+        ? strings.modePreview
+        : next === "split"
+          ? strings.modeSplit
+          : strings.modeEdit,
     );
     setIcon(
       this.contextAction,
