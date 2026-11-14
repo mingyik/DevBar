@@ -31,7 +31,7 @@ export const element = <K extends keyof HTMLElementTagNameMap>(
 const icons: Record<string, string> = {
   preview:
     '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
-  edit: '<path d="m4 16-1 5 5-1L20 8l-4-4L4 16Z"/>',
+  edit: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
   split:
     '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M12 4v16"/>',
   save: '<path d="M4 4h12l4 4v12H4V4Z"/><path d="M8 4v6h8V4M8 20v-6h8v6"/>',
