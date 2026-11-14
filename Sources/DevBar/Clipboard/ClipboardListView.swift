@@ -193,7 +193,7 @@ private struct ClipboardRow: View {
   }
 }
 
-/// Filled monochrome format tag (TXT / PNG / SVG ×4); matches the floating card chip.
+/// Filled monochrome format tag (TXT / PNG / SVG); matches the floating card chip.
 struct ClipTagChip: View {
   let tag: String
   let scheme: ColorScheme

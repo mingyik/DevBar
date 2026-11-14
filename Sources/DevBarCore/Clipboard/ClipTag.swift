@@ -26,8 +26,7 @@ public enum ClipTag {
 
   private static func fileLabel(_ names: [String]) -> String {
     let extensions = Set(names.map { extensionTag($0) })
-    let base = extensions.count == 1 ? extensions.first! : "FILE"
-    return names.count > 1 ? "\(base) ×\(names.count)" : base
+    return extensions.count == 1 ? extensions.first! : "FILE"
   }
 
   private static func extensionTag(_ name: String) -> String {

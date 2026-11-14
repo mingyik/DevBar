@@ -30,9 +30,9 @@ import Testing
   #expect(ClipTag.label(kind: .image, types: ["x.unknown"], fileNames: [], text: "") == "IMG")
   #expect(ClipTag.label(kind: .files, types: [], fileNames: ["a.svg"], text: "") == "SVG")
   #expect(
-    ClipTag.label(kind: .files, types: [], fileNames: ["a.svg", "b.SVG"], text: "") == "SVG ×2")
+    ClipTag.label(kind: .files, types: [], fileNames: ["a.svg", "b.SVG"], text: "") == "SVG")
   #expect(
-    ClipTag.label(kind: .files, types: [], fileNames: ["a.svg", "b.png"], text: "") == "FILE ×2")
+    ClipTag.label(kind: .files, types: [], fileNames: ["a.svg", "b.png"], text: "") == "FILE")
   #expect(ClipTag.label(kind: .files, types: [], fileNames: ["folder"], text: "") == "FILE")
   #expect(ClipTag.label(kind: .files, types: [], fileNames: ["folder/"], text: "") == "DIR")
   #expect(DragCard.lineCount("") == 0)
