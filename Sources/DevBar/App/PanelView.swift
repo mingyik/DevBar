@@ -337,9 +337,10 @@ struct PanelView: View {
             pageDragLocation = nil
             pageDragOffset = .zero
           }
-      }.task(id: model.settingsGroup) {
-        try? await Task.sleep(for: .milliseconds(80))
-        proxy.scrollTo(model.settingsGroup, anchor: .top)
+      }.task(id: model.settingsOpenGeneration) {
+        await Task.yield()
+        guard !Task.isCancelled else { return }
+        proxy.scrollTo("general", anchor: .top)
         while !Task.isCancelled {
           if NSApp.isActive {
             clipboard.refreshDirectPasteAuthorization()

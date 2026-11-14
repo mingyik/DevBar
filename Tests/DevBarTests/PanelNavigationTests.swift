@@ -83,7 +83,10 @@ import Testing
   let defaults = UserDefaults(suiteName: "local.devbar.test.r8.settings.\(UUID())")!
   let model = PanelModel(defaults: defaults)
   model.enterSettings()
-  #expect(model.settingsGroup == "clipboard")
+  #expect(model.settingsGroup == "general")
+  let opening = model.settingsOpenGeneration
+  model.enterSettings()
+  #expect(model.settingsOpenGeneration == opening + 1)
   #expect(model.page == .settings)
   model.leaveSettings()
   #expect(model.page == .clipboard)

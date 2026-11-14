@@ -47,6 +47,7 @@ final class PanelModel {
   private(set) var settingsOrigin: Page = .clipboard
   static let autoImportKey = "autoImport.manual"
   private(set) var settingsGroup = "general"
+  private(set) var settingsOpenGeneration = 0
   var autoImport: Bool { didSet { defaults.set(autoImport, forKey: Self.autoImportKey) } }
   var pinned = false
   private var jsonEnlarged = false
@@ -106,7 +107,8 @@ final class PanelModel {
 
   func enterSettings() {
     if page != .settings { settingsOrigin = page }
-    settingsGroup = settingsOrigin == .clipboard ? "clipboard" : "general"
+    settingsGroup = "general"
+    settingsOpenGeneration += 1
     page = .settings
   }
 
