@@ -120,6 +120,7 @@ const bridge = {
       case "doc.setEditorText":
         doc.applyEditorText(
           typeof payload.text === "string" ? payload.text : "",
+          typeof payload.documentId === "string" ? payload.documentId : null,
         );
         break;
       case "state.flush":

@@ -119,24 +119,52 @@ final class DocumentSession {
     saveInProgress = true
     defer { saveInProgress = false }
     let target: URL
+    let checksExisting: Bool
     if let url, !saveAs {
       target = url
-      guard FileManager.default.fileExists(atPath: url.path) else { return .missing }
-      guard let current = DocumentFile.signature(of: url) else { return .missing }
-      guard current.matches(signature) else { return .externalChanged }
+      checksExisting = true
     } else {
       guard let chosen = chooseSaveLocation() else { return .canceled }
       target = chosen
+      checksExisting = false
     }
-    let data = DocumentFile.encode(text, hadBOM: hadBOM, newline: newline)
-    do {
-      try data.write(to: target, options: .atomic)
-    } catch {
-      return .failed
+    let expected = signature
+    let hadBOM = hadBOM
+    let newline = newline
+    enum DiskFailure: Error { case missing, externalChanged, failed }
+    let written = await Task.detached(priority: .userInitiated) {
+      () -> Result<
+        FileSignature, DiskFailure
+      > in
+      if checksExisting {
+        guard FileManager.default.fileExists(atPath: target.path) else {
+          return .failure(.missing)
+        }
+        guard let current = DocumentFile.signature(of: target) else {
+          return .failure(.missing)
+        }
+        guard current.matches(expected) else { return .failure(.externalChanged) }
+      }
+      let data = DocumentFile.encode(text, hadBOM: hadBOM, newline: newline)
+      do {
+        try data.write(to: target, options: .atomic)
+      } catch {
+        return .failure(.failed)
+      }
+      guard let signature = DocumentFile.signature(of: target) else {
+        return .failure(.failed)
+      }
+      return .success(signature)
+    }.value
+    switch written {
+    case .failure(.missing): return .missing
+    case .failure(.externalChanged): return .externalChanged
+    case .failure(.failed): return .failed
+    case .success(let signature):
+      self.signature = signature
     }
     url = target
     if documentID == nil { documentID = UUID().uuidString }
-    signature = DocumentFile.signature(of: target)
     addRecent(target)
     return .saved(
       SavedDocument(

@@ -97,9 +97,15 @@ final class PanelController {
       await self?.saveDocument(text: text, documentID: id) ?? #"{"status":"failed"}"#
     }
     webHost.onDocumentMode = { [weak self] mode in self?.handleDocumentMode(mode) }
-    documentEditorHost.onDocumentEditorText = { [weak self] text in
-      self?.lastPreviewText = text
-      self?.webHost.applyEditorText(text)
+    documentEditorHost.onDocumentEditorText = { [weak self] text, documentId in
+      guard let self else { return }
+      if let documentId {
+        guard documentId == self.documents.documentID else { return }
+      } else if self.documents.documentID != nil {
+        return
+      }
+      self.lastPreviewText = text
+      self.webHost.applyEditorText(text, documentId: documentId)
     }
     documentEditorHost.onToast = { text in model.toast = text }
     documentWindows.onOpen = { [weak self] url in
@@ -168,6 +174,7 @@ final class PanelController {
         Task { await self.clipboard.restoreVisualCaches() }
       }
       if self.model.page != .doc {
+        self.flushSplitEditor()
         self.documentWindows.hideAll()
       }
       self.updateMaterial()
@@ -236,6 +243,7 @@ final class PanelController {
   func dismiss() {
     guard panel.isVisible, !dismissing else { return }
     dismissing = true
+    flushSplitEditor()
     panel.orderOut(nil)
     previewHideTask?.cancel()
     hideClipboardPreview()
@@ -563,6 +571,7 @@ final class PanelController {
       model.documentSidebarVisible = false
       Task { await self.refreshEditorWindow() }
     } else {
+      flushSplitEditor()
       documentWindows.hideEditor()
       if panel.isVisible { panel.makeKeyAndOrderFront(nil) }
     }
@@ -581,7 +590,9 @@ final class PanelController {
       } else {
         documentWindows.closeSidebar()
         if !documentWindows.isEditorVisible {
-          documentWindows.showEditor(text: lastPreviewText, mode: lastPreviewMode)
+          documentWindows.showEditor(
+            text: lastPreviewText, mode: lastPreviewMode,
+            documentId: documents.documentID)
           Task { await self.refreshEditorWindow() }
         }
       }
@@ -597,6 +608,25 @@ final class PanelController {
     }
   }
 
+  private func currentEditorText() async -> String? {
+    guard documentMode == "split",
+      let text = await documentEditorHost.editorText()
+    else { return nil }
+    lastPreviewText = text
+    webHost.applyEditorText(text, documentId: documents.documentID)
+    return text
+  }
+
+  private func effectiveDocumentText() async -> String? {
+    if let text = await currentEditorText() { return text }
+    return await webHost.documentText()
+  }
+
+  private func flushSplitEditor() {
+    guard documentMode == "split" else { return }
+    Task { _ = await self.currentEditorText() }
+  }
+
   private func refreshEditorWindow() async {
     guard panel.isVisible, model.page == .doc, documentMode == "split",
       !model.documentSidebarVisible, let screen = panel.screen ?? NSScreen.main
@@ -608,7 +638,8 @@ final class PanelController {
     let mode = await webHost.documentMode() ?? lastPreviewMode
     lastPreviewText = text
     lastPreviewMode = mode
-    documentWindows.showEditor(text: text, mode: mode)
+    documentWindows.showEditor(
+      text: text, mode: mode, documentId: documents.documentID)
     panel.orderFrontRegardless()
     documentWindows.position(mainFrame: panel.frame, visible: screen.visibleFrame)
   }
@@ -649,7 +680,8 @@ final class PanelController {
       if documentMode == "split" {
         lastPreviewText = opened.text
         lastPreviewMode = opened.mode?.rawValue ?? "markdown"
-        documentWindows.showEditor(text: opened.text, mode: lastPreviewMode)
+        documentWindows.showEditor(
+          text: opened.text, mode: lastPreviewMode, documentId: opened.id)
       }
       model.documentSidebarVisible = documentWindows.sidebarVisible
       syncDocumentWindows()
@@ -657,6 +689,7 @@ final class PanelController {
   }
 
   private func confirmReplaceIfNeeded(generation: Int) async -> Bool {
+    _ = await currentEditorText()
     let status = await webHost.documentStatus()
     guard status?["dirty"] as? Bool == true else { return true }
     let alert = NSAlert()
@@ -668,7 +701,7 @@ final class PanelController {
     alert.window.level = .modalPanel
     switch alert.runModal() {
     case .alertFirstButtonReturn:
-      guard let text = await webHost.documentText() else { return false }
+      guard let text = await effectiveDocumentText() else { return false }
       guard generation == openGeneration else { return false }
       let outcome = await documents.save(text, saveAs: false)
       switch outcome {
@@ -699,14 +732,15 @@ final class PanelController {
     if let documentID, let current = documents.documentID, documentID != current {
       return #"{"status":"failed"}"#
     }
-    let outcome = await documents.save(text, saveAs: false)
+    let effective = await currentEditorText() ?? text
+    let outcome = await documents.save(effective, saveAs: false)
     switch outcome {
     case .saved(let saved):
       let id = documents.ensureID(documentID)
       documentBrowser.reload()
       return BridgeJSON.object([
         "status": .string("saved"), "fileName": .string(saved.fileName),
-        "documentId": .string(id),
+        "documentId": .string(id), "text": .string(effective),
       ]).canonical()
     case .canceled: return #"{"status":"canceled"}"#
     case .failed: return #"{"status":"failed"}"#

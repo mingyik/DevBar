@@ -195,11 +195,11 @@ final class DocumentWindows {
     }
   }
 
-  func showEditor(text: String, mode: String) {
+  func showEditor(text: String, mode: String, documentId: String?) {
     editorPanel.appearance = theme.appearance()
     editorHost.setPanelVisible(true)
     editorHost.syncAppearance(panelSize: "normal")
-    editorHost.sendEditorInit(text: text, mode: mode)
+    editorHost.sendEditorInit(text: text, mode: mode, documentId: documentId)
     editorPanel.makeKeyAndOrderFront(nil)
   }
 

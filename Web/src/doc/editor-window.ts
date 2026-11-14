@@ -20,6 +20,7 @@ export function startDocumentEditor(): void {
   document.body.append(root);
   let timer: ReturnType<typeof setTimeout> | undefined;
   let lastSent = "";
+  let documentId: string | null = null;
   const view = createEditor(source, [
     markdown({ codeLanguages: documentLanguages }),
     EditorView.updateListener.of((update) => {
@@ -30,7 +31,7 @@ export function startDocumentEditor(): void {
     const text = view.state.doc.toString();
     if (text === lastSent) return;
     lastSent = text;
-    void post("doc.editorText", { text });
+    void post("doc.editorText", { text, documentId });
   }
   function schedule() {
     clearTimeout(timer);
@@ -57,6 +58,8 @@ export function startDocumentEditor(): void {
           break;
         case "doc.editorInit": {
           const text = typeof payload.text === "string" ? payload.text : "";
+          documentId =
+            typeof payload.documentId === "string" ? payload.documentId : null;
           clearTimeout(timer);
           lastSent = text;
           replaceAll(view, text, "devbar.import");
@@ -77,7 +80,14 @@ export function startDocumentEditor(): void {
       return {};
     },
   };
-  Object.assign(window, { __devbar: bridge });
+  Object.assign(window, {
+    __devbar: bridge,
+    devbarEditorText: () => view.state.doc.toString(),
+    devbarEditorFlush: () => {
+      send();
+      return view.state.doc.toString();
+    },
+  });
   void post("app.ready", { version: "1" }).then((reply) => {
     document.documentElement.dataset.theme =
       reply.theme === "dark" ? "dark" : "light";

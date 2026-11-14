@@ -19,7 +19,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   var receivedFiles: (([URL]) -> Void)?
   var saveDocument: ((String, String?) async -> String)?
   var onDocumentMode: ((String) -> Void)?
-  var onDocumentEditorText: ((String) -> Void)?
+  var onDocumentEditorText: ((String, String?) -> Void)?
 
   enum PageMode { case main, documentEditor }
   let pageMode: PageMode
@@ -124,13 +124,25 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     send(type: "doc.display", payload: ["mode": .string(mode)])
   }
 
-  func sendEditorInit(text: String, mode: String) {
-    send(
-      type: "doc.editorInit", payload: ["text": .string(text), "mode": .string(mode)])
+  func sendEditorInit(text: String, mode: String, documentId: String?) {
+    var payload: [String: BridgeJSON] = [
+      "text": .string(text), "mode": .string(mode),
+    ]
+    if let documentId { payload["documentId"] = .string(documentId) }
+    send(type: "doc.editorInit", payload: payload)
   }
 
-  func applyEditorText(_ text: String) {
-    send(type: "doc.setEditorText", payload: ["text": .string(text)])
+  func applyEditorText(_ text: String, documentId: String?) {
+    var payload: [String: BridgeJSON] = ["text": .string(text)]
+    if let documentId { payload["documentId"] = .string(documentId) }
+    send(type: "doc.setEditorText", payload: payload)
+  }
+
+  func editorText() async -> String? {
+    guard ready, !webViewReleased else { return nil }
+    return try? await webView.callAsyncJavaScript(
+      "return window.devbarEditorText()", arguments: [:], in: nil, contentWorld: .page
+    ) as? String
   }
 
   func documentMode() async -> String? {
@@ -340,7 +352,8 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       onDocumentMode?(payload["mode"]?.stringValue ?? "source")
       return "{}"
     case "doc.editorText":
-      onDocumentEditorText?(payload["text"]?.stringValue ?? "")
+      onDocumentEditorText?(
+        payload["text"]?.stringValue ?? "", payload["documentId"]?.stringValue)
       return "{}"
     case "state.save":
       if let screen = payload["screen"]?.stringValue, let state = payload["state"] {

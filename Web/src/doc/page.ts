@@ -281,7 +281,13 @@ export class DocPage {
         void this.render();
     }, 140);
   }
-  applyEditorText(text: string) {
+  applyEditorText(text: string, documentId: string | null = null) {
+    if (
+      documentId !== null &&
+      this.documentID !== null &&
+      documentId !== this.documentID
+    )
+      return;
     if (this.text() === text) return;
     this.shell.view.dispatch({
       changes: { from: 0, to: this.shell.view.state.doc.length, insert: text },
@@ -312,7 +318,7 @@ export class DocPage {
         documentId: this.documentID,
       });
       if (reply.status === "saved") {
-        this.savedText = snapshot;
+        this.savedText = typeof reply.text === "string" ? reply.text : snapshot;
         if (typeof reply.documentId === "string")
           this.documentID = reply.documentId;
         if (typeof reply.fileName === "string")
@@ -392,10 +398,15 @@ export class DocPage {
     await releaseHighlighter();
   }
   async export() {
-    if (this.display !== "preview") this.cycleDisplayMode();
+    const restoreSource = this.display === "source";
+    if (restoreSource) this.shell.showPreview(true);
     await this.render();
     await this.pending;
     await exportPreview(this.shell);
+    if (restoreSource) {
+      this.shell.showPreview(false);
+      this.shell.view.focus();
+    }
   }
   documentStatus() {
     return {
