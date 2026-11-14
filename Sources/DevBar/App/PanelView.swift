@@ -107,11 +107,6 @@ struct PanelView: View {
       actionButton(model.pinned ? "pin.fill" : "pin.slash", label: Strings.pin, scheme: scheme) {
         model.pinned.toggle()
       }
-      if model.page != .settings {
-        actionButton("devbar.settings", label: Strings.settingsPage, scheme: scheme) {
-          model.enterSettings()
-        }
-      }
       if model.showsEnlarge {
         actionButton(
           model.enlarged
@@ -499,13 +494,9 @@ private struct ActionIcon: View {
   let label: String
   let scheme: ColorScheme
   let action: () -> Void
-  private var icon: Image {
-    symbol == "devbar.settings" ? Image(nsImage: AppIcons.settings) : Image(systemName: symbol)
-  }
-
   var body: some View {
     Button(action: action) {
-      icon
+      Image(systemName: symbol)
         .font(.system(size: 13, weight: .regular))
         .frame(width: 24, height: 24)
         .foregroundStyle(DesignTokens.textSecondary(scheme))
