@@ -2,7 +2,6 @@ import captureSymbol from "../assets/icons/capture.png";
 import clearSymbol from "../assets/icons/clear.png";
 import copySymbol from "../assets/icons/copy.png";
 import saveSymbol from "../assets/icons/save.png";
-import toggleSymbol from "../assets/icons/toggle.png";
 import { EditorView } from "@codemirror/view";
 import { StateEffect, type Extension } from "@codemirror/state";
 import {
@@ -50,7 +49,6 @@ export function setIcon(button: HTMLButtonElement, name: string): void {
     clear: clearSymbol,
     save: saveSymbol,
     exportImage: captureSymbol,
-    toggle: toggleSymbol,
   };
   if (symbols[name]) {
     const icon = element("span", "system-icon");
