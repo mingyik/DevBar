@@ -12,12 +12,11 @@ struct DocumentSidebarView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      section(Strings.documentFolderSection)
+      folderHeader
       folderList
       divider
       section(Strings.documentRecentSection)
       recentList
-      pickButton
     }
     .padding(.horizontal, 10)
     .padding(.top, 12)
@@ -33,6 +32,32 @@ struct DocumentSidebarView: View {
       .foregroundStyle(DesignTokens.textTertiary(scheme))
       .padding(.horizontal, 8)
       .frame(height: 24, alignment: .leading)
+  }
+
+  private var folderHeader: some View {
+    HStack(spacing: 6) {
+      section(Strings.documentFolderSection)
+      Spacer(minLength: 0)
+      Button(action: onPick) {
+        Image(systemName: "folder")
+          .font(.system(size: 13))
+          .foregroundStyle(DesignTokens.textSecondary(scheme))
+          .frame(width: 22, height: 22)
+          .background {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+              .fill(DesignTokens.panelControl(scheme))
+          }
+          .overlay {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+              .strokeBorder(
+                DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline)
+          }
+      }
+      .buttonStyle(.plain)
+      .help(Strings.documentChooseFile)
+      .accessibilityLabel(Strings.documentChooseFile)
+      .padding(.trailing, 8)
+    }
   }
 
   @ViewBuilder
@@ -84,31 +109,6 @@ struct DocumentSidebarView: View {
       .frame(height: 0.5)
       .padding(.horizontal, 8)
       .padding(.vertical, 6)
-  }
-
-  private var pickButton: some View {
-    HStack {
-      Button(action: onPick) {
-        Image(systemName: "folder")
-          .font(.system(size: 14))
-          .foregroundStyle(DesignTokens.textSecondary(scheme))
-          .frame(width: 24, height: 24)
-          .background {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-              .fill(DesignTokens.panelControl(scheme))
-          }
-          .overlay {
-            RoundedRectangle(cornerRadius: 7, style: .continuous)
-              .strokeBorder(
-                DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline)
-          }
-      }
-      .buttonStyle(.plain)
-      .help(Strings.documentChooseFile)
-      .accessibilityLabel(Strings.documentChooseFile)
-      Spacer(minLength: 0)
-    }
-    .padding(.top, 4)
   }
 
   private func message(_ text: String) -> some View {
