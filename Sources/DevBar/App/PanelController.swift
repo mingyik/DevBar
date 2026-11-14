@@ -601,7 +601,7 @@ final class PanelController {
     guard documentID == documents.documentID else { return }
     if documentMode == "split", resolved != "split", !model.documentSidebarVisible {
       guard let snapshot = await documentEditorHost.editorSnapshot(flush: true),
-        snapshot.documentId == documentID, snapshot.text == text
+        snapshot.documentId == documentID, DocumentFile.editorTextMatches(snapshot.text, text)
       else {
         webHost.setDocumentDisplay("split")
         return
@@ -667,6 +667,7 @@ final class PanelController {
     if let snapshot = await currentEditorSnapshot(flush: true) {
       return snapshot.text
     }
+    if documentMode == "split", documentWindows.isEditorVisible { return nil }
     return await webHost.documentText()
   }
 
@@ -748,7 +749,15 @@ final class PanelController {
   private func confirmReplaceIfNeeded(generation: Int) async -> Bool {
     let editor = await currentEditorSnapshot(flush: true)
     let status = await webHost.documentStatus(textOverride: editor?.text)
-    guard status?["dirty"] as? Bool == true else { return true }
+    guard generation == openGeneration else { return false }
+    switch DocumentFile.replacementReadiness(
+      requiresEditorSnapshot: documentMode == "split" && documentWindows.isEditorVisible,
+      hasEditorSnapshot: editor != nil, dirty: status?["dirty"] as? Bool)
+    {
+    case .unavailable: return false
+    case .clean: return true
+    case .modified: break
+    }
     let alert = NSAlert()
     alert.messageText = Strings.documentUnsavedTitle
     alert.informativeText = Strings.documentUnsavedBody

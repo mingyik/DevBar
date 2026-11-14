@@ -16,6 +16,26 @@ public enum DocumentFile {
 
   public static let byteLimit = FileDropReader.byteLimit
 
+  /// Compare editor snapshots without rewriting the source used for saving.
+  public static func editorTextMatches(_ left: String, _ right: String) -> Bool {
+    func normalized(_ text: String) -> String {
+      text.replacingOccurrences(of: "\r\n", with: "\n")
+        .replacingOccurrences(of: "\r", with: "\n")
+    }
+    return normalized(left) == normalized(right)
+  }
+
+  public enum ReplacementReadiness: Sendable, Equatable {
+    case unavailable, clean, modified
+  }
+
+  public static func replacementReadiness(
+    requiresEditorSnapshot: Bool, hasEditorSnapshot: Bool, dirty: Bool?
+  ) -> ReplacementReadiness {
+    guard !requiresEditorSnapshot || hasEditorSnapshot, let dirty else { return .unavailable }
+    return dirty ? .modified : .clean
+  }
+
   public static func decode(_ data: Data) -> Decoded? {
     var bytes = data
     let hadBOM = bytes.starts(with: [0xEF, 0xBB, 0xBF])

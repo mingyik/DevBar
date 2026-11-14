@@ -3,6 +3,36 @@ import Testing
 
 @testable import DevBarCore
 
+@Test func documentEditorComparisonAllowsOnlyNewlineDifferences() {
+  #expect(DocumentFile.editorTextMatches("标题\r\n正文\r", "标题\n正文\n"))
+  #expect(!DocumentFile.editorTextMatches("标题\r\n正文", "标题\n新正文"))
+  #expect(!DocumentFile.editorTextMatches("正文\n", "正文"))
+  let original = "第一行\r\n第二行\n"
+  #expect(DocumentFile.editorTextMatches(original, "第一行\n第二行\n"))
+  #expect(DocumentFile.encode(original, hadBOM: false, newline: "\n") == Data(original.utf8))
+}
+
+@Test func documentReplacementFailsClosedWhenSnapshotOrStatusUnavailable() {
+  #expect(
+    DocumentFile.replacementReadiness(
+      requiresEditorSnapshot: true, hasEditorSnapshot: false, dirty: false) == .unavailable)
+  #expect(
+    DocumentFile.replacementReadiness(
+      requiresEditorSnapshot: true, hasEditorSnapshot: true, dirty: nil) == .unavailable)
+  #expect(
+    DocumentFile.replacementReadiness(
+      requiresEditorSnapshot: false, hasEditorSnapshot: false, dirty: nil) == .unavailable)
+  #expect(
+    DocumentFile.replacementReadiness(
+      requiresEditorSnapshot: true, hasEditorSnapshot: true, dirty: true) == .modified)
+  #expect(
+    DocumentFile.replacementReadiness(
+      requiresEditorSnapshot: true, hasEditorSnapshot: true, dirty: false) == .clean)
+  #expect(
+    DocumentFile.replacementReadiness(
+      requiresEditorSnapshot: false, hasEditorSnapshot: false, dirty: false) == .clean)
+}
+
 @Test func documentDecodeKeepsBOMAndCRLF() {
   let decoded = DocumentFile.decode(Data([0xEF, 0xBB, 0xBF]) + Data("第一行\r\n第二行\r\n".utf8))
   #expect(decoded?.text == "第一行\r\n第二行\r\n")
