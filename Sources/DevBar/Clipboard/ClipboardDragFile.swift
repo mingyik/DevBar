@@ -11,6 +11,18 @@ import UniformTypeIdentifiers
   private let imageURL: URL?
   private static var sweptTemporaryImages = false
 
+  /// A terminal normally pastes text, while an image-aware CLI can still read the PNG/TIFF.
+  /// Reuse the readable export file from dragging; never rely on an old screenshot path.
+  func imagePasteboardItem() -> NSPasteboardItem? {
+    guard let imageURL else { return nil }
+    let item = NSPasteboardItem()
+    for payload in payloads { item.setData(payload.data, forType: .init(payload.type)) }
+    guard item.setString(imageURL.absoluteString, forType: .fileURL),
+      item.setString(imageURL.path(percentEncoded: false), forType: .string)
+    else { return nil }
+    return item
+  }
+
   init?(payloads: [ClipboardPayload]) {
     let image =
       payloads.first { $0.type == NSPasteboard.PasteboardType.png.rawValue }

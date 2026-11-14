@@ -1,6 +1,26 @@
 import DevBarCore
 import Testing
 
+@Test func terminalImagePasteUsesAReadableFilePathInsteadOfOnlyImageBytes() {
+  #expect(
+    DirectPasteDecision.action(for: input(isImage: true, targetIsTerminal: true)) == .imageFilePath)
+  #expect(DirectPasteDecision.action(for: input(isImage: true)) == .original)
+  #expect(DirectPasteDecision.action(for: input(targetIsTerminal: true)) == .original)
+}
+
+@Test func terminalImagePasteKeepsAuthorizationAndTargetGuards() {
+  #expect(
+    DirectPasteDecision.action(
+      for: input(isAuthorized: false, isImage: true, targetIsTerminal: true))
+      == .authorizationRequired)
+  #expect(
+    DirectPasteDecision.action(for: input(currentPID: 2, isImage: true, targetIsTerminal: true))
+      == .none)
+  #expect(
+    DirectPasteDecision.action(for: input(ownPID: 1, isImage: true, targetIsTerminal: true))
+      == .none)
+}
+
 @Test func changedFrontmostApplicationDoesNotPaste() {
   #expect(DirectPasteDecision.action(for: input(currentPID: 2)) == .none)
   #expect(DirectPasteDecision.action(for: input(currentPID: 2, isAuthorized: false)) == .none)
@@ -57,7 +77,9 @@ private func input(
   isAuthorized: Bool = true,
   isFile: Bool = false,
   focusRole: String? = nil,
-  targetIsFinder: Bool = false
+  targetIsFinder: Bool = false,
+  isImage: Bool = false,
+  targetIsTerminal: Bool = false
 ) -> DirectPasteInput {
   DirectPasteInput(
     capturedPID: capturedPID,
@@ -66,6 +88,8 @@ private func input(
     isAuthorized: isAuthorized,
     selectedItemIsFile: isFile,
     focusedRole: focusRole,
-    targetIsFinder: targetIsFinder
+    targetIsFinder: targetIsFinder,
+    selectedItemIsImage: isImage,
+    targetIsTerminal: targetIsTerminal
   )
 }

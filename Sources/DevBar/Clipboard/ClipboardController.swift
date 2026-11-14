@@ -290,6 +290,8 @@ final class ClipboardController {
       ? originals[items[cycler.currentIndex].id] ?? [] : []
     let isFile =
       items.indices.contains(cycler.currentIndex) && items[cycler.currentIndex].kind == .files
+    let isImage =
+      items.indices.contains(cycler.currentIndex) && items[cycler.currentIndex].kind == .image
     let isTrusted = AXIsProcessTrusted()
     isDirectPasteAuthorized = isTrusted
     let initialFrontmost = NSWorkspace.shared.frontmostApplication
@@ -307,7 +309,9 @@ final class ClipboardController {
         isAuthorized: isTrusted,
         selectedItemIsFile: isFile,
         focusedRole: role,
-        targetIsFinder: targetIsFinder
+        targetIsFinder: targetIsFinder,
+        selectedItemIsImage: isImage,
+        targetIsTerminal: TerminalApps.bundleIDs.contains(frontmost?.bundleIdentifier ?? "")
       ))
     if action == .authorizationRequired {
       card.dismiss()
@@ -334,7 +338,16 @@ final class ClipboardController {
       board.clearContents()
       guard board.setString(paths, forType: .string) else { return }
       monitor.markSelfWrite(board.changeCount)
+    } else if action == .imageFilePath {
+      guard let item = ClipboardDragFile(payloads: selectedPayloads)?.imagePasteboardItem(),
+        NSWorkspace.shared.frontmostApplication?.processIdentifier == target
+      else { return }
+      let board = NSPasteboard.general
+      board.clearContents()
+      guard board.writeObjects([item]) else { return }
+      monitor.markSelfWrite(board.changeCount)
     }
+    guard NSWorkspace.shared.frontmostApplication?.processIdentifier == target else { return }
     down.flags = .maskCommand
     up.flags = .maskCommand
     down.postToPid(target)

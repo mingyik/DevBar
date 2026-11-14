@@ -4,6 +4,32 @@ import Testing
 
 @testable import DevBar
 
+@MainActor @Test func terminalImagePasteKeepsImageAndProvidesReadablePath() throws {
+  let tiff = try #require(
+    NSImage(systemSymbolName: "doc", accessibilityDescription: nil)?.tiffRepresentation)
+  let png = try #require(NSBitmapImageRep(data: tiff)?.representation(using: .png, properties: [:]))
+  let payloads = [
+    ClipboardPayload(type: NSPasteboard.PasteboardType.png.rawValue, data: png),
+    ClipboardPayload(
+      type: NSPasteboard.PasteboardType.fileURL.rawValue,
+      data: Data("file:///missing/screenshot.png".utf8)),
+  ]
+  let item = try #require(ClipboardDragFile(payloads: payloads)?.imagePasteboardItem())
+  let path = try #require(item.string(forType: .string))
+  defer { try? FileManager.default.removeItem(atPath: path) }
+  #expect(try Data(contentsOf: URL(fileURLWithPath: path)) == png)
+  #expect(item.data(forType: .png) == png)
+  #expect(item.string(forType: .fileURL) == URL(fileURLWithPath: path).absoluteString)
+  #expect(!path.contains("\n"))
+  let board = NSPasteboard.withUniqueName()
+  defer { board.releaseGlobally() }
+  #expect(board.writeObjects([item]))
+  let input = NSTextView()
+  input.isRichText = false
+  #expect(input.readSelection(from: board, type: .string))
+  #expect(input.string == path)
+}
+
 @MainActor @Test func imageDragOffersReadableFileURLAlongsideOriginalImage() throws {
   let tiff = try #require(
     NSImage(systemSymbolName: "doc", accessibilityDescription: nil)?.tiffRepresentation)
