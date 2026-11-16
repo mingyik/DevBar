@@ -79,14 +79,7 @@ export async function exportPreview(
         .trim(),
     });
     if (result.status === "saved" && typeof result.path === "string") {
-      shell.updateInfo(strings.saved);
-      shell.info.textContent = strings.saved + " · ";
-      const reveal = document.createElement("button");
-      reveal.textContent = strings.showInFinder;
-      reveal.onclick = () => {
-        void post("preview.reveal", { path: result.path as string });
-      };
-      shell.info.append(reveal);
+      shell.updateInfo();
     } else
       shell.updateInfo(
         result.status === "tooLarge"

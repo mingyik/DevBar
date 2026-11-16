@@ -4,6 +4,7 @@ import DevBarCore
 import Observation
 import SwiftUI
 import Synchronization
+import UniformTypeIdentifiers
 
 @MainActor @Observable
 final class ClipboardController {
@@ -200,6 +201,7 @@ final class ClipboardController {
     let files = payloads.filter { $0.type == NSPasteboard.PasteboardType.fileURL.rawValue }
     let hasImage = payloads.contains {
       SystemPasteboardReader.imageTypes.map(\.rawValue).contains($0.type)
+        || UTType($0.type)?.conforms(to: .image) == true
     }
     if !files.isEmpty && !hasImage {
       return files.map { payload in
