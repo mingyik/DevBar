@@ -15,6 +15,92 @@ private actor Frames {
   }
 }
 
+private final class PreviewClock: @unchecked Sendable {
+  private let lock = NSLock()
+  private var time: TimeInterval = 0
+  private var waiters: [Waiter] = []
+
+  private final class Waiter {
+    let deadline: TimeInterval
+    let continuation: CheckedContinuation<Void, Error>
+    var resumed = false
+    init(deadline: TimeInterval, continuation: CheckedContinuation<Void, Error>) {
+      self.deadline = deadline
+      self.continuation = continuation
+    }
+  }
+
+  func now() -> TimeInterval {
+    lock.lock()
+    defer { lock.unlock() }
+    return time
+  }
+
+  var hasWaiter: Bool {
+    lock.lock()
+    defer { lock.unlock() }
+    return !waiters.isEmpty
+  }
+
+  func sleep(_ seconds: TimeInterval) async throws {
+    try Task.checkCancellation()
+    let deadline = now() + seconds
+    try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation { continuation in
+        lock.lock()
+        if time >= deadline {
+          lock.unlock()
+          continuation.resume()
+          return
+        }
+        waiters.append(Waiter(deadline: deadline, continuation: continuation))
+        lock.unlock()
+      }
+    } onCancel: {
+      self.cancelWaiters()
+    }
+  }
+
+  func advance(to newTime: TimeInterval) {
+    lock.lock()
+    time = max(time, newTime)
+    let ready = waiters.filter { time >= $0.deadline && !$0.resumed }
+    for waiter in ready { waiter.resumed = true }
+    waiters.removeAll { $0.resumed }
+    lock.unlock()
+    for waiter in ready { waiter.continuation.resume() }
+  }
+
+  func advance(by delta: TimeInterval) { advance(to: now() + delta) }
+
+  func waitUntilSleeping() async -> Bool {
+    let deadline = ContinuousClock.now + .seconds(2)
+    while !hasWaiter {
+      if ContinuousClock.now >= deadline { return false }
+      await Task.yield()
+    }
+    return true
+  }
+
+  private func cancelWaiters() {
+    lock.lock()
+    let pending = waiters.filter { !$0.resumed }
+    for waiter in pending { waiter.resumed = true }
+    waiters.removeAll { $0.resumed }
+    lock.unlock()
+    for waiter in pending { waiter.continuation.resume(throwing: CancellationError()) }
+  }
+}
+
+@MainActor private func waitUntil(_ condition: @MainActor () -> Bool) async -> Bool {
+  let deadline = ContinuousClock.now + .seconds(2)
+  while !condition() {
+    if ContinuousClock.now >= deadline { return false }
+    try? await Task.sleep(for: .milliseconds(5))
+  }
+  return true
+}
+
 private func frame(offset: Int, footer: Int = 0, salt: Int = 0, header: Int = 0) -> CGImage {
   let width = 64
   let height = 120
@@ -86,26 +172,82 @@ private func testRegion() throws -> CaptureRegion {
 }
 
 @MainActor @Test func scrollingPreviewCatchesUpBeforeFinishWhileStillRunning() async throws {
+  let clock = PreviewClock()
   let frames = Frames([0, 42, 84, 126].map { frame(offset: $0) })
   let finish = ScreenshotScrollingCapture.FinishSignal()
-  let timeout = Task {
-    try? await Task.sleep(for: .seconds(2))
-    finish.request()
+  let region = try testRegion()
+  final class State {
+    var previews: [Int] = []
+    var height = 0
+    var progressCount = 0
+    var progressAtFullPreview: Int?
+    var result: ScreenshotScrollingCapture.Result?
   }
-  defer { timeout.cancel() }
-  var caughtUpBeforeFinish = false
-  let result = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: finish, frameLimit: 40,
-    onPreview: { preview in
-      // Growth is throttled inside the first 0.25 s. Only the idle flush can
-      // publish the full height before anyone requests finish.
-      guard preview.height >= 246, !finish.isRequested else { return }
-      caughtUpBeforeFinish = true
-      finish.request()
-    },
-    onProgress: { _, _ in }, nextFrame: { await frames.next() })
-  #expect(caughtUpBeforeFinish)
-  guard case .success(let image) = result else {
+  let state = State()
+  let capture = Task { @MainActor in
+    state.result = await ScreenshotScrollingCapture.captureFrames(
+      region: region, finishSignal: finish, frameLimit: 40,
+      onPreview: { preview in
+        state.previews.append(preview.height)
+        if preview.height >= 246, state.progressAtFullPreview == nil {
+          state.progressAtFullPreview = state.progressCount
+        }
+      },
+      onProgress: { value, _ in
+        state.height = value
+        state.progressCount += 1
+      },
+      nextFrame: { await frames.next() },
+      currentTime: { clock.now() },
+      sleep: { try await clock.sleep($0) })
+  }
+  defer { capture.cancel() }
+
+  guard await waitUntil({ state.previews == [120] && state.height == 120 }) else {
+    Issue.record("expected the initial preview before any clock movement")
+    return
+  }
+  #expect(clock.now() == 0)
+
+  while state.height < 246 {
+    guard await clock.waitUntilSleeping() else {
+      Issue.record("capture did not wait for the next sample")
+      return
+    }
+    let next = clock.now() + 0.03
+    guard next < 0.25 else {
+      Issue.record("growth left the throttle window at \(clock.now())")
+      return
+    }
+    clock.advance(to: next)
+  }
+  guard await clock.waitUntilSleeping() else {
+    Issue.record("capture did not stop on the throttled preview")
+    return
+  }
+  #expect(state.height == 246)
+  #expect(state.previews == [120])
+  #expect(clock.now() < 0.25)
+
+  let progressBeforeFlush = state.progressCount
+  clock.advance(to: 0.25)
+  guard await waitUntil({ state.previews.contains(246) }) else {
+    Issue.record("idle flush did not publish the grown preview")
+    return
+  }
+  #expect(state.progressAtFullPreview == progressBeforeFlush)
+  #expect(!finish.isRequested)
+  finish.request()
+  let pump = Task {
+    let deadline = ContinuousClock.now + .seconds(2)
+    while !Task.isCancelled, ContinuousClock.now < deadline {
+      if clock.hasWaiter { clock.advance(by: 0.03) }
+      await Task.yield()
+    }
+  }
+  await capture.value
+  pump.cancel()
+  guard case .success(let image) = state.result else {
     Issue.record("expected the idle preview flush to finish the capture")
     return
   }

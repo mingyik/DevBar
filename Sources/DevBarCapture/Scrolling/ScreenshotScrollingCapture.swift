@@ -83,7 +83,13 @@ public enum ScreenshotScrollingCapture {
     onPreview: @escaping @MainActor (CGImage) -> Void = { _ in },
     onProgress: @escaping @MainActor (Int, Bool) -> Void,
     pendingFrames: @escaping @Sendable () -> Int = { 0 },
-    nextFrame: @escaping @Sendable () async -> CGImage?
+    nextFrame: @escaping @Sendable () async -> CGImage?,
+    currentTime: @escaping @Sendable () -> TimeInterval = {
+      ProcessInfo.processInfo.systemUptime
+    },
+    sleep: @escaping @Sendable (TimeInterval) async throws -> Void = { seconds in
+      try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+    }
   ) async -> Result {
     do {
       guard let firstFrame = await nextFrame(), let first = contentFrame(firstFrame) else {
@@ -95,7 +101,7 @@ public enum ScreenshotScrollingCapture {
       try Task.checkCancellation()
       guard let firstSample = sample(first) else { return .failed }
 
-      let startedAt = ProcessInfo.processInfo.systemUptime
+      let startedAt = currentTime()
       var slices = [first]
       var capturedFrames = 1
       var previousSample = firstSample
@@ -122,13 +128,13 @@ public enum ScreenshotScrollingCapture {
       var fixedLayoutChanged = false
       var hasUnmatchedContent = false
       var lastChangedAt = startedAt
-      var lastCaptureAt = ProcessInfo.processInfo.systemUptime
+      var lastCaptureAt = currentTime()
       var scrollPending = false
       var finishRequestedAt: TimeInterval?
       var lastPreviewAt: TimeInterval = 0
       var previewStale = false
       func publishPreview(force: Bool = false) async {
-        let now = ProcessInfo.processInfo.systemUptime
+        let now = currentTime()
         if !force, now - lastPreviewAt < 0.25 {
           previewStale = true
           return
@@ -154,7 +160,7 @@ public enum ScreenshotScrollingCapture {
       while true {
         try Task.checkCancellation()
 
-        let now = ProcessInfo.processInfo.systemUptime
+        let now = currentTime()
         await flushStalePreview(now: now)
         if finishSignal.isRequested, finishRequestedAt == nil {
           finishRequestedAt = now
@@ -195,14 +201,14 @@ public enum ScreenshotScrollingCapture {
             previewStale ? max(0, 0.25 - (now - lastPreviewAt)) : captureWait
           let wait = min(captureWait, previewWait)
           if wait > 0 {
-            try await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+            try await sleep(wait)
             continue
           }
         }
 
         guard let frame = await nextFrame() else {
           if finishSignal.isRequested {
-            try await Task.sleep(nanoseconds: 30_000_000)
+            try await sleep(0.03)
             continue
           }
           await flushStalePreview(now: now, force: true)
@@ -220,7 +226,7 @@ public enum ScreenshotScrollingCapture {
         }
         try Task.checkCancellation()
         capturedFrames += 1
-        lastCaptureAt = ProcessInfo.processInfo.systemUptime
+        lastCaptureAt = currentTime()
         let frameIsStable = ScreenshotSupport.scrollingSamplesAreStable(
           lastObservedSample,
           currentSample,
