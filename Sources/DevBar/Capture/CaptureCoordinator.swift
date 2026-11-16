@@ -21,10 +21,13 @@ private final class CaptureHUDState {
   private unowned let panel: PanelController
   private var task: Task<Void, Never>?
   private var hud: NSPanel?
+  private var noticeHUD: NSPanel?
   private var previewWindow: NSPanel?
   private var activeRegion: CaptureRegion?
   private let state = CaptureHUDState()
+  private let noticeState = CaptureHUDState()
   private var noticeTask: Task<Void, Never>?
+  private var savedNoticeTask: Task<Void, Never>?
 
   init(panel: PanelController) { self.panel = panel }
 
@@ -55,6 +58,8 @@ private final class CaptureHUDState {
     }
     noticeTask?.cancel()
     hud?.orderOut(nil)
+    savedNoticeTask?.cancel()
+    noticeHUD?.orderOut(nil)
     task = Task { [weak self] in
       guard let self else { return }
       defer { self.task = nil }
@@ -155,6 +160,7 @@ private final class CaptureHUDState {
 
   private func showProgress(region: CaptureRegion, finish: ScreenshotScrollingCapture.FinishSignal)
   {
+    noticeTask?.cancel()
     activeRegion = region
     state.height = 0
     state.preview = nil
@@ -251,6 +257,50 @@ private final class CaptureHUDState {
     }
   }
 
+  func showSavedNotice(_ message: String, path: URL?) {
+    noticeState.message = message
+    noticeState.unmatched = false
+    noticeState.path = path
+    noticeState.finish = nil
+    noticeState.save = nil
+    noticeState.cancel = nil
+    guard
+      let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) })
+        ?? NSScreen.main
+    else { return }
+    let view = CaptureHUD(state: noticeState, theme: panel.theme)
+    let window =
+      noticeHUD
+      ?? NSPanel(
+        contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered,
+        defer: false)
+    window.isReleasedWhenClosed = false
+    window.level = .statusBar
+    window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
+    window.isOpaque = false
+    window.backgroundColor = .clear
+    window.hasShadow = true
+    window.animationBehavior = .none
+    window.appearance = panel.theme.appearance()
+    window.contentView = NSHostingView(rootView: view)
+    let height: CGFloat = 43
+    let width: CGFloat = 380
+    let visible = screen.visibleFrame
+    let frame = PanelLayout.clamp(
+      CGRect(
+        x: visible.maxX - width - 12, y: visible.maxY - height - 8,
+        width: width, height: height), in: visible)
+    window.setFrame(frame, display: true)
+    noticeHUD = window
+    window.orderFrontRegardless()
+    savedNoticeTask?.cancel()
+    savedNoticeTask = Task { [weak self] in
+      try? await Task.sleep(for: .seconds(5))
+      guard !Task.isCancelled else { return }
+      self?.noticeHUD?.orderOut(nil)
+    }
+  }
+
   static func progressFrame(region: CaptureRegion, screen: CGRect, visible: CGRect, size: CGSize)
     -> CGRect
   {
@@ -272,7 +322,9 @@ private final class CaptureHUDState {
       NSScreen.screens.first { screen in
         (screen.deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?
           .uint32Value == displayID
-      } ?? NSScreen.main
+      }
+      ?? NSScreen.screens.first { $0.frame.contains(NSEvent.mouseLocation) }
+      ?? NSScreen.main
     guard let screen else { return }
     let view = CaptureHUD(state: state, theme: panel.theme)
     let window =
@@ -298,9 +350,10 @@ private final class CaptureHUDState {
         region: region, screen: screen.frame,
         visible: visible, size: CGSize(width: width, height: height))
     } else {
-      frame = CGRect(
-        x: visible.midX - width / 2, y: visible.maxY - height - 8,
-        width: width, height: height)
+      frame = PanelLayout.clamp(
+        CGRect(
+          x: visible.maxX - width - 12, y: visible.maxY - height - 8,
+          width: width, height: height), in: visible)
     }
     window.setFrame(frame, display: true)
     hud = window

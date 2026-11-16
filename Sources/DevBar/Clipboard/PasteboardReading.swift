@@ -44,6 +44,7 @@ struct SystemPasteboardReader: PasteboardReading {
 
   static let imageTypes: [NSPasteboard.PasteboardType] = [
     .png, .tiff, .init(UTType.jpeg.identifier), .init(UTType.heic.identifier),
+    .init(UTType.webP.identifier),
   ]
 
   func read() -> [ClipboardPayload] {
@@ -75,15 +76,35 @@ struct ClipboardCapture: Sendable {
 
   init?(payloads: [ClipboardPayload]) {
     guard !payloads.isEmpty else { return nil }
-    self.payloads = payloads
     if payloads.contains(where: { $0.type == NSPasteboard.PasteboardType.fileURL.rawValue }) {
+      let urls = payloads.filter { $0.type == NSPasteboard.PasteboardType.fileURL.rawValue }
+        .compactMap { String(data: $0.data, encoding: .utf8) }.compactMap(URL.init(string:))
+      if urls.count == 1, let url = urls.first, url.isFileURL, !url.hasDirectoryPath,
+        let fileType = UTType(filenameExtension: url.pathExtension), fileType.conforms(to: .image),
+        let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize),
+        fileSize > 0, fileSize <= ClipboardStore.imageByteLimit,
+        let imageData = try? Data(contentsOf: url),
+        !imageData.isEmpty, imageData.count <= ClipboardStore.imageByteLimit,
+        let source = CGImageSourceCreateWithData(imageData as CFData, nil),
+        let thumb = Self.thumbnail(source)
+      {
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+        let width = properties?[kCGImagePropertyPixelWidth] as? Int ?? 0
+        let height = properties?[kCGImagePropertyPixelHeight] as? Int ?? 0
+        kind = .image
+        preview = width > 0 && height > 0 ? "\(width) × \(height)" : url.lastPathComponent
+        thumbnail = thumb
+        self.payloads = [ClipboardPayload(type: fileType.identifier, data: imageData)] + payloads
+        return
+      }
       kind = .files
-      preview = payloads.compactMap { String(data: $0.data, encoding: .utf8) }
-        .compactMap(URL.init(string:)).map(\.lastPathComponent).joined(separator: ", ")
+      preview = urls.map(\.lastPathComponent).joined(separator: ", ")
       thumbnail = nil
+      self.payloads = payloads
     } else if let image = payloads.first(where: {
       SystemPasteboardReader.imageTypes.map(\.rawValue).contains($0.type)
     }) {
+      self.payloads = payloads
       kind = .image
       if let source = CGImageSourceCreateWithData(image.data as CFData, nil) {
         let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
@@ -96,6 +117,7 @@ struct ClipboardCapture: Sendable {
         thumbnail = nil
       }
     } else {
+      self.payloads = payloads
       kind = .text
       preview =
         payloads.first(where: { $0.type == NSPasteboard.PasteboardType.string.rawValue })

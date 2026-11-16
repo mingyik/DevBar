@@ -342,3 +342,58 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
   #expect(board.string(forType: .string) == "saved text")
   #expect(controller.items.count == 1)
 }
+
+@MainActor @Test func finderCopiedImageFilePromotesUnderLimitAndKeepsLargeFileAsFiles()
+  async throws
+{
+  let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: root) }
+
+  let pngData = try #require(
+    Data(
+      base64Encoded:
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
+    ))
+  let smallPNG = root.appending(path: "small.png")
+  try pngData.write(to: smallPNG)
+
+  let smallCapture = try #require(
+    ClipboardCapture(payloads: [
+      ClipboardPayload(
+        type: NSPasteboard.PasteboardType.fileURL.rawValue,
+        data: Data(smallPNG.absoluteString.utf8))
+    ]))
+  #expect(smallCapture.kind == .image)
+  #expect(
+    smallCapture.payloads.contains {
+      $0.type == NSPasteboard.PasteboardType.fileURL.rawValue
+        && String(data: $0.data, encoding: .utf8) == smallPNG.absoluteString
+    })
+  #expect(smallCapture.thumbnail != nil)
+
+  let largeTIFF = root.appending(path: "large.tiff")
+  let rep = try #require(
+    NSBitmapImageRep(
+      bitmapDataPlanes: nil, pixelsWide: 3000, pixelsHigh: 2500, bitsPerSample: 8,
+      samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+      bytesPerRow: 0, bitsPerPixel: 0))
+  let tiffData = try #require(rep.tiffRepresentation(using: .none, factor: 0))
+  #expect(tiffData.count > ClipboardStore.imageByteLimit)
+  try tiffData.write(to: largeTIFF)
+  let largeCapture = try #require(
+    ClipboardCapture(payloads: [
+      ClipboardPayload(
+        type: NSPasteboard.PasteboardType.fileURL.rawValue,
+        data: Data(largeTIFF.absoluteString.utf8))
+    ]))
+  #expect(largeCapture.kind == .files)
+
+  let defaults = UserDefaults(suiteName: "devbar-file-image-test-\(UUID())")!
+  let controller = ClipboardController(
+    theme: ThemeManager(defaults: defaults), directory: root.appending(path: "store"),
+    startMonitoring: false, defaults: defaults)
+  await controller.record(largeCapture, source: nil)
+  #expect(controller.items.count == 1)
+  #expect(controller.items[0].kind == .files)
+}

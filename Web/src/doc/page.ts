@@ -50,8 +50,10 @@ export class DocPage {
   private saveInProgress = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private previewTimer: ReturnType<typeof setTimeout> | undefined;
+  private resizeTimer: ReturnType<typeof setTimeout> | undefined;
   private infoTimer: ReturnType<typeof setTimeout> | undefined;
   private renderKey = "";
+  private released = false;
   private pending: Promise<void> = Promise.resolve();
   private toggle: HTMLButtonElement;
   private saveButton: HTMLButtonElement;
@@ -86,6 +88,27 @@ export class DocPage {
     });
     shell.fixed.append(this.saveButton, this.contextAction);
     shell.preview.classList.add("prose");
+    if (typeof ResizeObserver !== "undefined") {
+      new ResizeObserver(() => {
+        if (
+          !this.released &&
+          (this.display === "preview" || this.display === "split") &&
+          !this.shell.root.hidden &&
+          this.shell.preview.clientWidth > 0
+        ) {
+          clearTimeout(this.resizeTimer);
+          this.resizeTimer = setTimeout(() => {
+            if (
+              !this.released &&
+              (this.display === "preview" || this.display === "split") &&
+              !this.shell.root.hidden &&
+              this.shell.preview.clientWidth > 0
+            )
+              void this.render();
+          }, 80);
+        }
+      }).observe(shell.preview);
+    }
     bindPreviewLinks(shell.preview, (url) => {
       void post("link.open", { url });
     });
@@ -379,6 +402,7 @@ export class DocPage {
     await this.cycleDisplayMode();
   }
   async render() {
+    this.released = false;
     if (!this.previewAllowed) return;
     if (!this.locked) this.setMode(detectDocMode(this.shell.text));
     this.shell.preview.classList.toggle(
@@ -390,7 +414,11 @@ export class DocPage {
       this.mode === "mermaid",
     );
     const key = `${this.theme()}:${this.mode}:${this.shell.preview.clientWidth}:${this.shell.text}`;
-    if (key === this.renderKey) return this.pending;
+    if (
+      key === this.renderKey &&
+      (this.shell.preview.childElementCount > 0 || this.text() === "")
+    )
+      return this.pending;
     this.renderKey = key;
     this.pending = renderDocument(this.shell.preview, this.text(), {
       theme: this.theme(),
@@ -424,11 +452,14 @@ export class DocPage {
       void this.render();
   }
   async releaseMemory(): Promise<void> {
+    this.released = true;
     clearTimeout(this.timer);
     clearTimeout(this.previewTimer);
+    clearTimeout(this.resizeTimer);
     clearTimeout(this.infoTimer);
     await this.pending;
     this.shell.preview.replaceChildren();
+    clearTimeout(this.resizeTimer);
     this.renderKey = "";
     releaseDocumentPreview(this.shell.preview.ownerDocument);
     releaseMermaidCache();

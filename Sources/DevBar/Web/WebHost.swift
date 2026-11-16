@@ -13,6 +13,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   var autoImport = false
   var onClipboardWrite: ((Int) -> Void)?
   var onToast: ((String) -> Void)?
+  var onPreviewExportSaved: ((String) -> Void)?
   var onMemoryFlush: (() -> Void)?
   var lastPreviewImagePath: String? { previewImage.lastSavedPath }
   var acceptsFiles: (() -> Bool)?
@@ -387,7 +388,14 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
         background: payload["background"]?.stringValue ?? "",
         directory: exportDirectory ?? DataLocations.captures,
         host: webView.window?.contentView)
-      if result.contains("\"saved\"") { onClipboardWrite?(NSPasteboard.general.changeCount) }
+      if let object = try? JSONSerialization.jsonObject(with: Data(result.utf8)) as? [String: Any],
+        object["status"] as? String == "saved"
+      {
+        onClipboardWrite?(NSPasteboard.general.changeCount)
+        if let path = object["path"] as? String {
+          onPreviewExportSaved?(path)
+        }
+      }
       return result
     case "preview.reveal":
       previewImage.reveal(path: payload["path"]?.stringValue ?? "")

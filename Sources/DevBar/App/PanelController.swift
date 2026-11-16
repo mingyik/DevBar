@@ -90,6 +90,9 @@ final class PanelController {
     webHost.onToast = { text in
       model.toast = text
     }
+    webHost.onPreviewExportSaved = { [weak self] path in
+      self?.capture.showSavedNotice(Strings.captureSaved, path: URL(fileURLWithPath: path))
+    }
     webHost.onClipboardWrite = { [weak clipboard] count in clipboard?.monitor.markSelfWrite(count) }
     webHost.onMemoryFlush = { [weak self] in self?.releaseHiddenVisualCaches() }
     webHost.saveDocument = { [weak self] text, id in
@@ -842,6 +845,7 @@ final class PanelController {
         await webHost.applyDocumentEditorText(currentText, documentId: id)
         await webHost.markDocumentSaved(
           text: text, fileName: saved.fileName, documentId: id)
+        capture.showSavedNotice(Strings.captureSaved, path: saved.url)
         guard currentText == text else { return false }
         return generation == openGeneration
       case .canceled, .failed:
@@ -880,6 +884,7 @@ final class PanelController {
       await documentEditorHost.setEditorIdentity(id)
       let latest = await currentEditorSnapshot(flush: true)
       let currentText = latest?.text ?? effective
+      capture.showSavedNotice(Strings.captureSaved, path: saved.url)
       return BridgeJSON.object([
         "status": .string("saved"), "fileName": .string(saved.fileName),
         "documentId": .string(id), "text": .string(effective),

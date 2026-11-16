@@ -64,6 +64,15 @@ export class QRPage {
     this.shell.preview.classList.remove("qr-preview");
   }
   private async renderPreview(): Promise<boolean> {
+    if (this.shell.text === "") {
+      this.png = "";
+      this.shell.preview.replaceChildren();
+      this.shell.preview.classList.remove("qr-preview");
+      this.shell.showPreview(true);
+      setIcon(this.toggle, "edit");
+      setButtonLabel(this.toggle, strings.edit);
+      return true;
+    }
     const bytes = new TextEncoder().encode(this.shell.text).length;
     if (bytes > 2331) {
       this.shell.updateInfo(strings.qrTooLarge(bytes));
