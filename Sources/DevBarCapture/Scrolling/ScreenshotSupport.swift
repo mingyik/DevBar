@@ -109,15 +109,21 @@ enum ScreenshotSupport {
       }
       guard !positions.isEmpty else { return .unavailable }
       positions.sort()
-      var best = (position: positions[0], count: 0)
+      var groups: [(position: Int, count: Int)] = []
       var index = 0
       while index < positions.count {
         var end = index + 1
         while end < positions.count, abs(positions[end] - positions[index]) <= 1 { end += 1 }
-        if end - index > best.count { best = (positions[index], end - index) }
+        groups.append((positions[index], end - index))
         index = end
       }
-      guard best.count >= minimumSupport else { return .ambiguous }
+      groups.sort { $0.count > $1.count }
+      guard let best = groups.first, best.count >= minimumSupport else {
+        return .ambiguous
+      }
+      // Two equally supported positions are still ambiguous repeated content;
+      // moving the stitch to either one could duplicate or reorder rows.
+      if groups.count > 1, groups[1].count == best.count { return .ambiguous }
       return .position(best.position)
     }
   }

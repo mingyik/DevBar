@@ -266,8 +266,6 @@ public enum ScreenshotScrollingCapture {
         }
 
         guard current.width == first.width, current.height == first.height,
-          let previousContent = ScreenshotSupport.scrollingContentSample(
-            previousSample, top: fixedTopPixels, bottom: fixedBottomPixels),
           let currentContent = ScreenshotSupport.scrollingContentSample(
             currentSample, top: fixedTopPixels, bottom: fixedBottomPixels)
         else {
@@ -275,33 +273,32 @@ public enum ScreenshotScrollingCapture {
             slices: contentWithHeader(), footerSlice: footerSlice,
             region: region, result: .partial)
         }
-        if contentSampleColumns != nil {
-          transition = ScreenshotSupport.scrollingTransition(
-            previous: previousContent, current: currentContent,
-            contentColumns: contentSampleColumns)
-        }
 
+        var observedTransition: ScreenshotSupport.ScrollingTransition?
         if !frameIsStable, let columns = contentSampleColumns,
           let observedPrevious = ScreenshotSupport.scrollingContentSample(
             observedBefore, top: fixedTopPixels, bottom: fixedBottomPixels),
           let observedCurrent = ScreenshotSupport.scrollingContentSample(
-            currentSample, top: fixedTopPixels, bottom: fixedBottomPixels),
-          case .advanced(let observedOverlap, _, _) = ScreenshotSupport.scrollingTransition(
-            previous: observedPrevious, current: observedCurrent, contentColumns: columns)
+            currentSample, top: fixedTopPixels, bottom: fixedBottomPixels)
         {
-          // Recheck stationary edges during actual movement, including bars
-          // that become sticky later. Changing the crop after committing slices
-          // would silently change coordinates, so pause instead of guessing.
-          // A fast jump has no reliable overlap; skip the scan rather than
-          // treating shifted rows as a layout change.
-          let top = ScreenshotSupport.scrollingFixedTopRows(
-            previous: observedBefore, current: currentSample,
-            overlap: observedOverlap, contentColumns: columns)
-          let bottom = ScreenshotSupport.scrollingFixedBottomRows(
-            previous: observedBefore, current: currentSample,
-            overlap: observedOverlap, contentColumns: columns)
-          fixedLayoutChanged =
-            abs(top - fixedTopPixels) > 2 || abs(bottom - fixedBottomPixels) > 2
+          let observed = ScreenshotSupport.scrollingTransition(
+            previous: observedPrevious, current: observedCurrent, contentColumns: columns)
+          observedTransition = observed
+          if case .advanced(let observedOverlap, _, _) = observed {
+            // Recheck stationary edges during actual movement, including bars
+            // that become sticky later. Changing the crop after committing
+            // slices would silently change coordinates, so pause instead of
+            // guessing. A fast jump has no reliable overlap; skip the scan
+            // rather than treating shifted rows as a layout change.
+            let top = ScreenshotSupport.scrollingFixedTopRows(
+              previous: observedBefore, current: currentSample,
+              overlap: observedOverlap, contentColumns: columns)
+            let bottom = ScreenshotSupport.scrollingFixedBottomRows(
+              previous: observedBefore, current: currentSample,
+              overlap: observedOverlap, contentColumns: columns)
+            fixedLayoutChanged =
+              abs(top - fixedTopPixels) > 2 || abs(bottom - fixedBottomPixels) > 2
+          }
         }
         if fixedLayoutChanged && currentSample == previousSample {
           fixedLayoutChanged = false
@@ -316,9 +313,12 @@ public enum ScreenshotScrollingCapture {
             retainedPixels = saved.pixels
             previousSample = saved.sample
             originSample = saved.sample
-            confirmedContent = saved.sample
+            let restored =
+              ScreenshotSupport.scrollingContentSample(
+                saved.sample, top: fixedTopPixels, bottom: fixedBottomPixels) ?? saved.sample
+            confirmedContent = restored
             anchors = .init()
-            anchors.remember(saved.sample, at: saved.viewport)
+            anchors.remember(restored, at: saved.viewport)
             footerSlice = saved.footer
             rollback = nil
             if let preview = makePreview(
@@ -336,11 +336,13 @@ public enum ScreenshotScrollingCapture {
 
         let contentHeight = currentContent.height
         let minimumOverlap = max(24, contentHeight / 4)
+        let reusableTransition =
+          observedBefore == originSample ? observedTransition : nil
         guard
           let placed = locate(
             content: currentContent, anchor: confirmedContent, anchorTop: viewportTop,
             anchors: anchors, columns: contentSampleColumns, minimumOverlap: minimumOverlap,
-            lastDirection: lastDirection)
+            lastDirection: lastDirection, precomputed: reusableTransition)
         else {
           // A jump with no reliable overlap is not new content and must never
           // move the stitch. Keep the confirmed anchor so a later frame can
@@ -682,10 +684,13 @@ public enum ScreenshotScrollingCapture {
     anchors: ScreenshotSupport.ScrollingAnchors,
     columns: Range<Int>?,
     minimumOverlap: Int,
-    lastDirection: ScreenshotSupport.ScrollingDirection?
+    lastDirection: ScreenshotSupport.ScrollingDirection?,
+    precomputed: ScreenshotSupport.ScrollingTransition? = nil
   ) -> Located? {
-    let transition = ScreenshotSupport.scrollingTransition(
-      previous: anchor, current: content, contentColumns: columns)
+    let transition =
+      precomputed
+      ?? ScreenshotSupport.scrollingTransition(
+        previous: anchor, current: content, contentColumns: columns)
     switch transition {
     case .advanced(let overlap, let direction, _):
       guard overlap >= minimumOverlap else { break }
@@ -703,8 +708,10 @@ public enum ScreenshotScrollingCapture {
         matching: content, columns: columns, minimumOverlap: minimumOverlap)
       {
       case .position(let verified): return Located(position: verified, direction: direction)
-      case .ambiguous: return nil
-      case .unavailable: return continuous
+      case .ambiguous, .unavailable:
+        // A reversal with no agreeing viewports is not safe to adopt: one
+        // matching pair may be an alias. Hold the confirmed position.
+        return nil
       }
     case .end:
       return Located(position: anchorTop, direction: nil)
