@@ -300,6 +300,27 @@ private func testRegion() throws -> CaptureRegion {
   #expect(image.height == 680)
 }
 
+@Test func scrollingDoesNotTreatSimilarTextRowsAsFixedFooter() {
+  func sample(_ offset: Int) -> ScreenshotSupport.ScrollingSample {
+    let width = 256
+    let height = 120
+    var pixels = [UInt8](repeating: 255, count: width * height)
+    for row in 0..<112 {
+      for column in 0..<width {
+        pixels[row * width + column] = UInt8((row * 17 + column * 13 + offset) % 251)
+      }
+    }
+    // Similar text lines: one dark glyph per row, moved slightly between frames.
+    for row in 112..<height {
+      pixels[row * width + (row + offset) % width] = 0
+    }
+    return .init(width: width, height: height, pixels: pixels)
+  }
+  #expect(
+    ScreenshotSupport.scrollingFixedBottomRows(
+      previous: sample(0), current: sample(3), overlap: 100, contentColumns: 0..<256) == 0)
+}
+
 @Test func scrollingDoesNotTreatBlankBottomBandAsFixedFooter() {
   func sample(_ offset: Int) -> ScreenshotSupport.ScrollingSample {
     let pixels = (0..<80).flatMap { row in
@@ -440,4 +461,64 @@ private func testRegion() throws -> CaptureRegion {
   #expect(
     ScreenshotSupport.scrollingTransition(previous: sample(0), current: sample(40))
       == .unmatched)
+}
+
+@Test func scrollingFindsTheExactOffsetOnATallFrame() {
+  func sample(_ offset: Int) -> ScreenshotSupport.ScrollingSample {
+    let height = 1200
+    let width = 256
+    let pixels = (0..<(width * height)).map { index in
+      let row = index / width
+      var value = UInt32(row + offset) &* 747_796_405
+      value &+= UInt32((index % width) * 19 + 2_891_336_453)
+      value = ((value >> ((value >> 28) + 4)) ^ value) &* 277_803_737
+      return UInt8(truncatingIfNeeded: (value >> 22) ^ value)
+    }
+    return .init(width: width, height: height, pixels: pixels)
+  }
+  guard
+    case .advanced(let overlap, .forward, _) = ScreenshotSupport.scrollingTransition(
+      previous: sample(0), current: sample(42))
+  else {
+    Issue.record("expected the exact offset")
+    return
+  }
+  #expect(overlap == 1158)
+}
+
+@MainActor @Test func scrollingFillsGapWhenALaterFrameBridgesSeparatedRegions() async throws {
+  func unique(_ offset: Int) -> CGImage {
+    let pixels = (0..<120).flatMap { row in
+      (0..<64).map { column -> UInt8 in
+        var value = UInt32(row + offset) &* 747_796_405 &+ UInt32(column * 19 + 2_891_336_453)
+        value = ((value >> ((value >> 28) + 4)) ^ value) &* 277_803_737
+        return UInt8(truncatingIfNeeded: (value >> 22) ^ value)
+      }
+    }
+    return CGImage(
+      width: 64, height: 120, bitsPerComponent: 8, bitsPerPixel: 8, bytesPerRow: 64,
+      space: CGColorSpaceCreateDeviceGray(), bitmapInfo: .init(rawValue: 0),
+      provider: CGDataProvider(data: Data(pixels) as CFData)!, decode: nil,
+      shouldInterpolate: false, intent: .defaultIntent)!
+  }
+  // 0..<200, then a jump to 210 that does not overlap, then 160 bridges both pieces.
+  let jumped = Frames([0, 40, 80, 210, 250, 160].map(unique))
+  let joined = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), frameLimit: 12,
+    onProgress: { _, _ in }, nextFrame: { await jumped.next() })
+  guard case .limited(let image) = joined else {
+    Issue.record("expected the bridged capture to reach the frame limit")
+    return
+  }
+  let sequential = Frames([0, 40, 80, 120, 160, 210, 250].map(unique))
+  let expected = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), frameLimit: 12,
+    onProgress: { _, _ in }, nextFrame: { await sequential.next() })
+  guard case .limited(let reference) = expected else {
+    Issue.record("expected the sequential capture to reach the frame limit")
+    return
+  }
+  #expect(image.height == 370)
+  #expect(image.height == reference.height)
+  #expect(image.dataProvider?.data as Data? == reference.dataProvider?.data as Data?)
 }

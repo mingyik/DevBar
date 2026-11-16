@@ -195,14 +195,21 @@ enum ScreenshotSupport {
         selected = informative.map { ($0, $0..<($0 + 1)) }
       } else {
         let perTile = max(1, 32 / tiles.count)
+        func movement(_ column: Int) -> Int {
+          var difference = 0
+          var count = 0
+          var row = 0
+          while row < previous.height {
+            let previousPixel = previous.pixels[row * previous.width + column]
+            let currentPixel = current.pixels[row * current.width + column]
+            difference += abs(Int(previousPixel) - Int(currentPixel))
+            count += 1
+            row += 8
+          }
+          return count > 0 ? difference / count : 0
+        }
         selected = tiles.flatMap { tile in
-          tile.map { column in
-            (
-              column: column,
-              difference: scrollingDifference(
-                previous, current, columns: column..<(column + 1))
-            )
-          }.sorted {
+          tile.map { column in (column: column, difference: movement(column)) }.sorted {
             if $0.difference != $1.difference { return $0.difference > $1.difference }
             return $0.column < $1.column
           }.prefix(perTile).map(\.column).sorted().map { ($0, tile) }
@@ -235,41 +242,58 @@ enum ScreenshotSupport {
     // Compute pixel differences in Accelerate, once per offset. The old
     // nested Swift pixel loops repeated the work for each tile and candidate
     // and took seconds per Retina frame in unoptimized Developer builds.
+    // Tall frames search only the correlation peaks. Checking every row
+    // offset is too slow to keep a 20 fps return path in the frame queue.
     let previousPixels = previous.pixels.map(Float.init)
     let currentPixels = current.pixels.map(Float.init)
+    let advances: [Int]
+    if height > 240 {
+      let likely = scrollingLikelyAdvances(
+        previous: previousPixels,
+        current: currentPixels,
+        width: previous.width,
+        height: height,
+        minimumAdvance: minimumAdvance,
+        maximumAdvance: maximumAdvance)
+      advances = likely.isEmpty ? Array(minimumAdvance...maximumAdvance) : likely
+    } else {
+      advances = Array(minimumAdvance...maximumAdvance)
+    }
     var differences = [Float](repeating: 0, count: previous.pixels.count)
     var matches: [Match] = []
-    for advance in minimumAdvance...maximumAdvance {
-      if Task.isCancelled { return .unmatched }
-      for reversed in [false, true] {
-        let count = (height - advance) * previous.width
-        previousPixels.withUnsafeBufferPointer { lhs in
-          currentPixels.withUnsafeBufferPointer { rhs in
+    previousPixels.withUnsafeBufferPointer { lhs in
+      currentPixels.withUnsafeBufferPointer { rhs in
+        guard let lhsBase = lhs.baseAddress, let rhsBase = rhs.baseAddress else { return }
+        for advance in advances {
+          if advance.isMultiple(of: 32), Task.isCancelled { return }
+          for reversed in [false, true] {
+            let count = (height - advance) * previous.width
             vDSP_vsub(
-              rhs.baseAddress! + (reversed ? advance * previous.width : 0), 1,
-              lhs.baseAddress! + (reversed ? 0 : advance * previous.width), 1,
+              rhsBase + (reversed ? advance * previous.width : 0), 1,
+              lhsBase + (reversed ? 0 : advance * previous.width), 1,
               &differences, 1, vDSP_Length(count))
+            vDSP_vabs(differences, 1, &differences, 1, vDSP_Length(count))
+            guard
+              let match = scrollingCandidate(
+                previous: previous,
+                advance: advance,
+                tiles: movingTiles,
+                differences: differences)
+            else { continue }
+            matches.append(
+              Match(
+                advance: advance,
+                reversed: reversed,
+                contentColumns: match.contentColumns,
+                supportingTiles: match.supportingTiles,
+                longestRun: match.longestRun,
+                matchingRows: match.matchingRows,
+                difference: match.difference))
           }
         }
-        vDSP_vabs(differences, 1, &differences, 1, vDSP_Length(count))
-        guard
-          let match = scrollingCandidate(
-            previous: previous,
-            advance: advance,
-            tiles: movingTiles,
-            differences: differences)
-        else { continue }
-        matches.append(
-          Match(
-            advance: advance,
-            reversed: reversed,
-            contentColumns: match.contentColumns,
-            supportingTiles: match.supportingTiles,
-            longestRun: match.longestRun,
-            matchingRows: match.matchingRows,
-            difference: match.difference))
       }
     }
+    if Task.isCancelled { return .unmatched }
     guard !matches.isEmpty else { return .unmatched }
     matches.sort {
       if $0.contentColumns.count != $1.contentColumns.count {
@@ -330,13 +354,16 @@ enum ScreenshotSupport {
     for lag in stride(from: 4, through: 32, by: 4) where lag < sample.height {
       var equal = 0
       var total = 0
-      for row in 0..<(sample.height - lag) {
+      var row = 0
+      let last = sample.height - lag
+      while row < last {
         total += 1
         if sample.pixels[row * sample.width + column]
           == sample.pixels[(row + lag) * sample.width + column]
         {
           equal += 1
         }
+        row += 4
       }
       if total > 0, Double(equal) / Double(total) >= 0.9 { return true }
     }
@@ -378,12 +405,13 @@ enum ScreenshotSupport {
     for index in 0..<previous.height {
       let row = fromTop ? index : previous.height - 1 - index
       let start = row * previous.width
-      var difference = 0
+      var maximumDifference = 0
       for column in contentColumns {
-        difference += abs(
-          Int(previous.pixels[start + column]) - Int(current.pixels[start + column]))
+        maximumDifference = max(
+          maximumDifference,
+          abs(Int(previous.pixels[start + column]) - Int(current.pixels[start + column])))
       }
-      guard Double(difference) / Double(contentColumns.count) <= 2 else { break }
+      guard maximumDifference <= 2 else { break }
       rows += 1
     }
     let minimumRows = max(4, min(12, previous.height / 100))
@@ -483,6 +511,127 @@ enum ScreenshotSupport {
       lower = upper
     }
     return tiles
+  }
+
+  /// Offsets worth the full row check. A tall frame cannot score every row
+  /// offset before the next 20 fps frame arrives. Correlation peaks include
+  /// the true shift and any close alias; the row check still accepts or
+  /// rejects them.
+  private static func scrollingLikelyAdvances(
+    previous: [Float],
+    current: [Float],
+    width: Int,
+    height: Int,
+    minimumAdvance: Int,
+    maximumAdvance: Int
+  ) -> [Int] {
+    let padded = 1 << Int(ceil(log2(Double(max(height * 2, 2)))))
+    let log2n = vDSP_Length(log2(Double(padded)))
+    guard let setup = vDSP_create_fftsetup(log2n, FFTRadix(kFFTRadix2)) else { return [] }
+    defer { vDSP_destroy_fftsetup(setup) }
+    let half = padded / 2
+    var correlation = [Float](repeating: 0, count: padded)
+    var previousColumn = [Float](repeating: 0, count: padded)
+    var currentColumn = [Float](repeating: 0, count: padded)
+    var realA = [Float](repeating: 0, count: half)
+    var imagA = [Float](repeating: 0, count: half)
+    var realB = [Float](repeating: 0, count: half)
+    var imagB = [Float](repeating: 0, count: half)
+    var realC = [Float](repeating: 0, count: half)
+    var imagC = [Float](repeating: 0, count: half)
+    var unpacked = [Float](repeating: 0, count: padded)
+
+    func forward(
+      _ input: [Float], real: inout [Float], imag: inout [Float]
+    ) {
+      input.withUnsafeBufferPointer { source in
+        real.withUnsafeMutableBufferPointer { realBuffer in
+          imag.withUnsafeMutableBufferPointer { imagBuffer in
+            var split = DSPSplitComplex(
+              realp: realBuffer.baseAddress!, imagp: imagBuffer.baseAddress!)
+            source.baseAddress!.withMemoryRebound(to: DSPComplex.self, capacity: half) {
+              vDSP_ctoz($0, 2, &split, 1, vDSP_Length(half))
+            }
+            vDSP_fft_zrip(setup, &split, 1, log2n, FFTDirection(kFFTDirection_Forward))
+          }
+        }
+      }
+    }
+
+    var previousMean: Float = 0
+    var currentMean: Float = 0
+    for row in 0..<height {
+      let start = row * width
+      var previousSum: Float = 0
+      var currentSum: Float = 0
+      for column in 0..<width {
+        previousSum += previous[start + column]
+        currentSum += current[start + column]
+      }
+      previousColumn[row] = previousSum
+      currentColumn[row] = currentSum
+      previousMean += previousSum
+      currentMean += currentSum
+    }
+    previousMean /= Float(height)
+    currentMean /= Float(height)
+    for row in 0..<height {
+      previousColumn[row] -= previousMean
+      currentColumn[row] -= currentMean
+    }
+    for row in height..<padded {
+      previousColumn[row] = 0
+      currentColumn[row] = 0
+    }
+    forward(previousColumn, real: &realA, imag: &imagA)
+    forward(currentColumn, real: &realB, imag: &imagB)
+    realC[0] = realA[0] * realB[0]
+    imagC[0] = imagA[0] * imagB[0]
+    for bin in 1..<half {
+      let leftReal = realA[bin]
+      let leftImag = imagA[bin]
+      let rightReal = realB[bin]
+      let rightImag = imagB[bin]
+      realC[bin] = leftReal * rightReal + leftImag * rightImag
+      imagC[bin] = leftImag * rightReal - leftReal * rightImag
+    }
+    unpacked.withUnsafeMutableBufferPointer { output in
+      realC.withUnsafeMutableBufferPointer { realBuffer in
+        imagC.withUnsafeMutableBufferPointer { imagBuffer in
+          var split = DSPSplitComplex(
+            realp: realBuffer.baseAddress!, imagp: imagBuffer.baseAddress!)
+          vDSP_fft_zrip(setup, &split, 1, log2n, FFTDirection(kFFTDirection_Inverse))
+          output.baseAddress!.withMemoryRebound(to: DSPComplex.self, capacity: half) {
+            vDSP_ztoc(&split, 1, $0, 2, vDSP_Length(half))
+          }
+        }
+      }
+    }
+    correlation = unpacked
+
+    var best: Float = 0
+    var scores: [(advance: Int, score: Float)] = []
+    scores.reserveCapacity(maximumAdvance - minimumAdvance + 1)
+    for advance in minimumAdvance...maximumAdvance {
+      let forwardScore = correlation[advance]
+      let backwardScore = correlation[padded - advance]
+      let score = max(forwardScore, backwardScore)
+      scores.append((advance, score))
+      best = max(best, score)
+    }
+    guard best > 0 else { return [] }
+    let cutoff = best * 0.45
+    let peaks = scores.filter { $0.score >= cutoff }.sorted { $0.score > $1.score }.prefix(6)
+    var selected = Set(peaks.map(\.advance))
+    if let bestAdvance = peaks.first?.advance {
+      for delta in -1...1 {
+        let advance = bestAdvance + delta
+        if advance >= minimumAdvance, advance <= maximumAdvance {
+          selected.insert(advance)
+        }
+      }
+    }
+    return selected.sorted()
   }
 
   private static func scrollingCandidate(

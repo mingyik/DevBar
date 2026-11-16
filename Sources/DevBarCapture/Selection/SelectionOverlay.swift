@@ -184,6 +184,7 @@ final class SelectionView: NSView {
   var complete: ((Result<CaptureRegion, any Error>) -> Void)?
   private var anchor: CGPoint?
   private(set) var selection = CGRect.zero
+  private var windowCandidate: (start: CGPoint, frame: CGRect)?
   var scrollingRequested = false
   var saveRequested = false
   var onInteraction: (() -> Void)?
@@ -840,6 +841,21 @@ final class SelectionView: NSView {
     window?.makeFirstResponder(self)
     let point = convert(event.locationInWindow, from: nil)
     onInteraction?()
+    if scrollingRequested, selection.isEmpty,
+      let target = Self.targetWindow(
+        for: CGRect(
+          x: point.x + screenFrame.minX, y: point.y + screenFrame.minY,
+          width: 1, height: 1))
+    {
+      let local = target.frame.offsetBy(
+        dx: -screenFrame.minX, dy: -screenFrame.minY
+      ).intersection(bounds)
+      if local.width > 1, local.height > 1 {
+        windowCandidate = (point, local)
+        anchor = point
+        return
+      }
+    }
     if let index = selectedMark, marks.indices.contains(index), marks[index].0.hasPrefix("arrow") {
       let path = marks[index].1
       if path.elementCount >= 2 {
@@ -1009,6 +1025,16 @@ final class SelectionView: NSView {
   override func mouseUp(with event: NSEvent) {
     guard !captureInProgress else { return }
     let end = convert(event.locationInWindow, from: nil)
+    if let candidate = windowCandidate {
+      windowCandidate = nil
+      anchor = nil
+      if hypot(end.x - candidate.start.x, end.y - candidate.start.y) < 4 {
+        selection = candidate.frame
+        needsDisplay = true
+        if !selection.isEmpty { confirm() }
+        return
+      }
+    }
     if let anchor, draft != nil, hypot(end.x - anchor.x, end.y - anchor.y) < 3 {
       draft = nil
     } else {
@@ -1082,7 +1108,7 @@ final class SelectionView: NSView {
         x: bounds.minX, y: mainTop - bounds.maxY,
         width: bounds.width, height: bounds.height)
       let overlap = cocoa.intersection(rect)
-      guard !overlap.isNull, overlap.width > 1, overlap.height > 1 else { continue }
+      guard !overlap.isNull, overlap.width > 0, overlap.height > 0 else { continue }
       let area = overlap.width * overlap.height
       if area > (best?.area ?? 0) { best = (cocoa, CGWindowID(number), area) }
     }
