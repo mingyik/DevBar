@@ -69,6 +69,22 @@ private func testRegion() throws -> CaptureRegion {
   #expect(ScreenshotScrollingCapture.makePreview([]) == nil)
 }
 
+@MainActor @Test func scrollingPreviewCatchesUpWhenGrowthWasThrottled() async throws {
+  let frames = Frames([0, 42, 84, 126].map { frame(offset: $0) })
+  var previews: [CGImage] = []
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), frameLimit: 6,
+    onPreview: { previews.append($0) },
+    onProgress: { _, _ in }, nextFrame: { await frames.next() })
+  guard case .limited(let image) = result else {
+    Issue.record("expected a retained image")
+    return
+  }
+  let expected = ScreenshotScrollingCapture.makePreview([image])
+  #expect(previews.last?.height == expected?.height)
+  #expect((previews.last?.height ?? 0) > (previews.first?.height ?? 0))
+}
+
 @Test func scrollingMatchesAndKeepsFixedFooter() async throws {
   let frames = Frames([frame(offset: 0, footer: 18), frame(offset: 42, footer: 18)])
   let finish = ScreenshotScrollingCapture.FinishSignal()
@@ -99,9 +115,12 @@ private func testRegion() throws -> CaptureRegion {
 }
 
 @MainActor @Test func scrollingRecoversAfterTransientUnmatchedFrames() async throws {
+  // Salted frames leave only the initial anchor. An approximate move is not
+  // corroborated; returning to that exact frame clears the hold, and the
+  // following forward move is ordinary evidence.
   let frames = Frames(
     [frame(offset: 0)] + Array(repeating: frame(offset: 0, salt: 111), count: 5)
-      + [frame(offset: 42)])
+      + [frame(offset: 0), frame(offset: 42)])
   let finish = ScreenshotScrollingCapture.FinishSignal()
   let timeout = Task {
     try? await Task.sleep(for: .seconds(2))
@@ -126,6 +145,41 @@ private func testRegion() throws -> CaptureRegion {
     return
   }
   #expect(image.height == 162)
+}
+
+@MainActor @Test func scrollingHoldsApproximateMoveAfterUnmatchedWithOneAnchor() async throws {
+  let frames = Frames(
+    [frame(offset: 0), frame(offset: 0, salt: 111), frame(offset: 42)])
+  var grew = false
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), frameLimit: 6,
+    onProgress: { height, _ in if height > 120 { grew = true } },
+    nextFrame: { await frames.next() })
+  #expect(!grew)
+  guard case .limited(let image) = result else {
+    Issue.record("expected the initial frame to be retained")
+    return
+  }
+  #expect(image.height == 120)
+}
+
+@MainActor @Test func scrollingDoesNotAdoptASingleAnchorApproximateAlias() async throws {
+  // sample(168) falsely matches sample(0) as a 35-row rollback. After an
+  // unmatched frame only one anchor exists, so that alias must not prepend.
+  let frames = Frames(
+    [frame(offset: 168), frame(offset: 168, salt: 111), frame(offset: 0)])
+  var grew = false
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), frameLimit: 6,
+    onProgress: { height, _ in if height > 120 { grew = true } },
+    nextFrame: { await frames.next() })
+  #expect(!grew)
+  guard case .limited(let image) = result else {
+    Issue.record("expected the alias to be held")
+    return
+  }
+  #expect(image.height == 120)
+  #expect(image.width == 64)
 }
 
 @MainActor @Test func scrollingRecoversWhileReversingDirection() async throws {

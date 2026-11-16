@@ -126,15 +126,27 @@ public enum ScreenshotScrollingCapture {
       var scrollPending = false
       var finishRequestedAt: TimeInterval?
       var lastPreviewAt: TimeInterval = 0
+      var previewStale = false
       func publishPreview(force: Bool = false) async {
         let now = ProcessInfo.processInfo.systemUptime
-        guard force || now - lastPreviewAt >= 0.25 else { return }
+        if !force, now - lastPreviewAt < 0.25 {
+          previewStale = true
+          return
+        }
         lastPreviewAt = now
         guard
           let preview = makePreview(
             footerSlice.map { contentWithHeader() + [$0] } ?? contentWithHeader())
-        else { return }
+        else {
+          previewStale = true
+          return
+        }
+        previewStale = false
         await onPreview(preview)
+      }
+      func flushStalePreview(now: TimeInterval, force: Bool = false) async {
+        guard previewStale, force || now - lastPreviewAt >= 0.25 else { return }
+        await publishPreview(force: true)
       }
       await publishPreview(force: true)
       await onProgress(totalHeight, false)
@@ -143,6 +155,7 @@ public enum ScreenshotScrollingCapture {
         try Task.checkCancellation()
 
         let now = ProcessInfo.processInfo.systemUptime
+        await flushStalePreview(now: now)
         if finishSignal.isRequested, finishRequestedAt == nil {
           finishRequestedAt = now
           // Take one final frame even if no wheel event was delivered.
@@ -151,6 +164,7 @@ public enum ScreenshotScrollingCapture {
         if let finishRequestedAt, pendingFrames() == 0,
           !scrollPending || now - finishRequestedAt >= finishGraceInterval
         {
+          await flushStalePreview(now: now, force: true)
           return completedByUser(
             slices: contentWithHeader(),
             footerSlice: footerSlice,
@@ -161,6 +175,7 @@ public enum ScreenshotScrollingCapture {
           >= ScreenshotSupport.scrollingCaptureMaximumDuration
           || capturedFrames >= frameLimit
         {
+          await flushStalePreview(now: now, force: true)
           return completed(
             slices: contentWithHeader(),
             footerSlice: footerSlice,
@@ -171,13 +186,18 @@ public enum ScreenshotScrollingCapture {
         // Observe pixels throughout the session. Wheel monitors miss
         // scrollbar drags, keyboard scrolling and some other apps.
         // A queued frame is already captured; waiting would let the return
-        // path fall out of the 48-frame buffer.
+        // path fall out of the 48-frame buffer. Wake early when a throttled
+        // preview is due so a stopped scroll still catches up.
         let sinceLastCapture = now - lastCaptureAt
-        if pendingFrames() == 0, sinceLastCapture < sampleInterval {
-          try await Task.sleep(
-            nanoseconds: UInt64(
-              (sampleInterval - sinceLastCapture) * 1_000_000_000))
-          continue
+        if pendingFrames() == 0 {
+          let captureWait = max(0, sampleInterval - sinceLastCapture)
+          let previewWait =
+            previewStale ? max(0, 0.25 - (now - lastPreviewAt)) : captureWait
+          let wait = min(captureWait, previewWait)
+          if wait > 0 {
+            try await Task.sleep(nanoseconds: UInt64(wait * 1_000_000_000))
+            continue
+          }
         }
 
         guard let frame = await nextFrame() else {
@@ -185,6 +205,7 @@ public enum ScreenshotScrollingCapture {
             try await Task.sleep(nanoseconds: 30_000_000)
             continue
           }
+          await flushStalePreview(now: now, force: true)
           return completed(
             slices: contentWithHeader(), footerSlice: footerSlice,
             region: region, result: .partial)
@@ -192,6 +213,7 @@ public enum ScreenshotScrollingCapture {
         guard let current = contentFrame(frame),
           let currentSample = sample(current)
         else {
+          await flushStalePreview(now: now, force: true)
           return completed(
             slices: contentWithHeader(), footerSlice: footerSlice,
             region: region, result: .partial)
@@ -282,6 +304,7 @@ public enum ScreenshotScrollingCapture {
           let currentContent = ScreenshotSupport.scrollingContentSample(
             currentSample, top: fixedTopPixels, bottom: fixedBottomPixels)
         else {
+          await flushStalePreview(now: now, force: true)
           return completed(
             slices: contentWithHeader(), footerSlice: footerSlice,
             region: region, result: .partial)
@@ -398,6 +421,7 @@ public enum ScreenshotScrollingCapture {
             retainedPixels + extraRows * columns.count
               <= ScreenshotSupport.scrollingCaptureMaximumRetainedPixels
           else {
+            await flushStalePreview(now: now, force: true)
             return completed(
               slices: contentWithHeader(), footerSlice: footerSlice,
               region: region, result: .limited)
@@ -680,6 +704,20 @@ public enum ScreenshotScrollingCapture {
     let direction: ScreenshotSupport.ScrollingDirection?
   }
 
+  /// One remembered viewpoint is not a second opinion. An approximate match
+  /// can be a repeated-content alias, so accept only an exact revisit.
+  private static func exactSingleAnchorRevisit(
+    anchors: ScreenshotSupport.ScrollingAnchors,
+    content: ScreenshotSupport.ScrollingSample,
+    columns: Range<Int>?
+  ) -> Located? {
+    guard anchors.entries.count < 2,
+      case .position(let exact) = anchors.registration(
+        matching: content, columns: columns, allowOverlap: false)
+    else { return nil }
+    return Located(position: exact, direction: nil)
+  }
+
   /// Locate this frame against the confirmed viewport first, then against
   /// remembered viewports. A placement that shares too few rows with the
   /// captured range is rejected; it must never append content out of order.
@@ -720,16 +758,11 @@ public enum ScreenshotScrollingCapture {
       {
       case .position(let verified): return Located(position: verified, direction: direction)
       case .ambiguous, .unavailable:
-        // With a single remembered viewport there is no second opinion to ask
-        // for; the continuous match is the only available evidence.
-        if anchors.entries.count < 2,
-          case .position(let single) = anchors.registration(
-            matching: content, columns: columns, allowOverlap: true,
-            minimumOverlap: minimumOverlap)
+        if let revisit = exactSingleAnchorRevisit(
+          anchors: anchors, content: content, columns: columns)
         {
-          return Located(position: single, direction: direction)
+          return revisit
         }
-        // Otherwise one matching pair may be an alias. Hold the position.
         return nil
       }
     case .end:
@@ -751,12 +784,10 @@ public enum ScreenshotScrollingCapture {
     {
     case .position(let top): return Located(position: top, direction: nil)
     case .ambiguous, .unavailable:
-      if anchors.entries.count < 2,
-        case .position(let single) = anchors.registration(
-          matching: content, columns: columns, allowOverlap: true,
-          minimumOverlap: minimumOverlap)
+      if let revisit = exactSingleAnchorRevisit(
+        anchors: anchors, content: content, columns: columns)
       {
-        return Located(position: single, direction: nil)
+        return revisit
       }
       return nil
     }

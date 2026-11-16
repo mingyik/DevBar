@@ -1083,9 +1083,10 @@ final class SelectionView: NSView {
       })
   }
 
-  /// A scrolling capture only makes sense on one scrollable surface. Clamp the
-  /// selection to the normal window it overlaps most so the long image never
-  /// contains desktop or another application beside the source window.
+  /// A scrolling capture only makes sense on one scrollable surface. Prefer
+  /// the frontmost normal window under the selection center; a larger window
+  /// behind it must not win on area alone. Fall back to the largest overlap
+  /// only when the center is not inside any window.
   private static func targetWindow(
     for rect: CGRect
   ) -> (frame: CGRect, id: CGWindowID)? {

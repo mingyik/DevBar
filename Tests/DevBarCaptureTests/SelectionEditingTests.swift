@@ -274,11 +274,15 @@ import Testing
 }
 
 @Test func scrollingSelectionPrefersTheFrontmostWindowAtItsCenter() {
+  // The window behind overlaps more of the selection, but the center is on
+  // the front window. The old largest-area rule would pick the one behind.
+  let front = CGRect(x: 100, y: 100, width: 200, height: 200)
   let behind = CGRect(x: 0, y: 0, width: 1000, height: 1000)
-  let front = CGRect(x: 100, y: 100, width: 500, height: 600)
-  let selection = CGRect(x: 150, y: 150, width: 300, height: 300)
+  let selection = CGRect(x: 80, y: 80, width: 400, height: 400)
   #expect(SelectionView.windowChoice(frames: [front, behind], selection: selection) == 0)
   // Center outside every window: fall back to the largest overlap.
-  let offCenter = CGRect(x: 700, y: 700, width: 200, height: 200)
-  #expect(SelectionView.windowChoice(frames: [front, behind], selection: offCenter) == 1)
+  let left = CGRect(x: 0, y: 0, width: 100, height: 100)
+  let right = CGRect(x: 300, y: 0, width: 200, height: 200)
+  let outside = CGRect(x: 50, y: 0, width: 400, height: 80)
+  #expect(SelectionView.windowChoice(frames: [left, right], selection: outside) == 1)
 }
