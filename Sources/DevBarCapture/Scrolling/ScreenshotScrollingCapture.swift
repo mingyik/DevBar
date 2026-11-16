@@ -47,22 +47,7 @@ public enum ScreenshotScrollingCapture {
     let viewport: Int
     let pixels: Int
     let sample: ScreenshotSupport.ScrollingSample
-    let direction: ScreenshotSupport.ScrollingDirection?
     let footer: CGImage?
-  }
-
-  /// One contiguous captured piece, in its own coordinates.
-  /// The origin piece uses document coordinates. A detached piece uses local
-  /// coordinates until a frame overlaps both and supplies the shift.
-  private struct Coverage {
-    var slices: [CGImage]
-    var top: Int
-    var bottom: Int
-    var viewportTop: Int
-    var anchors: ScreenshotSupport.ScrollingAnchors
-    var sample: ScreenshotSupport.ScrollingSample
-    var direction: ScreenshotSupport.ScrollingDirection?
-    var pixels: Int
   }
 
   private static let sampleInterval: TimeInterval = 0.03
@@ -125,8 +110,9 @@ public enum ScreenshotScrollingCapture {
       var anchors = ScreenshotSupport.ScrollingAnchors()
       anchors.remember(firstSample, at: 0)
       var originSample = firstSample
-      var detached: [Coverage] = []
-      var previousDirection: ScreenshotSupport.ScrollingDirection?
+      /// Last frame whose position was confirmed against the captured content.
+      var confirmedContent = firstSample
+      var lastDirection: ScreenshotSupport.ScrollingDirection?
       var fixedBottomPixels = 0
       var footerSlice: CGImage?
       func contentWithHeader() -> [CGImage] { headerSlice.map { [$0] + slices } ?? slices }
@@ -214,7 +200,8 @@ public enum ScreenshotScrollingCapture {
         }
 
         if contentSampleColumns == nil,
-          case .advanced(let overlap, _, let matchedColumns) = transition
+          case .advanced(let overlap, _, let matchedColumns) = transition,
+          overlap >= max(24, currentSample.height / 4)
         {
           // Fixed strips are identified only after moving content has matched.
           let top = ScreenshotSupport.scrollingFixedTopRows(
@@ -223,11 +210,30 @@ public enum ScreenshotScrollingCapture {
           let bottom = ScreenshotSupport.scrollingFixedBottomRows(
             previous: previousSample, current: currentSample, overlap: overlap,
             contentColumns: matchedColumns)
-          guard top + bottom < current.height,
+          // Only the frame immediately after the first one has a known offset
+          // with it. A later first match may still overlap the origin after
+          // transient unmatched frames; only when it does not may the document
+          // start at this frame instead of guessing the skipped gap.
+          var continuesOrigin = capturedFrames == 2
+          if !continuesOrigin,
+            let originContent = ScreenshotSupport.scrollingContentSample(
+              firstSample, top: top, bottom: bottom),
+            let lateContent = ScreenshotSupport.scrollingContentSample(
+              currentSample, top: top, bottom: bottom),
+            case .advanced(let originOverlap, _, _) = ScreenshotSupport.scrollingTransition(
+              previous: originContent, current: lateContent,
+              contentColumns: matchedColumns),
+            originOverlap >= max(24, currentSample.height / 4)
+          {
+            continuesOrigin = true
+          }
+          let base = continuesOrigin ? first : current
+          let baseSample = continuesOrigin ? firstSample : currentSample
+          guard top + bottom < base.height,
             let cropped = copiedStrip(
-              from: first, columns: 0..<first.width, topCrop: top, bottomCrop: bottom),
+              from: base, columns: 0..<base.width, topCrop: top, bottomCrop: bottom),
             let initialContent = ScreenshotSupport.scrollingContentSample(
-              firstSample, top: top, bottom: bottom)
+              baseSample, top: top, bottom: bottom)
           else { return .failed }
           fixedTopPixels = top
           fixedBottomPixels = bottom
@@ -235,22 +241,28 @@ public enum ScreenshotScrollingCapture {
           contentPixelColumns = 0..<current.width
           if top > 0 {
             headerSlice = copiedStrip(
-              from: first, columns: 0..<first.width,
-              topCrop: 0, bottomCrop: first.height - top)
+              from: base, columns: 0..<base.width,
+              topCrop: 0, bottomCrop: base.height - top)
             guard headerSlice != nil else { return .failed }
           }
           if bottom > 0 {
             footerSlice = copiedStrip(
-              from: first, columns: 0..<first.width,
-              topCrop: first.height - bottom, bottomCrop: 0)
+              from: base, columns: 0..<base.width,
+              topCrop: base.height - bottom, bottomCrop: 0)
             guard footerSlice != nil else { return .failed }
           }
-          slices[0] = cropped
+          slices = [cropped]
           totalHeight = cropped.height
+          capturedTop = 0
           capturedBottom = totalHeight
+          viewportTop = 0
           retainedPixels = cropped.width * cropped.height
           anchors = .init()
           anchors.remember(initialContent, at: 0)
+          confirmedContent = initialContent
+          originSample = baseSample
+          previousSample = baseSample
+          lastDirection = nil
         }
 
         guard current.width == first.width, current.height == first.height,
@@ -304,10 +316,9 @@ public enum ScreenshotScrollingCapture {
             retainedPixels = saved.pixels
             previousSample = saved.sample
             originSample = saved.sample
-            detached.removeAll()
+            confirmedContent = saved.sample
             anchors = .init()
             anchors.remember(saved.sample, at: saved.viewport)
-            previousDirection = saved.direction
             footerSlice = saved.footer
             rollback = nil
             if let preview = makePreview(
@@ -323,206 +334,108 @@ public enum ScreenshotScrollingCapture {
           continue
         }
 
-        let origin = Coverage(
-          slices: slices, top: capturedTop, bottom: capturedBottom, viewportTop: viewportTop,
-          anchors: anchors, sample: originSample, direction: previousDirection,
-          pixels: retainedPixels)
-        var hits:
-          [(
-            index: Int?, position: Int, direction: ScreenshotSupport.ScrollingDirection?,
-            trusted: Bool
-          )] = []
-        if let placed = placement(
-          of: currentContent, on: origin, columns: contentSampleColumns,
-          fixedTop: fixedTopPixels, fixedBottom: fixedBottomPixels)
-        {
-          hits.append((nil, placed.position, placed.direction, placed.trusted))
-        }
-        for index in detached.indices {
-          if let placed = placement(
-            of: currentContent, on: detached[index], columns: contentSampleColumns,
-            fixedTop: fixedTopPixels, fixedBottom: fixedBottomPixels)
-          {
-            hits.append((index, placed.position, placed.direction, placed.trusted))
-          }
-        }
-        let minimumBridge = currentContent.height / 4
-        hits.removeAll { hit in
-          guard !hit.trusted else { return false }
-          let coverage = hit.index.map { detached[$0] } ?? origin
-          let overlap =
-            min(coverage.bottom, hit.position + currentContent.height)
-            - max(coverage.top, hit.position)
-          return overlap < minimumBridge
-        }
-
-        guard let columns = contentPixelColumns else {
-          if let originHit = hits.first(where: { $0.index == nil }) {
-            viewportTop = originHit.position
-            previousSample = currentSample
-            originSample = currentSample
-            if let direction = originHit.direction { previousDirection = direction }
-            anchors.remember(currentContent, at: originHit.position)
-            hasUnmatchedContent = false
-            await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, false)
-          } else {
-            hasUnmatchedContent = true
-            scrollPending = false
-            await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, true)
-            continue
-          }
-          scrollPending = !frameIsStable || lastCaptureAt - lastChangedAt < settleInterval
-          continue
-        }
-
-        if hits.isEmpty {
-          let used = retainedPixels + detached.reduce(0) { $0 + $1.pixels }
-          if detached.count < 8,
-            let strip = copiedStrip(
-              from: current, columns: columns,
-              topCrop: fixedTopPixels, bottomCrop: fixedBottomPixels),
-            used + strip.width * strip.height
-              <= ScreenshotSupport.scrollingCaptureMaximumRetainedPixels
-          {
-            var heldAnchors = ScreenshotSupport.ScrollingAnchors()
-            heldAnchors.remember(currentContent, at: 0)
-            detached.append(
-              Coverage(
-                slices: [strip], top: 0, bottom: currentContent.height, viewportTop: 0,
-                anchors: heldAnchors, sample: currentSample, direction: nil,
-                pixels: strip.width * strip.height))
-            previousSample = currentSample
-          }
+        let contentHeight = currentContent.height
+        let minimumOverlap = max(24, contentHeight / 4)
+        guard
+          let placed = locate(
+            content: currentContent, anchor: confirmedContent, anchorTop: viewportTop,
+            anchors: anchors, columns: contentSampleColumns, minimumOverlap: minimumOverlap,
+            lastDirection: lastDirection)
+        else {
+          // A jump with no reliable overlap is not new content and must never
+          // move the stitch. Keep the confirmed anchor so a later frame can
+          // still return to captured content.
           hasUnmatchedContent = true
-          fixedLayoutChanged = false
           scrollPending = false
           await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, true)
           continue
         }
 
-        let contentHeight = currentContent.height
-        let originHit = hits.first { $0.index == nil }
-        let sideHits = hits.compactMap {
-          hit -> (index: Int, position: Int, direction: ScreenshotSupport.ScrollingDirection?)? in
-          guard let index = hit.index else { return nil }
-          return (index, hit.position, hit.direction)
-        }
-        var extendedSides = detached
-        for hit in sideHits {
-          switch extend(
-            &extendedSides[hit.index], frame: current, content: currentContent,
-            fullSample: currentSample, at: hit.position, direction: hit.direction,
-            columns: columns, fixedTop: fixedTopPixels, fixedBottom: fixedBottomPixels)
-          {
-          case .failed: return .failed
-          case .rejected, .placed: break
-          }
+        guard let columns = contentPixelColumns else {
+          // The moving content is not cropped yet; adopt the position only.
+          viewportTop = placed.position
+          originSample = currentSample
+          confirmedContent = currentContent
+          anchors.remember(currentContent, at: placed.position)
+          if let direction = placed.direction { lastDirection = direction }
+          hasUnmatchedContent = false
+          await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, false)
+          scrollPending = !frameIsStable || lastCaptureAt - lastChangedAt < settleInterval
+          continue
         }
 
-        if let originHit {
-          var unionTop = min(capturedTop, originHit.position)
-          var unionBottom = max(capturedBottom, originHit.position + contentHeight)
-          for hit in sideHits {
-            let shift = originHit.position - hit.position
-            let side = extendedSides[hit.index]
-            unionTop = min(unionTop, side.top + shift)
-            unionBottom = max(unionBottom, side.bottom + shift)
-          }
-          let extraRows = (capturedTop - unionTop) + (unionBottom - capturedBottom)
-          let edgePixels = (fixedTopPixels + fixedBottomPixels) * columns.count
-          let detachedPixels = detached.reduce(0) { $0 + $1.pixels }
+        let position = placed.position
+        let sharedRows = min(capturedBottom, position + contentHeight) - max(capturedTop, position)
+        let prepend = max(0, capturedTop - position)
+        let append = max(0, position + contentHeight - capturedBottom)
+        guard sharedRows >= minimumOverlap, prepend == 0 || append == 0 else {
+          // Too little shared content to trust this placement, or a jump across
+          // the whole captured range. Hold instead of appending out of order.
+          hasUnmatchedContent = true
+          scrollPending = false
+          await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, true)
+          continue
+        }
+
+        let extraRows = prepend + append
+        if extraRows > 0 {
           guard
             totalHeight + extraRows + fixedTopPixels + fixedBottomPixels
               <= ScreenshotSupport.scrollingCaptureMaximumPixels / columns.count,
-            retainedPixels + detachedPixels + extraRows * columns.count + edgePixels
+            retainedPixels + extraRows * columns.count
               <= ScreenshotSupport.scrollingCaptureMaximumRetainedPixels
           else {
             return completed(
               slices: contentWithHeader(), footerSlice: footerSlice,
               region: region, result: .limited)
           }
-          if extraRows > 0 {
-            rollback = AppendRollback(
-              slices: slices, height: totalHeight, top: capturedTop, bottom: capturedBottom,
-              viewport: viewportTop, pixels: retainedPixels, sample: originSample,
-              direction: previousDirection, footer: footerSlice)
-          }
+          rollback = AppendRollback(
+            slices: slices, height: totalHeight, top: capturedTop, bottom: capturedBottom,
+            viewport: viewportTop, pixels: retainedPixels, sample: originSample,
+            footer: footerSlice)
           if fixedBottomPixels > 0 {
             footerSlice = copiedStrip(
               from: current, columns: columns,
               topCrop: current.height - fixedBottomPixels, bottomCrop: 0)
             guard footerSlice != nil else { return .failed }
           }
-          var originCoverage = origin
-          switch extend(
-            &originCoverage, frame: current, content: currentContent, fullSample: currentSample,
-            at: originHit.position, direction: originHit.direction, columns: columns,
-            fixedTop: fixedTopPixels, fixedBottom: fixedBottomPixels)
-          {
-          case .failed: return .failed
-          case .rejected:
-            hasUnmatchedContent = true
-            await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, true)
-            continue
-          case .placed:
-            let absorbed = Set(sideHits.map(\.index))
-            for hit in sideHits {
-              let shift = originHit.position - hit.position
-              guard
-                absorb(extendedSides[hit.index], shift: shift, into: &originCoverage)
-              else { return .failed }
-            }
-            slices = originCoverage.slices
-            capturedTop = originCoverage.top
-            capturedBottom = originCoverage.bottom
-            viewportTop = originCoverage.viewportTop
-            anchors = originCoverage.anchors
-            retainedPixels = originCoverage.pixels
-            totalHeight = capturedBottom - capturedTop
-            originSample = currentSample
-            previousSample = currentSample
-            if let direction = originHit.direction { previousDirection = direction }
-            detached = extendedSides.enumerated().compactMap {
-              absorbed.contains($0.offset) ? nil : $0.element
-            }
-            hasUnmatchedContent = false
-            if extraRows > 0,
-              let preview = makePreview(
-                footerSlice.map { contentWithHeader() + [$0] } ?? contentWithHeader())
-            {
-              await onPreview(preview)
-            }
-            await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, false)
+          if prepend > 0 {
+            guard
+              let strip = copiedStrip(
+                from: current, columns: columns, topCrop: fixedTopPixels,
+                bottomCrop: current.height - fixedTopPixels - prepend)
+            else { return .failed }
+            slices.insert(strip, at: 0)
+            capturedTop = position
+            retainedPixels += strip.width * strip.height
           }
-        } else if sideHits.count >= 2, let primary = sideHits.first {
-          var combined = extendedSides[primary.index]
-          for hit in sideHits.dropFirst() {
-            let shift = primary.position - hit.position
-            guard absorb(extendedSides[hit.index], shift: shift, into: &combined) else {
-              return .failed
-            }
+          if append > 0 {
+            guard
+              let strip = copiedStrip(
+                from: current, columns: columns,
+                topCrop: current.height - fixedBottomPixels - append,
+                bottomCrop: fixedBottomPixels)
+            else { return .failed }
+            slices.append(strip)
+            capturedBottom = position + contentHeight
+            retainedPixels += strip.width * strip.height
           }
-          let absorbed = Set(sideHits.map(\.index))
-          detached = extendedSides.enumerated().compactMap {
-            if $0.offset == primary.index { return combined }
-            return absorbed.contains($0.offset) ? nil : $0.element
-          }
-          previousSample = currentSample
-          hasUnmatchedContent = true
-          fixedLayoutChanged = false
-          scrollPending = false
-          await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, true)
-          continue
-        } else {
-          detached = extendedSides
-          previousSample = currentSample
-          hasUnmatchedContent = true
-          fixedLayoutChanged = false
-          scrollPending = false
-          await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, true)
-          continue
+          totalHeight = capturedBottom - capturedTop
         }
 
+        viewportTop = position
+        originSample = currentSample
+        confirmedContent = currentContent
+        anchors.remember(currentContent, at: position)
+        if let direction = placed.direction { lastDirection = direction }
+        hasUnmatchedContent = false
+        if extraRows > 0,
+          let preview = makePreview(
+            footerSlice.map { contentWithHeader() + [$0] } ?? contentWithHeader())
+        {
+          await onPreview(preview)
+        }
+        await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, false)
         scrollPending = !frameIsStable || lastCaptureAt - lastChangedAt < settleInterval
       }
     } catch is CancellationError {
@@ -753,160 +666,65 @@ public enum ScreenshotScrollingCapture {
     guard !Task.isCancelled, destinationY == 0 else { return nil }
     return context.makeImage()
   }
-  private enum ExtendOutcome {
-    case placed(extra: Int)
-    case rejected
-    case failed
+
+  private struct Located {
+    let position: Int
+    let direction: ScreenshotSupport.ScrollingDirection?
   }
 
-  /// Locate this frame on one piece. Continuous motion is trusted; anchors are
-  /// consulted only when direction reverses or the previous viewport no longer
-  /// overlaps. A position that does not touch the piece is not a hit.
-  private static func placement(
-    of content: ScreenshotSupport.ScrollingSample,
-    on coverage: Coverage,
-    columns: Range<Int>?,
-    fixedTop: Int,
-    fixedBottom: Int
-  ) -> (position: Int, direction: ScreenshotSupport.ScrollingDirection?, trusted: Bool)? {
-    guard
-      let previousContent = ScreenshotSupport.scrollingContentSample(
-        coverage.sample, top: fixedTop, bottom: fixedBottom)
-    else { return nil }
-    let transition = ScreenshotSupport.scrollingTransition(
-      previous: previousContent, current: content, contentColumns: columns)
-    var position: Int?
-    var direction: ScreenshotSupport.ScrollingDirection?
-    var tryAnchor = false
-    var trusted = false
-    switch transition {
-    case .advanced(let overlap, let movement, _):
-      let delta = content.height - overlap
-      position = coverage.viewportTop + (movement == .forward ? delta : -delta)
-      direction = movement
-      trusted = true
-      tryAnchor = coverage.direction != nil && coverage.direction != movement
-    case .end:
-      position = coverage.viewportTop
-      trusted = true
-    case .unmatched:
-      tryAnchor = true
-    }
-    if columns != nil && tryAnchor {
-      switch coverage.anchors.registration(
-        matching: content, columns: columns, allowOverlap: true)
-      {
-      case .position(let anchored):
-        if let position, abs(position - anchored) > 1 { trusted = false }
-        position = anchored
-      case .ambiguous: position = nil
-      case .unavailable: break
-      }
-    }
-    guard let position else { return nil }
-    let bottom = position + content.height
-    let extra = max(0, coverage.top - position) + max(0, bottom - coverage.bottom)
-    guard extra <= content.height, position <= coverage.bottom, bottom >= coverage.top else {
-      return nil
-    }
-    return (position, direction, trusted)
-  }
-
-  private static func extend(
-    _ coverage: inout Coverage,
-    frame: CGImage,
+  /// Locate this frame against the confirmed viewport first, then against
+  /// remembered viewports. A placement that shares too few rows with the
+  /// captured range is rejected; it must never append content out of order.
+  private static func locate(
     content: ScreenshotSupport.ScrollingSample,
-    fullSample: ScreenshotSupport.ScrollingSample,
-    at position: Int,
-    direction: ScreenshotSupport.ScrollingDirection?,
-    columns: Range<Int>,
-    fixedTop: Int,
-    fixedBottom: Int
-  ) -> ExtendOutcome {
-    let bottom = position + content.height
-    let prepend = max(0, coverage.top - position)
-    let append = max(0, bottom - coverage.bottom)
-    let extra = prepend + append
-    guard extra <= content.height, position <= coverage.bottom, bottom >= coverage.top else {
-      return .rejected
-    }
-    if prepend > 0 {
-      guard
-        let strip = copiedStrip(
-          from: frame, columns: columns,
-          topCrop: fixedTop, bottomCrop: frame.height - fixedTop - prepend)
-      else { return .failed }
-      coverage.slices.insert(strip, at: 0)
-      coverage.top = position
-      coverage.pixels += strip.width * strip.height
-    }
-    if append > 0 {
-      guard
-        let strip = copiedStrip(
-          from: frame, columns: columns,
-          topCrop: frame.height - fixedBottom - append, bottomCrop: fixedBottom)
-      else { return .failed }
-      coverage.slices.append(strip)
-      coverage.bottom = bottom
-      coverage.pixels += strip.width * strip.height
-    }
-    coverage.viewportTop = position
-    coverage.sample = fullSample
-    if let direction { coverage.direction = direction }
-    coverage.anchors.remember(content, at: position)
-    return .placed(extra: extra)
-  }
-
-  /// Copy rows of `side` that fall outside `origin`. `shift` maps side-local tops
-  /// onto the destination piece. Overlapping rows stay with the destination.
-  private static func absorb(
-    _ side: Coverage,
-    shift: Int,
-    into origin: inout Coverage
-  ) -> Bool {
-    var cursor = side.top
-    var prepends: [CGImage] = []
-    var appends: [CGImage] = []
-    for slice in side.slices {
-      let doc = cursor + shift
-      let height = slice.height
-      if doc < origin.top {
-        let rows = min(height, origin.top - doc)
-        guard
-          let strip = copiedStrip(
-            from: slice, columns: 0..<slice.width, topCrop: 0, bottomCrop: height - rows)
-        else { return false }
-        prepends.append(strip)
+    anchor: ScreenshotSupport.ScrollingSample,
+    anchorTop: Int,
+    anchors: ScreenshotSupport.ScrollingAnchors,
+    columns: Range<Int>?,
+    minimumOverlap: Int,
+    lastDirection: ScreenshotSupport.ScrollingDirection?
+  ) -> Located? {
+    let transition = ScreenshotSupport.scrollingTransition(
+      previous: anchor, current: content, contentColumns: columns)
+    switch transition {
+    case .advanced(let overlap, let direction, _):
+      guard overlap >= minimumOverlap else { break }
+      let delta = content.height - overlap
+      let continuous = Located(
+        position: anchorTop + (direction == .forward ? delta : -delta),
+        direction: direction)
+      guard columns != nil, let lastDirection, lastDirection != direction else {
+        return continuous
       }
-      let docBottom = doc + height
-      if docBottom > origin.bottom {
-        let start = max(0, origin.bottom - doc)
-        let rows = height - start
-        if rows > 0 {
-          guard
-            let strip = copiedStrip(
-              from: slice, columns: 0..<slice.width, topCrop: start,
-              bottomCrop: height - start - rows)
-          else { return false }
-          appends.append(strip)
-        }
+      // A reversal is where one matching pair is most likely to be an alias
+      // from repeated content. It must agree with the captured viewports.
+      guard let columns else { return continuous }
+      switch anchors.verified(
+        matching: content, columns: columns, minimumOverlap: minimumOverlap)
+      {
+      case .position(let verified): return Located(position: verified, direction: direction)
+      case .ambiguous: return nil
+      case .unavailable: return continuous
       }
-      cursor += height
+    case .end:
+      return Located(position: anchorTop, direction: nil)
+    case .unmatched:
+      // A scrollbar fade or lazy repaint can defeat the offset search while
+      // the content itself barely changed. That is a stationary frame, not a
+      // jump: adopting the current position avoids stalling the capture.
+      if ScreenshotSupport.scrollingSamplesAreStable(
+        anchor, content, contentColumns: columns, tolerance: 4)
+      {
+        return Located(position: anchorTop, direction: nil)
+      }
+      break
     }
-    for strip in prepends.reversed() {
-      origin.slices.insert(strip, at: 0)
-      origin.pixels += strip.width * strip.height
+    guard let columns else { return nil }
+    switch anchors.verified(
+      matching: content, columns: columns, minimumOverlap: minimumOverlap)
+    {
+    case .position(let top): return Located(position: top, direction: nil)
+    case .ambiguous, .unavailable: return nil
     }
-    if !prepends.isEmpty { origin.top = side.top + shift }
-    for strip in appends {
-      origin.slices.append(strip)
-      origin.pixels += strip.width * strip.height
-    }
-    if !appends.isEmpty { origin.bottom = max(origin.bottom, side.bottom + shift) }
-    for entry in side.anchors.entries {
-      origin.anchors.remember(entry.sample, at: entry.top + shift)
-    }
-    return true
   }
-
 }

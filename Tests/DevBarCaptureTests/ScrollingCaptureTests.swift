@@ -486,39 +486,64 @@ private func testRegion() throws -> CaptureRegion {
   #expect(overlap == 1158)
 }
 
-@MainActor @Test func scrollingFillsGapWhenALaterFrameBridgesSeparatedRegions() async throws {
-  func unique(_ offset: Int) -> CGImage {
-    let pixels = (0..<120).flatMap { row in
-      (0..<64).map { column -> UInt8 in
-        var value = UInt32(row + offset) &* 747_796_405 &+ UInt32(column * 19 + 2_891_336_453)
-        value = ((value >> ((value >> 28) + 4)) ^ value) &* 277_803_737
-        return UInt8(truncatingIfNeeded: (value >> 22) ^ value)
-      }
+private func uniqueFrame(offset: Int) -> CGImage {
+  let pixels = (0..<120).flatMap { row in
+    (0..<64).map { column -> UInt8 in
+      var value = UInt32(row + offset) &* 747_796_405 &+ UInt32(column * 19 + 2_891_336_453)
+      value = ((value >> ((value >> 28) + 4)) ^ value) &* 277_803_737
+      return UInt8(truncatingIfNeeded: (value >> 22) ^ value)
     }
-    return CGImage(
-      width: 64, height: 120, bitsPerComponent: 8, bitsPerPixel: 8, bytesPerRow: 64,
-      space: CGColorSpaceCreateDeviceGray(), bitmapInfo: .init(rawValue: 0),
-      provider: CGDataProvider(data: Data(pixels) as CFData)!, decode: nil,
-      shouldInterpolate: false, intent: .defaultIntent)!
   }
-  // 0..<200, then a jump to 210 that does not overlap, then 160 bridges both pieces.
-  let jumped = Frames([0, 40, 80, 210, 250, 160].map(unique))
-  let joined = await ScreenshotScrollingCapture.captureFrames(
+  return CGImage(
+    width: 64, height: 120, bitsPerComponent: 8, bitsPerPixel: 8, bytesPerRow: 64,
+    space: CGColorSpaceCreateDeviceGray(), bitmapInfo: .init(rawValue: 0),
+    provider: CGDataProvider(data: Data(pixels) as CFData)!, decode: nil,
+    shouldInterpolate: false, intent: .defaultIntent)!
+}
+
+@MainActor @Test func scrollingHoldsOrderAfterAJumpWithNoOverlap() async throws {
+  // Capture 0…200, jump to 400 without overlap, then return to the captured
+  // range. The jump must not append anything, and the return must not
+  // duplicate or reorder captured rows.
+  let frames = Frames([0, 40, 80, 400, 0, 40, 80].map(uniqueFrame))
+  let result = await ScreenshotScrollingCapture.captureFrames(
     region: try testRegion(), finishSignal: .init(), frameLimit: 12,
-    onProgress: { _, _ in }, nextFrame: { await jumped.next() })
-  guard case .limited(let image) = joined else {
-    Issue.record("expected the bridged capture to reach the frame limit")
+    onProgress: { _, _ in }, nextFrame: { await frames.next() })
+  guard case .limited(let image) = result else {
+    Issue.record("expected retained result at the frame limit")
     return
   }
-  let sequential = Frames([0, 40, 80, 120, 160, 210, 250].map(unique))
-  let expected = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: .init(), frameLimit: 12,
-    onProgress: { _, _ in }, nextFrame: { await sequential.next() })
-  guard case .limited(let reference) = expected else {
-    Issue.record("expected the sequential capture to reach the frame limit")
+  let referenceFrames = Frames([0, 40, 80].map(uniqueFrame))
+  let referenceResult = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), frameLimit: 6,
+    onProgress: { _, _ in }, nextFrame: { await referenceFrames.next() })
+  guard case .limited(let reference) = referenceResult else {
+    Issue.record("expected baseline image")
     return
   }
-  #expect(image.height == 370)
-  #expect(image.height == reference.height)
+  #expect(image.height == 200)
+  #expect(image.dataProvider?.data as Data? == reference.dataProvider?.data as Data?)
+}
+
+@MainActor @Test func scrollingResumesAfterAJumpThatSkippedOverlap() async throws {
+  // The jump frames are unverified and must not be appended. Returning to the
+  // confirmed frame and scrolling forward continues from that position.
+  let frames = Frames([0, 40, 200, 240, 40, 80, 120].map(uniqueFrame))
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), frameLimit: 12,
+    onProgress: { _, _ in }, nextFrame: { await frames.next() })
+  guard case .limited(let image) = result else {
+    Issue.record("expected retained result at the frame limit")
+    return
+  }
+  let referenceFrames = Frames([0, 40, 80, 120].map(uniqueFrame))
+  let referenceResult = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), frameLimit: 8,
+    onProgress: { _, _ in }, nextFrame: { await referenceFrames.next() })
+  guard case .limited(let reference) = referenceResult else {
+    Issue.record("expected baseline image")
+    return
+  }
+  #expect(image.height == 240)
   #expect(image.dataProvider?.data as Data? == reference.dataProvider?.data as Data?)
 }

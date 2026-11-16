@@ -62,7 +62,8 @@ enum ScreenshotSupport {
     }
 
     func registration(
-      matching sample: ScrollingSample, columns: Range<Int>?, allowOverlap: Bool
+      matching sample: ScrollingSample, columns: Range<Int>?, allowOverlap: Bool,
+      minimumOverlap: Int = 0
     ) -> Registration {
       let exact = entries.filter { $0.sample == sample }.map(\.top)
       if !exact.isEmpty {
@@ -73,7 +74,8 @@ enum ScreenshotSupport {
       for entry in entries {
         guard
           case .advanced(let overlap, let direction, _) = scrollingTransition(
-            previous: entry.sample, current: sample, contentColumns: columns)
+            previous: entry.sample, current: sample, contentColumns: columns),
+          overlap >= max(1, minimumOverlap)
         else { continue }
         let delta = sample.height - overlap
         positions.append(entry.top + (direction == .forward ? delta : -delta))
@@ -82,6 +84,41 @@ enum ScreenshotSupport {
       guard let first = positions.first else { return .unavailable }
       guard positions.allSatisfy({ abs($0 - first) <= 1 }) else { return .ambiguous }
       return .position(first)
+    }
+
+    /// Confirms a position against several independent viewports. One matching
+    /// pair can be a repeated-content alias, so a reversal needs agreement from
+    /// more than one remembered viewport before it may move the stitch.
+    func verified(
+      matching sample: ScrollingSample, columns: Range<Int>?, minimumOverlap: Int,
+      minimumSupport: Int = 2
+    ) -> Registration {
+      var positions: [Int] = []
+      for entry in entries {
+        if entry.sample == sample {
+          positions.append(entry.top)
+          continue
+        }
+        guard
+          case .advanced(let overlap, let direction, _) = scrollingTransition(
+            previous: entry.sample, current: sample, contentColumns: columns),
+          overlap >= minimumOverlap
+        else { continue }
+        let delta = sample.height - overlap
+        positions.append(entry.top + (direction == .forward ? delta : -delta))
+      }
+      guard !positions.isEmpty else { return .unavailable }
+      positions.sort()
+      var best = (position: positions[0], count: 0)
+      var index = 0
+      while index < positions.count {
+        var end = index + 1
+        while end < positions.count, abs(positions[end] - positions[index]) <= 1 { end += 1 }
+        if end - index > best.count { best = (positions[index], end - index) }
+        index = end
+      }
+      guard best.count >= minimumSupport else { return .ambiguous }
+      return .position(best.position)
     }
   }
 
@@ -115,7 +152,8 @@ enum ScreenshotSupport {
   static func scrollingSamplesAreStable(
     _ previous: ScrollingSample,
     _ current: ScrollingSample,
-    contentColumns: Range<Int>? = nil
+    contentColumns: Range<Int>? = nil,
+    tolerance: Double = 1.5
   ) -> Bool {
     guard previous.isValid, current.isValid,
       previous.width == current.width,
@@ -127,7 +165,7 @@ enum ScreenshotSupport {
     else { return false }
     // Empty space must not dilute movement in a narrow column of text.
     return scrollingColumnTiles(in: columns, sampleWidth: previous.width).allSatisfy {
-      scrollingDifference(previous, current, columns: $0) <= 1.5
+      scrollingDifference(previous, current, columns: $0) <= tolerance
     }
   }
 
