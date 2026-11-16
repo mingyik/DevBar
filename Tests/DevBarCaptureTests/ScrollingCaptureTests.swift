@@ -108,24 +108,33 @@ private final class PreviewClock: @unchecked Sendable {
   return true
 }
 
-@Test func previewClockCancelledSleepDoesNotHang() async {
-  let clock = PreviewClock()
-  let sleeper = Task { try await clock.sleep(30) }
-  #expect(await clock.waitUntilSleeping())
-  sleeper.cancel()
-  let finished = await withTaskGroup(of: Bool.self) { group in
+private func previewSleepFinishes(
+  _ sleeper: Task<Void, Error>, clock: PreviewClock, timeout: Duration = .seconds(1)
+) async -> Bool {
+  await withTaskGroup(of: Bool.self) { group in
     group.addTask {
       _ = await sleeper.result
       return true
     }
     group.addTask {
-      try? await Task.sleep(for: .seconds(1))
+      try? await Task.sleep(for: timeout)
       return false
     }
     let finished = await group.next() ?? false
+    // Cancelling the child awaiting sleeper.result cannot stop that wait.
+    // Release the independent sleeper before the group drains its children.
+    if !finished { clock.advance(to: .greatestFiniteMagnitude) }
     group.cancelAll()
     return finished
   }
+}
+
+@Test func previewClockCancelledSleepDoesNotHang() async {
+  let clock = PreviewClock()
+  let sleeper = Task { try await clock.sleep(30) }
+  #expect(await clock.waitUntilSleeping())
+  sleeper.cancel()
+  let finished = await previewSleepFinishes(sleeper, clock: clock)
   #expect(finished)
   guard case .failure(is CancellationError) = await sleeper.result else {
     Issue.record("expected cancellation")
@@ -140,22 +149,29 @@ private final class PreviewClock: @unchecked Sendable {
     try await clock.sleep(30)
   }
   sleeper.cancel()
-  let finished = await withTaskGroup(of: Bool.self) { group in
-    group.addTask {
-      _ = await sleeper.result
-      return true
-    }
-    group.addTask {
-      try? await Task.sleep(for: .seconds(1))
-      return false
-    }
-    let finished = await group.next() ?? false
-    group.cancelAll()
-    return finished
-  }
+  let finished = await previewSleepFinishes(sleeper, clock: clock)
   #expect(finished)
   guard case .failure(is CancellationError) = await sleeper.result else {
     Issue.record("expected cancellation")
+    return
+  }
+}
+
+@Test func previewClockWatchdogReleasesSleepingTaskOnTimeout() async {
+  let clock = PreviewClock()
+  // Deliberately leave this task uncancelled to exercise timeout cleanup,
+  // independently of the clock's cancellation implementation.
+  let sleeper = Task { try await clock.sleep(30) }
+  guard await clock.waitUntilSleeping() else {
+    clock.advance(to: .greatestFiniteMagnitude)
+    _ = await sleeper.result
+    Issue.record("expected a sleeping task before the watchdog started")
+    return
+  }
+  let finished = await previewSleepFinishes(sleeper, clock: clock, timeout: .zero)
+  #expect(!finished)
+  guard case .success = await sleeper.result else {
+    Issue.record("timeout cleanup did not release the sleeping task")
     return
   }
 }
