@@ -15,10 +15,13 @@
   position: relative;
   flex: 1;
   min-height: 0;
-  background: var(--panel-card);
-  border-radius: 14px;
   overflow: hidden;
   overscroll-behavior: none;
+}
+.page-content,
+.doc-editor-source {
+  background: var(--panel-card);
+  border-radius: var(--radius-medium);
 }
 .source,
 .preview {
@@ -354,6 +357,13 @@ button:disabled {
   width: 18px;
   height: 18px;
 }
+.page-toolbar .icon-button[data-icon="edit"] svg {
+  width: 16px;
+  height: 16px;
+}
+.page-toolbar .icon-button[data-icon="edit"] {
+  padding: calc(4px - var(--stroke-hairline));
+}
 .page-toolbar .icon-button:disabled {
   color: var(--icon-disabled);
   opacity: 1;
@@ -363,10 +373,14 @@ button:disabled {
   height: 18px;
   flex: 0 0 18px;
 }
-.page-toolbar .icon-button.icon-clear {
+.page-toolbar .icon-button.icon-clear,
+.doc-editor-clear {
+  width: 24px;
+  height: 24px;
   padding: 2px;
 }
-.page-toolbar .icon-button.icon-clear .system-icon {
+.page-toolbar .icon-button.icon-clear .system-icon,
+.doc-editor-clear .system-icon {
   width: 20px;
   height: 20px;
   flex: 0 0 20px;
@@ -425,7 +439,5 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
   z-index: 2;
 }
