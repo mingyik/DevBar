@@ -1027,8 +1027,8 @@ final class SelectionView: NSView {
     let end = convert(event.locationInWindow, from: nil)
     if let candidate = windowCandidate {
       windowCandidate = nil
-      anchor = nil
       if hypot(end.x - candidate.start.x, end.y - candidate.start.y) < 4 {
+        anchor = nil
         selection = candidate.frame
         needsDisplay = true
         if !selection.isEmpty { confirm() }
