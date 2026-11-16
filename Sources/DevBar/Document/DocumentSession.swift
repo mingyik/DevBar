@@ -74,12 +74,17 @@ final class DocumentSession {
   init(defaults: UserDefaults = .standard) {
     self.defaults = defaults
     let paths = defaults.stringArray(forKey: Self.recentKey) ?? []
+    let supportedExtensions = Set(FileRoute.documentExtensions)
     var unique: [URL] = []
     for path in paths {
       let url = URL(fileURLWithPath: path).standardizedFileURL
+      guard supportedExtensions.contains(url.pathExtension.lowercased()) else { continue }
       if !unique.contains(url) { unique.append(url) }
     }
     recent = Array(unique.prefix(RecentDocuments.limit))
+    if recent.map(\.path) != paths {
+      defaults.set(recent.map(\.path), forKey: Self.recentKey)
+    }
   }
 
   var recentEntries: [(url: URL, exists: Bool)] {
@@ -280,23 +285,8 @@ final class DocumentSession {
 
 func documentTypeLabel(_ extensionName: String) -> String {
   switch extensionName.lowercased() {
-  case "swift": "SW"
-  case "java": "JAVA"
-  case "kt", "kts": "KT"
   case "md", "markdown": "MD"
   case "mmd", "mermaid": "MMD"
-  case "js", "mjs", "cjs", "jsx": "JS"
-  case "ts", "tsx": "TS"
-  case "py": "PY"
-  case "go": "GO"
-  case "sql": "SQL"
-  case "sh", "bash", "zsh": "SH"
-  case "yaml", "yml": "YML"
-  case "html", "htm": "HTML"
-  case "css": "CSS"
-  case "diff", "patch": "DIFF"
-  case "json", "jsonc": "JSON"
-  case "txt", "": "TXT"
-  default: extensionName.uppercased()
+  default: ""
   }
 }

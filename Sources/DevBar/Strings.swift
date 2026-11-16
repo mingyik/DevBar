@@ -112,7 +112,6 @@ enum Strings {
   static let documentSidebar = "目录"
   static let documentRecentSection = "最近打开"
   static let documentUnsavedSection = "未保存文稿"
-  static let documentNoUnsavedDrafts = "暂无未保存文稿"
   static let documentUntitled = "未命名文稿"
   static let documentChooseFile = "选择文件"
   static let documentSavePanelTitle = "保存 Markdown 原文"

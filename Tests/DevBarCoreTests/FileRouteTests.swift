@@ -10,8 +10,10 @@ import Testing
   #expect(FileRoute.route(fileName: "a.md", sniff: "{}") == .doc(.markdown))
   #expect(FileRoute.route(fileName: "a.mmd", sniff: nil) == .doc(.mermaid))
   #expect(FileRoute.route(fileName: "a.txt", sniff: " \n [1]") == .tools)
-  #expect(FileRoute.route(fileName: "LICENSE", sniff: "hello") == .doc(nil))
-  #expect(FileRoute.route(fileName: "a.txt", sniff: "hello {}") == .doc(nil))
+  #expect(
+    FileRoute.route(fileName: "LICENSE", sniff: "hello") == .rejected(.unsupportedType))
+  #expect(
+    FileRoute.route(fileName: "a.txt", sniff: "hello {}") == .rejected(.unsupportedType))
   #expect(FileRoute.route(fileName: "a.png", sniff: "{}") == .rejected(.unsupportedType))
 }
 @Test func fileReaderRejectsBeforeReadingAndPreservesUTF8() throws {

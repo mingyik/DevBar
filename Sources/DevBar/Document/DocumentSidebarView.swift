@@ -14,9 +14,11 @@ struct DocumentSidebarView: View {
     VStack(alignment: .leading, spacing: 0) {
       recentHeader
       recentList
-      divider
-      section(Strings.documentUnsavedSection)
-      draftList
+      if !session.drafts.isEmpty {
+        divider
+        section(Strings.documentUnsavedSection)
+        draftList
+      }
     }
     .padding(.horizontal, 10)
     .padding(.top, 12)
@@ -39,21 +41,10 @@ struct DocumentSidebarView: View {
       section(Strings.documentRecentSection)
       Spacer(minLength: 0)
       Button(action: onPick) {
-        Label(Strings.documentChooseFile, systemImage: "folder")
-          .labelStyle(.titleAndIcon)
-          .font(.system(size: 11))
+        Image(systemName: "folder").devbarIconColor(scheme)
+          .font(.system(size: 13))
           .foregroundStyle(DesignTokens.textSecondary(scheme))
-          .padding(.horizontal, 8)
-          .frame(height: 24)
-          .background {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-              .fill(DesignTokens.panelControl(scheme))
-          }
-          .overlay {
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
-              .strokeBorder(
-                DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline)
-          }
+          .frame(width: 22, height: 22)
       }
       .buttonStyle(.plain)
       .help(Strings.documentChooseFile)
@@ -64,40 +55,15 @@ struct DocumentSidebarView: View {
 
   private var recentList: some View {
     VStack(alignment: .leading, spacing: 2) {
-      ForEach(0..<RecentDocuments.limit, id: \.self) { index in
-        if index < session.recentEntries.count {
-          let entry = session.recentEntries[index]
-          DocumentRecentRow(
-            url: entry.url, missing: !entry.exists, scheme: scheme,
-            selected: session.url?.path == entry.url.path,
-            onOpen: { onOpen(entry.url) })
-        } else {
-          Color.clear.frame(height: 32)
-        }
+      ForEach(session.recentEntries.indices, id: \.self) { index in
+        let entry = session.recentEntries[index]
+        DocumentRecentRow(
+          url: entry.url, missing: !entry.exists, scheme: scheme,
+          selected: session.url?.path == entry.url.path,
+          onOpen: { onOpen(entry.url) })
       }
     }
-    .padding(.bottom, 8)
-  }
-
-  private var draftList: some View {
-    Group {
-      if session.drafts.isEmpty {
-        message(Strings.documentNoUnsavedDrafts)
-      } else {
-        ScrollView(.vertical) {
-          LazyVStack(alignment: .leading, spacing: 2) {
-            ForEach(session.drafts) { draft in
-              DocumentDraftRow(
-                draft: draft, scheme: scheme,
-                selected: session.documentID == draft.id,
-                onOpen: { onOpenDraft(draft.id) })
-            }
-          }
-          .padding(.vertical, 2)
-        }
-        .frame(maxHeight: .infinity, alignment: .top)
-      }
-    }
+    .padding(.bottom, session.recentEntries.isEmpty ? 0 : 8)
   }
 
   private var divider: some View {
@@ -108,14 +74,19 @@ struct DocumentSidebarView: View {
       .padding(.vertical, 6)
   }
 
-  private func message(_ text: String) -> some View {
-    Text(text)
-      .font(.system(size: 11))
-      .foregroundStyle(DesignTokens.textTertiary(scheme))
-      .padding(.horizontal, 8)
-      .padding(.vertical, 6)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .frame(maxHeight: .infinity, alignment: .top)
+  private var draftList: some View {
+    ScrollView(.vertical) {
+      LazyVStack(alignment: .leading, spacing: 2) {
+        ForEach(session.drafts) { draft in
+          DocumentDraftRow(
+            draft: draft, scheme: scheme,
+            selected: session.documentID == draft.id,
+            onOpen: { onOpenDraft(draft.id) })
+        }
+      }
+      .padding(.vertical, 2)
+    }
+    .frame(maxHeight: .infinity, alignment: .top)
   }
 }
 
@@ -130,7 +101,7 @@ private struct DocumentRecentRow: View {
   var body: some View {
     Button(action: onOpen) {
       HStack(spacing: 6) {
-        Image(systemName: "clock").devbarIconColor(scheme)
+        Image(systemName: "tag").devbarIconColor(scheme)
           .font(.system(size: 12))
           .foregroundStyle(DesignTokens.textTertiary(scheme))
           .frame(width: 16)
@@ -140,7 +111,7 @@ private struct DocumentRecentRow: View {
             missing ? DesignTokens.textTertiary(scheme) : DesignTokens.textPrimary(scheme)
           )
           .lineLimit(1)
-          .truncationMode(.tail)
+          .truncationMode(.middle)
           .frame(maxWidth: .infinity, alignment: .leading)
         DocumentTypeBadge(label: documentTypeLabel(url.pathExtension), scheme: scheme)
       }

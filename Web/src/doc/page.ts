@@ -8,7 +8,6 @@ import {
 } from "./state";
 import { Compartment, Transaction } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
-import { LanguageDescription } from "@codemirror/language";
 import { documentLanguages } from "./languages";
 import {
   PageShell,
@@ -48,8 +47,6 @@ export class DocPage {
   private savedText = "";
   private documentID: string | null = null;
   private previewAllowed = true;
-  private sourceFile = false;
-  private sourceLanguageGeneration = 0;
   private saveInProgress = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private previewTimer: ReturnType<typeof setTimeout> | undefined;
@@ -150,7 +147,6 @@ export class DocPage {
         fileName: this.shell.fileName,
       }),
     });
-    if (this.sourceFile) return;
     if (this.languageMode === mode) return;
     this.languageMode = mode;
     this.shell.view.dispatch({
@@ -174,10 +170,6 @@ export class DocPage {
     modeLocked?: boolean,
   ) {
     const extension = fileName?.split(".").pop()?.toLowerCase();
-    this.sourceFile =
-      !!fileName &&
-      !["md", "markdown", "mmd", "mermaid"].includes(extension ?? "");
-    const languageGeneration = ++this.sourceLanguageGeneration;
     this.previewAllowed =
       fileName === null ||
       ["md", "markdown", "mmd", "mermaid"].includes(extension ?? "");
@@ -196,32 +188,14 @@ export class DocPage {
     });
     this.locked = (modeLocked ?? !!mode) && text !== "";
     this.setMode(text === "" ? "markdown" : (mode ?? detectDocMode(text)));
-    if (this.sourceFile && fileName) {
-      this.languageMode = this.mode;
-      const language = LanguageDescription.matchFilename(
-        documentLanguages,
-        fileName,
-      );
-      if (language) {
-        void language.load().then((support) => {
-          if (languageGeneration !== this.sourceLanguageGeneration) return;
-          this.shell.view.dispatch({
-            effects: this.language.reconfigure(support),
-          });
-        });
-      } else {
-        this.shell.view.dispatch({ effects: this.language.reconfigure([]) });
-      }
-    } else {
-      this.languageMode = this.mode;
-      this.shell.view.dispatch({
-        effects: this.language.reconfigure(
-          this.mode === "markdown"
-            ? markdown({ codeLanguages: documentLanguages })
-            : [],
-        ),
-      });
-    }
+    this.languageMode = this.mode;
+    this.shell.view.dispatch({
+      effects: this.language.reconfigure(
+        this.mode === "markdown"
+          ? markdown({ codeLanguages: documentLanguages })
+          : [],
+      ),
+    });
     this.shell.fileName = fileName;
     this.savedText = savedText ?? text;
     this.documentID = documentId;
@@ -505,10 +479,6 @@ export class DocPage {
     this.shell.restore(state);
     const restoredName = state.fileName ?? null;
     const extension = restoredName?.split(".").pop()?.toLowerCase();
-    this.sourceFile =
-      !!restoredName &&
-      !["md", "markdown", "mmd", "mermaid"].includes(extension ?? "");
-    const languageGeneration = ++this.sourceLanguageGeneration;
     this.previewAllowed =
       restoredName === null ||
       ["md", "markdown", "mmd", "mermaid"].includes(extension ?? "");
@@ -526,30 +496,13 @@ export class DocPage {
         ? state.docMode
         : detectDocMode(this.shell.text),
     );
-    if (this.sourceFile && restoredName) {
-      const language = LanguageDescription.matchFilename(
-        documentLanguages,
-        restoredName,
-      );
-      if (language) {
-        void language.load().then((support) => {
-          if (languageGeneration === this.sourceLanguageGeneration)
-            this.shell.view.dispatch({
-              effects: this.language.reconfigure(support),
-            });
-        });
-      } else {
-        this.shell.view.dispatch({ effects: this.language.reconfigure([]) });
-      }
-    } else {
-      this.shell.view.dispatch({
-        effects: this.language.reconfigure(
-          this.mode === "markdown"
-            ? markdown({ codeLanguages: documentLanguages })
-            : [],
-        ),
-      });
-    }
+    this.shell.view.dispatch({
+      effects: this.language.reconfigure(
+        this.mode === "markdown"
+          ? markdown({ codeLanguages: documentLanguages })
+          : [],
+      ),
+    });
     this.display = !this.previewAllowed
       ? "source"
       : (state.display ??
