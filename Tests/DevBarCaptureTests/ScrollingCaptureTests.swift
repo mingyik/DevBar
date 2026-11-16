@@ -85,6 +85,33 @@ private func testRegion() throws -> CaptureRegion {
   #expect((previews.last?.height ?? 0) > (previews.first?.height ?? 0))
 }
 
+@MainActor @Test func scrollingPreviewCatchesUpBeforeFinishWhileStillRunning() async throws {
+  let frames = Frames([0, 42, 84, 126].map { frame(offset: $0) })
+  let finish = ScreenshotScrollingCapture.FinishSignal()
+  let timeout = Task {
+    try? await Task.sleep(for: .seconds(2))
+    finish.request()
+  }
+  defer { timeout.cancel() }
+  var caughtUpBeforeFinish = false
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: finish, frameLimit: 40,
+    onPreview: { preview in
+      // Growth is throttled inside the first 0.25 s. Only the idle flush can
+      // publish the full height before anyone requests finish.
+      guard preview.height >= 246, !finish.isRequested else { return }
+      caughtUpBeforeFinish = true
+      finish.request()
+    },
+    onProgress: { _, _ in }, nextFrame: { await frames.next() })
+  #expect(caughtUpBeforeFinish)
+  guard case .success(let image) = result else {
+    Issue.record("expected the idle preview flush to finish the capture")
+    return
+  }
+  #expect(image.height == 246)
+}
+
 @Test func scrollingMatchesAndKeepsFixedFooter() async throws {
   let frames = Frames([frame(offset: 0, footer: 18), frame(offset: 42, footer: 18)])
   let finish = ScreenshotScrollingCapture.FinishSignal()
