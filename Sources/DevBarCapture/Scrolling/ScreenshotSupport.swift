@@ -121,9 +121,12 @@ enum ScreenshotSupport {
       guard let best = groups.first, best.count >= minimumSupport else {
         return .ambiguous
       }
-      // Two equally supported positions are still ambiguous repeated content;
-      // moving the stitch to either one could duplicate or reorder rows.
-      if groups.count > 1, groups[1].count == best.count { return .ambiguous }
+      // Any other position that also meets the support threshold is a real
+      // alternative, not noise: adopting the best-known one could duplicate
+      // or reorder rows in repeated content.
+      if groups.dropFirst().contains(where: { $0.count >= minimumSupport }) {
+        return .ambiguous
+      }
       return .position(best.position)
     }
   }

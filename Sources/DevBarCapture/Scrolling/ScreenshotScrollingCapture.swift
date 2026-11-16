@@ -47,6 +47,8 @@ public enum ScreenshotScrollingCapture {
     let viewport: Int
     let pixels: Int
     let sample: ScreenshotSupport.ScrollingSample
+    let anchors: ScreenshotSupport.ScrollingAnchors
+    let direction: ScreenshotSupport.ScrollingDirection?
     let footer: CGImage?
   }
 
@@ -317,8 +319,9 @@ public enum ScreenshotScrollingCapture {
               ScreenshotSupport.scrollingContentSample(
                 saved.sample, top: fixedTopPixels, bottom: fixedBottomPixels) ?? saved.sample
             confirmedContent = restored
-            anchors = .init()
+            anchors = saved.anchors
             anchors.remember(restored, at: saved.viewport)
+            lastDirection = saved.direction
             footerSlice = saved.footer
             rollback = nil
             if let preview = makePreview(
@@ -342,7 +345,8 @@ public enum ScreenshotScrollingCapture {
           let placed = locate(
             content: currentContent, anchor: confirmedContent, anchorTop: viewportTop,
             anchors: anchors, columns: contentSampleColumns, minimumOverlap: minimumOverlap,
-            lastDirection: lastDirection, precomputed: reusableTransition)
+            lastDirection: lastDirection, precomputed: reusableTransition,
+            needsCorroboration: hasUnmatchedContent)
         else {
           // A jump with no reliable overlap is not new content and must never
           // move the stitch. Keep the confirmed anchor so a later frame can
@@ -394,7 +398,7 @@ public enum ScreenshotScrollingCapture {
           rollback = AppendRollback(
             slices: slices, height: totalHeight, top: capturedTop, bottom: capturedBottom,
             viewport: viewportTop, pixels: retainedPixels, sample: originSample,
-            footer: footerSlice)
+            anchors: anchors, direction: lastDirection, footer: footerSlice)
           if fixedBottomPixels > 0 {
             footerSlice = copiedStrip(
               from: current, columns: columns,
@@ -685,7 +689,8 @@ public enum ScreenshotScrollingCapture {
     columns: Range<Int>?,
     minimumOverlap: Int,
     lastDirection: ScreenshotSupport.ScrollingDirection?,
-    precomputed: ScreenshotSupport.ScrollingTransition? = nil
+    precomputed: ScreenshotSupport.ScrollingTransition? = nil,
+    needsCorroboration: Bool = false
   ) -> Located? {
     let transition =
       precomputed
@@ -698,19 +703,31 @@ public enum ScreenshotScrollingCapture {
       let continuous = Located(
         position: anchorTop + (direction == .forward ? delta : -delta),
         direction: direction)
-      guard columns != nil, let lastDirection, lastDirection != direction else {
+      // A large step keeps little shared content, a direction change can hit a
+      // repeated layout, and the first match after a rejected frame can be an
+      // alias far from the confirmed position. All need agreement from the
+      // remembered viewports before they may move the stitch.
+      let largeStep = overlap * 2 < content.height
+      let reversal = lastDirection != nil && lastDirection != direction
+      guard columns != nil, largeStep || reversal || needsCorroboration else {
         return continuous
       }
-      // A reversal is where one matching pair is most likely to be an alias
-      // from repeated content. It must agree with the captured viewports.
       guard let columns else { return continuous }
       switch anchors.verified(
         matching: content, columns: columns, minimumOverlap: minimumOverlap)
       {
       case .position(let verified): return Located(position: verified, direction: direction)
       case .ambiguous, .unavailable:
-        // A reversal with no agreeing viewports is not safe to adopt: one
-        // matching pair may be an alias. Hold the confirmed position.
+        // With a single remembered viewport there is no second opinion to ask
+        // for; the continuous match is the only available evidence.
+        if anchors.entries.count < 2,
+          case .position(let single) = anchors.registration(
+            matching: content, columns: columns, allowOverlap: true,
+            minimumOverlap: minimumOverlap)
+        {
+          return Located(position: single, direction: direction)
+        }
+        // Otherwise one matching pair may be an alias. Hold the position.
         return nil
       }
     case .end:
@@ -731,7 +748,15 @@ public enum ScreenshotScrollingCapture {
       matching: content, columns: columns, minimumOverlap: minimumOverlap)
     {
     case .position(let top): return Located(position: top, direction: nil)
-    case .ambiguous, .unavailable: return nil
+    case .ambiguous, .unavailable:
+      if anchors.entries.count < 2,
+        case .position(let single) = anchors.registration(
+          matching: content, columns: columns, allowOverlap: true,
+          minimumOverlap: minimumOverlap)
+      {
+        return Located(position: single, direction: nil)
+      }
+      return nil
     }
   }
 }

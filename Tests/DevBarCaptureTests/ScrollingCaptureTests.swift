@@ -547,3 +547,49 @@ private func uniqueFrame(offset: Int) -> CGImage {
   #expect(image.height == 240)
   #expect(image.dataProvider?.data as Data? == reference.dataProvider?.data as Data?)
 }
+
+private func registrationSample(_ offset: Int) -> ScreenshotSupport.ScrollingSample {
+  let width = 64
+  let height = 120
+  let pixels = (0..<(width * height)).map { index -> UInt8 in
+    let row = index / width
+    var value = UInt32(row + offset) &* 747_796_405
+    value &+= UInt32((index % width) * 19 + 2_891_336_453)
+    value = ((value >> ((value >> 28) + 4)) ^ value) &* 277_803_737
+    return UInt8(truncatingIfNeeded: (value >> 22) ^ value)
+  }
+  return .init(width: width, height: height, pixels: pixels)
+}
+
+@Test func scrollingRejectsASecondPlausibleAnchorPosition() {
+  // The frame matches three viewports at 40 and two others at 1040. The
+  // stronger group must not win by vote: both positions are still plausible.
+  var anchors = ScreenshotSupport.ScrollingAnchors()
+  for offset in [0, 40, 80] {
+    anchors.remember(registrationSample(offset), at: offset)
+  }
+  for offset in [0, 40] {
+    anchors.remember(registrationSample(offset), at: 1000 + offset)
+  }
+  #expect(
+    anchors.verified(
+      matching: registrationSample(40), columns: 0..<64, minimumOverlap: 30) == .ambiguous)
+}
+
+@MainActor @Test func scrollingRecoversDirectionAfterAFixedBarRollback() async throws {
+  let frames = Frames(
+    [frame(offset: 0), frame(offset: 35)]
+      + [70, 105].map { frame(offset: $0, header: 14) }
+      + [35, 0, 35, 70].map { frame(offset: $0) })
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), frameLimit: 14,
+    onProgress: { _, _ in }, nextFrame: { await frames.next() })
+  guard case .limited(let image) = result else { throw CaptureError.noImage }
+  let baseline = Frames([0, 35, 70].map { frame(offset: $0) })
+  let expected = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), frameLimit: 6,
+    onProgress: { _, _ in }, nextFrame: { await baseline.next() })
+  guard case .limited(let reference) = expected else { throw CaptureError.noImage }
+  #expect(image.height == 190)
+  #expect(image.dataProvider?.data as Data? == reference.dataProvider?.data as Data?)
+}
