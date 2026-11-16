@@ -1044,31 +1044,37 @@ final class SelectionView: NSView {
   private func confirm() {
     guard selection.width > 0, selection.height > 0 else { return }
     var global = selection.offsetBy(dx: screenFrame.minX, dy: screenFrame.minY)
-    if scrollingRequested {
-      global = Self.clampedToTargetWindow(global)
+    var windowID: CGWindowID?
+    if scrollingRequested, let target = Self.targetWindow(for: global) {
+      global = global.intersection(target.frame)
+      windowID = target.id
     }
     complete?(
       Result {
         try CaptureRegion(
-          displayID: displayID, globalRect: global, screenFrame: screenFrame, scale: scale)
+          displayID: displayID, globalRect: global, screenFrame: screenFrame, scale: scale,
+          windowID: windowID)
       })
   }
 
   /// A scrolling capture only makes sense on one scrollable surface. Clamp the
   /// selection to the normal window it overlaps most so the long image never
   /// contains desktop or another application beside the source window.
-  private static func clampedToTargetWindow(_ rect: CGRect) -> CGRect {
+  private static func targetWindow(
+    for rect: CGRect
+  ) -> (frame: CGRect, id: CGWindowID)? {
     guard rect.width > 0, rect.height > 0,
       let mainTop = NSScreen.screens.first?.frame.maxY,
       let windows = CGWindowListCopyWindowInfo(
         [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
-    else { return rect }
+    else { return nil }
     let ownPID = ProcessInfo.processInfo.processIdentifier
-    var best: (frame: CGRect, area: CGFloat)?
+    var best: (frame: CGRect, id: CGWindowID, area: CGFloat)?
     for window in windows {
       guard (window[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
         (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value != ownPID,
         (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0.01,
+        let number = (window[kCGWindowNumber as String] as? NSNumber)?.uint32Value,
         let raw = window[kCGWindowBounds as String] as? [String: Any],
         let bounds = CGRect(dictionaryRepresentation: raw as CFDictionary)
       else { continue }
@@ -1078,10 +1084,10 @@ final class SelectionView: NSView {
       let overlap = cocoa.intersection(rect)
       guard !overlap.isNull, overlap.width > 1, overlap.height > 1 else { continue }
       let area = overlap.width * overlap.height
-      if area > (best?.area ?? 0) { best = (cocoa, area) }
+      if area > (best?.area ?? 0) { best = (cocoa, CGWindowID(number), area) }
     }
-    guard let best else { return rect }
-    return rect.intersection(best.frame)
+    guard let best else { return nil }
+    return (best.frame, best.id)
   }
 }
 

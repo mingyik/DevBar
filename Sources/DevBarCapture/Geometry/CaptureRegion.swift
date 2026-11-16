@@ -10,6 +10,8 @@ public struct CaptureRegion: Equatable, Sendable {
   /// Display-local points, top-left origin (not Cocoa global coordinates).
   public let rectInPoints: CGRect
   public let scale: CGFloat
+  /// Normal window owning this long-capture region; nil for area screenshots.
+  public let windowID: CGWindowID?
 
   public var pixelRect: CGRect {
     CGRect(
@@ -18,7 +20,8 @@ public struct CaptureRegion: Equatable, Sendable {
   }
 
   public init(
-    displayID: CGDirectDisplayID, globalRect: CGRect, screenFrame: CGRect, scale: CGFloat
+    displayID: CGDirectDisplayID, globalRect: CGRect, screenFrame: CGRect, scale: CGFloat,
+    windowID: CGWindowID? = nil
   ) throws {
     guard scale.isFinite, scale > 0,
       [
@@ -41,6 +44,7 @@ public struct CaptureRegion: Equatable, Sendable {
     guard width >= 2, height >= 2 else { throw CaptureError.invalidRegion }
     self.displayID = displayID
     self.scale = scale
+    self.windowID = windowID
     rectInPoints = CGRect(
       x: floor(raw.minX) / scale, y: floor(raw.minY) / scale,
       width: width / scale, height: height / scale)

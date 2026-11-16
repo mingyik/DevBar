@@ -35,8 +35,16 @@ enum ScreenshotCaptureEngine {
       height: CGFloat(display.height) * region.scale)
     let clamped = region.pixelRect.intersection(bounds).integral
     guard !clamped.isNull, !clamped.isEmpty else { return nil }
-    let windows = content.windows.filter {
-      $0.owningApplication?.processID == ProcessInfo.processInfo.processIdentifier
+    let ownPID = ProcessInfo.processInfo.processIdentifier
+    let windows: [SCWindow]
+    if let target = region.windowID,
+      content.windows.contains(where: { $0.windowID == target })
+    {
+      // Long capture: show only the target window. Other applications and
+      // transient panels covering the selection must not enter the image.
+      windows = content.windows.filter { $0.windowID != target }
+    } else {
+      windows = content.windows.filter { $0.owningApplication?.processID == ownPID }
     }
     let filter = SCContentFilter(display: display, excludingWindows: windows)
     let configuration = SCStreamConfiguration()
