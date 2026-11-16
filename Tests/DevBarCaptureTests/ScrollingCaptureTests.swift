@@ -18,6 +18,7 @@ private actor Frames {
 private final class PreviewClock: @unchecked Sendable {
   private let lock = NSLock()
   private var time: TimeInterval = 0
+  private var cancelled = false
   private var waiters: [Waiter] = []
 
   private final class Waiter {
@@ -43,11 +44,16 @@ private final class PreviewClock: @unchecked Sendable {
   }
 
   func sleep(_ seconds: TimeInterval) async throws {
-    try Task.checkCancellation()
     let deadline = now() + seconds
     try await withTaskCancellationHandler {
-      try await withCheckedThrowingContinuation { continuation in
+      try await withCheckedThrowingContinuation {
+        (continuation: CheckedContinuation<Void, Error>) in
         lock.lock()
+        if cancelled || Task.isCancelled {
+          lock.unlock()
+          continuation.resume(throwing: CancellationError())
+          return
+        }
         if time >= deadline {
           lock.unlock()
           continuation.resume()
@@ -84,6 +90,7 @@ private final class PreviewClock: @unchecked Sendable {
 
   private func cancelWaiters() {
     lock.lock()
+    cancelled = true
     let pending = waiters.filter { !$0.resumed }
     for waiter in pending { waiter.resumed = true }
     waiters.removeAll { $0.resumed }
@@ -99,6 +106,58 @@ private final class PreviewClock: @unchecked Sendable {
     try? await Task.sleep(for: .milliseconds(5))
   }
   return true
+}
+
+@Test func previewClockCancelledSleepDoesNotHang() async {
+  let clock = PreviewClock()
+  let sleeper = Task { try await clock.sleep(30) }
+  #expect(await clock.waitUntilSleeping())
+  sleeper.cancel()
+  let finished = await withTaskGroup(of: Bool.self) { group in
+    group.addTask {
+      _ = await sleeper.result
+      return true
+    }
+    group.addTask {
+      try? await Task.sleep(for: .seconds(1))
+      return false
+    }
+    let finished = await group.next() ?? false
+    group.cancelAll()
+    return finished
+  }
+  #expect(finished)
+  guard case .failure(is CancellationError) = await sleeper.result else {
+    Issue.record("expected cancellation")
+    return
+  }
+}
+
+@Test func previewClockSleepAfterCancelDoesNotHang() async {
+  let clock = PreviewClock()
+  let sleeper = Task {
+    while !Task.isCancelled { await Task.yield() }
+    try await clock.sleep(30)
+  }
+  sleeper.cancel()
+  let finished = await withTaskGroup(of: Bool.self) { group in
+    group.addTask {
+      _ = await sleeper.result
+      return true
+    }
+    group.addTask {
+      try? await Task.sleep(for: .seconds(1))
+      return false
+    }
+    let finished = await group.next() ?? false
+    group.cancelAll()
+    return finished
+  }
+  #expect(finished)
+  guard case .failure(is CancellationError) = await sleeper.result else {
+    Issue.record("expected cancellation")
+    return
+  }
 }
 
 private func frame(offset: Int, footer: Int = 0, salt: Int = 0, header: Int = 0) -> CGImage {
@@ -244,6 +303,7 @@ private func testRegion() throws -> CaptureRegion {
       if clock.hasWaiter { clock.advance(by: 0.03) }
       await Task.yield()
     }
+    if !Task.isCancelled { capture.cancel() }
   }
   await capture.value
   pump.cancel()
