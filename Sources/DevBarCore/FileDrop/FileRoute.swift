@@ -5,6 +5,13 @@ public enum FileDropReason: Error, Equatable, Sendable {
   case unsupportedType, notRegularFile, tooLarge, notUTF8, noFile, unreadable
 }
 public enum FileRoute: Equatable, Sendable {
+  /// Text formats the document editor can open directly. JSON stays routed to Tools.
+  public static let documentExtensions: [String] = [
+    "md", "markdown", "mmd", "mermaid", "txt", "swift", "java", "kt", "kts",
+    "js", "mjs", "cjs", "jsx", "ts", "tsx", "py", "go", "sql", "sh", "bash", "zsh",
+    "yaml", "yml", "html", "htm", "css", "diff", "patch",
+  ]
+
   case tools
   case doc(DocMode?)
   case rejected(FileDropReason)
@@ -13,6 +20,10 @@ public enum FileRoute: Equatable, Sendable {
     case "json", "jsonc", "geojson": return .tools
     case "md", "markdown": return .doc(.markdown)
     case "mmd", "mermaid": return .doc(.mermaid)
+    case "swift", "java", "kt", "kts", "js", "mjs", "cjs", "jsx", "ts", "tsx", "py",
+      "go", "sql", "sh", "bash", "zsh", "yaml", "yml", "html", "htm", "css", "diff",
+      "patch":
+      return .doc(nil)
     case "txt", "":
       let prefix = sniff?.trimmingCharacters(in: .whitespacesAndNewlines).first
       return prefix == "{" || prefix == "[" ? .tools : .doc(nil)

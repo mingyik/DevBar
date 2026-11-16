@@ -11,6 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private let statusItem = StatusItemController()
   private let panel: PanelController
   private let terminalYield = TerminalYield()
+  private var fileDrop: FileDropCoordinator?
+  private var pendingOpenFiles: [URL] = []
 
   override init() {
     panel = PanelController(theme: theme)
@@ -41,6 +43,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       self?.panel.show(anchor: self?.statusItem.anchor)
     }
     let fileDrop = FileDropCoordinator(panel: panel, status: statusItem)
+    self.fileDrop = fileDrop
+    if !pendingOpenFiles.isEmpty {
+      let urls = pendingOpenFiles
+      pendingOpenFiles.removeAll()
+      panel.show(anchor: statusItem.anchor)
+      fileDrop.receive(urls)
+    }
     panel.model.fileDrop = fileDrop
     panel.webHost.acceptsFiles = { [weak self] in
       self?.panel.model.page == .json || self?.panel.model.page == .doc
@@ -59,5 +68,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.show(anchor: statusItem.anchor)
       }
     #endif
+  }
+
+  func application(_ sender: NSApplication, openFiles filenames: [String]) {
+    sender.reply(toOpenOrPrint: .success)
+    let urls = filenames.map { URL(fileURLWithPath: $0) }
+    guard let fileDrop else {
+      pendingOpenFiles.append(contentsOf: urls)
+      return
+    }
+    panel.show(anchor: statusItem.anchor)
+    fileDrop.receive(urls)
   }
 }

@@ -15,10 +15,9 @@ final class PanelController {
   let storage = StorageSettings()
   let clipboard: ClipboardController
   let documents: DocumentSession
-  let documentBrowser = DocumentBrowser()
   let documentEditorHost: WebHost
   private(set) lazy var documentWindows = DocumentWindows(
-    theme: theme, session: documents, browser: documentBrowser, editorHost: documentEditorHost)
+    theme: theme, session: documents, editorHost: documentEditorHost)
   private var documentMode = "source"
   private var lastPreviewText = ""
   private var lastPreviewMode = "markdown"
@@ -118,6 +117,9 @@ final class PanelController {
     documentWindows.onOpen = { [weak self] url in
       Task { await self?.openDocument(url) }
     }
+    documentWindows.onOpenDraft = { [weak self] id in
+      Task { await self?.openDocumentDraft(id: id) }
+    }
     documentWindows.onPick = { [weak self] in self?.pickDocument() }
     panel.onClipboardKey = { [weak self] code in
       guard self?.model.page == .clipboard else { return false }
@@ -190,7 +192,6 @@ final class PanelController {
     }
     previousPage = model.page
     clipboard.releaseVisualCaches()
-    documentBrowser.setDirectory(DataLocations.root.appending(path: "Markdown"))
     watchSize()
   }
 
@@ -749,10 +750,14 @@ final class PanelController {
     case .failure(let error):
       model.toast = Strings.fileDropError(Self.dropReason(error))
     case .success(let opened):
+      guard await stashCurrentDocumentDraft() else { return }
       documents.adopt(opened)
       model.page = .doc
       webHost.importDocument(opened)
-      if documentMode == "split" {
+      if opened.mode == nil {
+        documentMode = "source"
+        documentWindows.hideEditor()
+      } else if documentMode == "split" {
         lastPreviewText = opened.text
         lastPreviewMode = opened.mode?.rawValue ?? "markdown"
         documentWindows.showEditor(
@@ -761,6 +766,47 @@ final class PanelController {
       model.documentSidebarVisible = documentWindows.sidebarVisible
       syncDocumentWindows()
     }
+  }
+
+  private func openDocumentDraft(id: String) async {
+    openGeneration += 1
+    let generation = openGeneration
+    guard await confirmReplaceIfNeeded(generation: generation), generation == openGeneration,
+      await stashCurrentDocumentDraft(), generation == openGeneration,
+      let candidate = documents.draft(id: id),
+      webHost.importDocumentDraft(candidate),
+      let draft = documents.activateDraft(id: id)
+    else { return }
+
+    model.page = .doc
+    documentMode = draft.display
+    if draft.display == "split" {
+      model.documentSidebarVisible = false
+      documentWindows.closeSidebar()
+    }
+    if draft.display == "split" {
+      lastPreviewText = draft.text
+      lastPreviewMode = draft.docMode
+      documentWindows.showEditor(
+        text: draft.text, mode: draft.docMode, documentId: draft.id)
+    }
+    syncDocumentWindows()
+  }
+
+  private func stashCurrentDocumentDraft() async -> Bool {
+    guard model.page == .doc else { return true }
+    if documentMode == "split", !model.documentSidebarVisible,
+      documentWindows.isEditorVisible
+    {
+      guard await flushSplitEditor() else { return false }
+    }
+    guard let snapshot = await webHost.documentSnapshot() else { return false }
+    guard documents.requiresDraft(snapshot) else { return true }
+    guard documents.stashDraft(snapshot) != nil else {
+      model.toast = Strings.insufficientMemory
+      return false
+    }
+    return true
   }
 
   private func confirmReplaceIfNeeded(generation: Int) async -> Bool {
@@ -779,7 +825,7 @@ final class PanelController {
     alert.messageText = Strings.documentUnsavedTitle
     alert.informativeText = Strings.documentUnsavedBody
     alert.addButton(withTitle: Strings.documentSave)
-    alert.addButton(withTitle: Strings.documentDoNotSave)
+    alert.addButton(withTitle: Strings.documentKeepDraft)
     alert.addButton(withTitle: Strings.documentCancel)
     alert.window.level = .modalPanel
     switch alert.runModal() {
@@ -796,7 +842,6 @@ final class PanelController {
         await webHost.applyDocumentEditorText(currentText, documentId: id)
         await webHost.markDocumentSaved(
           text: text, fileName: saved.fileName, documentId: id)
-        documentBrowser.reload()
         guard currentText == text else { return false }
         return generation == openGeneration
       case .canceled, .failed:
@@ -835,7 +880,6 @@ final class PanelController {
       await documentEditorHost.setEditorIdentity(id)
       let latest = await currentEditorSnapshot(flush: true)
       let currentText = latest?.text ?? effective
-      documentBrowser.reload()
       return BridgeJSON.object([
         "status": .string("saved"), "fileName": .string(saved.fileName),
         "documentId": .string(id), "text": .string(effective),
@@ -852,7 +896,7 @@ final class PanelController {
     let panel = NSOpenPanel()
     panel.allowsMultipleSelection = false
     panel.canChooseDirectories = false
-    panel.allowedContentTypes = ["md", "markdown", "mmd", "mermaid", "txt"].compactMap {
+    panel.allowedContentTypes = FileRoute.documentExtensions.compactMap {
       UTType(filenameExtension: $0)
     }
     guard panel.runModal() == .OK, let url = panel.url else { return }

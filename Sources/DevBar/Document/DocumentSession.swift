@@ -23,6 +23,31 @@ struct SavedDocument: Equatable {
   let fileName: String
 }
 
+struct DocumentDraft: Identifiable, Equatable {
+  let id: String
+  let fileName: String?
+  let text: String
+  let savedText: String
+  let docMode: String
+  let modeLocked: Bool
+  let display: String
+  let url: URL?
+  let signature: FileSignature?
+  let hadBOM: Bool
+  let newline: String
+
+  var title: String {
+    guard let fileName, !fileName.isEmpty else { return Strings.documentUntitled }
+    let name = URL(fileURLWithPath: fileName).deletingPathExtension().lastPathComponent
+    return name.isEmpty ? fileName : name
+  }
+
+  var typeTag: String {
+    guard let fileName, !fileName.isEmpty else { return docMode == "mermaid" ? "MMD" : "MD" }
+    return documentTypeLabel(URL(fileURLWithPath: fileName).pathExtension)
+  }
+}
+
 enum DocumentSaveOutcome: Equatable {
   case saved(SavedDocument)
   case canceled
@@ -31,7 +56,7 @@ enum DocumentSaveOutcome: Equatable {
   case missing
 }
 
-/// Owns the current Markdown source file association, file signatures, recent
+/// Owns the current text source file association, file signatures, recent
 /// documents and safe writes. The Web process only ever sees opaque ids.
 @MainActor @Observable
 final class DocumentSession {
@@ -40,6 +65,7 @@ final class DocumentSession {
   private(set) var url: URL?
   private(set) var documentID: String?
   private(set) var recent: [URL]
+  private(set) var drafts: [DocumentDraft] = []
   private var signature: FileSignature?
   private var hadBOM = false
   private var newline = "\n"
@@ -107,6 +133,56 @@ final class DocumentSession {
     newline = opened.newline
     signature = DocumentFile.signature(of: opened.url)
     addRecent(opened.url)
+  }
+
+  /// Keeps an unsaved document in memory when the user opens another file.
+  /// Draft contents are intentionally session-only and never written to logs or defaults.
+  @discardableResult
+  func stashDraft(_ snapshot: [String: Any]) -> DocumentDraft? {
+    guard let text = snapshot["text"] as? String, !text.isEmpty,
+      MemoryBudget.allows(bytes: text.utf8.count)
+    else { return nil }
+    let savedText = snapshot["savedText"] as? String ?? text
+    guard url == nil || text != savedText else { return nil }
+
+    let id = documentID ?? UUID().uuidString
+    documentID = id
+    let draft = DocumentDraft(
+      id: id,
+      fileName: url?.lastPathComponent ?? snapshot["fileName"] as? String,
+      text: text,
+      savedText: savedText,
+      docMode: snapshot["docMode"] as? String ?? "markdown",
+      modeLocked: snapshot["modeLocked"] as? Bool ?? false,
+      display: snapshot["display"] as? String ?? "source",
+      url: url,
+      signature: signature,
+      hadBOM: hadBOM,
+      newline: newline)
+    drafts.removeAll { $0.id == id }
+    drafts.insert(draft, at: 0)
+    return draft
+  }
+
+  func requiresDraft(_ snapshot: [String: Any]) -> Bool {
+    guard let text = snapshot["text"] as? String, !text.isEmpty else { return false }
+    let savedText = snapshot["savedText"] as? String ?? text
+    return url == nil || text != savedText
+  }
+
+  func draft(id: String) -> DocumentDraft? {
+    drafts.first { $0.id == id }
+  }
+
+  func activateDraft(id: String) -> DocumentDraft? {
+    guard let index = drafts.firstIndex(where: { $0.id == id }) else { return nil }
+    let draft = drafts.remove(at: index)
+    url = draft.url
+    documentID = draft.id
+    signature = draft.signature
+    hadBOM = draft.hadBOM
+    newline = draft.newline
+    return draft
   }
 
   func ensureID(_ candidate: String?) -> String {
@@ -179,7 +255,7 @@ final class DocumentSession {
 
   private func chooseSaveLocation() -> URL? {
     let panel = NSSavePanel()
-    let types = ["md", "markdown", "mmd", "mermaid", "txt"].compactMap {
+    let types = FileRoute.documentExtensions.compactMap {
       UTType(filenameExtension: $0)
     }
     if !types.isEmpty { panel.allowedContentTypes = types }
@@ -199,5 +275,28 @@ final class DocumentSession {
     panel.title = Strings.documentSavePanelTitle
     panel.prompt = Strings.documentSavePanelAction
     return panel.runModal() == .OK ? panel.url : nil
+  }
+}
+
+func documentTypeLabel(_ extensionName: String) -> String {
+  switch extensionName.lowercased() {
+  case "swift": "SW"
+  case "java": "JAVA"
+  case "kt", "kts": "KT"
+  case "md", "markdown": "MD"
+  case "mmd", "mermaid": "MMD"
+  case "js", "mjs", "cjs", "jsx": "JS"
+  case "ts", "tsx": "TS"
+  case "py": "PY"
+  case "go": "GO"
+  case "sql": "SQL"
+  case "sh", "bash", "zsh": "SH"
+  case "yaml", "yml": "YML"
+  case "html", "htm": "HTML"
+  case "css": "CSS"
+  case "diff", "patch": "DIFF"
+  case "json", "jsonc": "JSON"
+  case "txt", "": "TXT"
+  default: extensionName.uppercased()
   }
 }

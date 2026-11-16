@@ -118,6 +118,26 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     send(type: "doc.import", payload: payload)
   }
 
+  @discardableResult
+  func importDocumentDraft(_ draft: DocumentDraft) -> Bool {
+    guard MemoryBudget.allows(bytes: draft.text.utf8.count) else {
+      onToast?(Strings.insufficientMemory)
+      return false
+    }
+    var payload: [String: BridgeJSON] = [
+      "text": .string(draft.text),
+      "fileName": draft.fileName.map(BridgeJSON.string) ?? .null,
+      "documentId": .string(draft.id),
+      "savedText": .string(draft.savedText),
+      "display": .string(draft.display),
+      "modeLocked": .bool(draft.modeLocked),
+      "mode": .string("replace"),
+    ]
+    payload["docMode"] = .string(draft.docMode)
+    send(type: "doc.import", payload: payload)
+    return true
+  }
+
   func toggleDocumentMode() { send(type: "doc.toggleMode", payload: [:]) }
 
   func cycleDocumentMode() { send(type: "doc.cycleMode", payload: [:]) }
@@ -187,6 +207,13 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     return try? await webView.callAsyncJavaScript(
       "return window.__devbar.docText()", arguments: [:], in: nil, contentWorld: .page
     ) as? String
+  }
+
+  func documentSnapshot() async -> [String: Any]? {
+    guard ready, !webViewReleased else { return nil }
+    return try? await webView.callAsyncJavaScript(
+      "return window.__devbar.docState()", arguments: [:], in: nil,
+      contentWorld: .page) as? [String: Any]
   }
 
   func markDocumentSaved(text: String, fileName: String?, documentId: String?) async {

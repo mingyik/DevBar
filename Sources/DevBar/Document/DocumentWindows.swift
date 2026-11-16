@@ -59,12 +59,13 @@ struct DocumentEditorSurface: View {
 struct DocumentSidebarSurface: View {
   let theme: ThemeManager
   let session: DocumentSession
-  let browser: DocumentBrowser
   let onOpen: (URL) -> Void
+  let onOpenDraft: (String) -> Void
   let onPick: () -> Void
   var body: some View {
     DocumentSidebarView(
-      theme: theme, session: session, browser: browser, onOpen: onOpen, onPick: onPick
+      theme: theme, session: session, onOpen: onOpen,
+      onOpenDraft: onOpenDraft, onPick: onPick
     )
     .background { PanelChrome(theme: theme, scheme: theme.effective) }
     .clipShape(RoundedRectangle(cornerRadius: DesignTokens.radiusLarge, style: .continuous))
@@ -103,7 +104,6 @@ final class DocumentWindows {
   let editorHost: WebHost
   private let theme: ThemeManager
   private let session: DocumentSession
-  private let browser: DocumentBrowser
   private let editorPanel = DocumentEditorPanel()
   private let sidebarPanel = DocumentSidebarPanel()
   private let sidebarWidth: CGFloat = 260
@@ -125,24 +125,22 @@ final class DocumentWindows {
     return false
   }
 
-  init(
-    theme: ThemeManager, session: DocumentSession, browser: DocumentBrowser,
-    editorHost: WebHost
-  ) {
+  init(theme: ThemeManager, session: DocumentSession, editorHost: WebHost) {
     self.theme = theme
     self.session = session
-    self.browser = browser
     self.editorHost = editorHost
     editorPanel.contentView = NSHostingView(
       rootView: DocumentEditorSurface(theme: theme, host: editorHost))
     sidebarPanel.contentView = NSHostingView(
       rootView: DocumentSidebarSurface(
-        theme: theme, session: session, browser: browser,
+        theme: theme, session: session,
         onOpen: { [weak self] url in self?.onOpen?(url) },
+        onOpenDraft: { [weak self] id in self?.onOpenDraft?(id) },
         onPick: { [weak self] in self?.onPick?() }))
   }
 
   var onOpen: ((URL) -> Void)?
+  var onOpenDraft: ((String) -> Void)?
   var onPick: (() -> Void)?
 
   func adjustedMainFrame(_ frame: NSRect, visible: NSRect) -> NSRect {

@@ -104,6 +104,15 @@ const bridge = {
               ? "markdown"
               : undefined,
           typeof payload.documentId === "string" ? payload.documentId : null,
+          typeof payload.savedText === "string" ? payload.savedText : undefined,
+          payload.display === "preview" ||
+            payload.display === "split" ||
+            payload.display === "source"
+            ? payload.display
+            : undefined,
+          typeof payload.modeLocked === "boolean"
+            ? payload.modeLocked
+            : undefined,
         );
         scheduleSave();
         break;
@@ -153,6 +162,9 @@ const bridge = {
   },
   docMode() {
     return doc.documentMode();
+  },
+  docState() {
+    return doc.state();
   },
   docMarkSaved(
     text: string,
