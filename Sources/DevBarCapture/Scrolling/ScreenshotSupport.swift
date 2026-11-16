@@ -177,14 +177,22 @@ enum ScreenshotSupport {
       let difference: Double
     }
 
-    let tiles = scrollingColumnTiles(in: columns, sampleWidth: previous.width)
+    // Columns that repeat at a short vertical period (stripes, rules, blank
+    // gutters) match equally well at several offsets and can silently append
+    // the wrong slice during a fast scroll. Only use columns with
+    // non-repeating detail; if none remain, pause instead of guessing.
+    let informative = columns.filter {
+      !scrollingColumnIsPeriodic(previous, column: $0)
+    }
+    guard !informative.isEmpty else { return .unmatched }
+    let tiles = scrollingColumnTiles(in: informative, sampleWidth: previous.width)
     if previous.width > 32 {
       // Keep native detail where pixels actually change, instead of
       // shrinking a wide Terminal until different digits look alike.
       // Limit the expensive offset search to 32 representative columns.
       let selected: [(column: Int, bounds: Range<Int>)]
-      if columns.count <= 32 {
-        selected = columns.map { ($0, $0..<($0 + 1)) }
+      if informative.count <= 32 {
+        selected = informative.map { ($0, $0..<($0 + 1)) }
       } else {
         let perTile = max(1, 32 / tiles.count)
         selected = tiles.flatMap { tile in
@@ -306,6 +314,35 @@ enum ScreenshotSupport {
       contentColumns: best.contentColumns)
   }
 
+  /// True when a column carries no reliable vertical registration detail:
+  /// solid gutters and short-period stripe/grid backgrounds alias at many
+  /// scroll offsets. Such columns must not decide a stitch.
+  static func scrollingColumnIsPeriodic(
+    _ sample: ScrollingSample, column: Int
+  ) -> Bool {
+    guard sample.isValid, column >= 0, column < sample.width else { return true }
+    var values = Set<UInt8>()
+    for row in 0..<sample.height {
+      values.insert(sample.pixels[row * sample.width + column])
+      if values.count >= 4 { break }
+    }
+    guard values.count >= 4 else { return true }
+    for lag in stride(from: 4, through: 32, by: 4) where lag < sample.height {
+      var equal = 0
+      var total = 0
+      for row in 0..<(sample.height - lag) {
+        total += 1
+        if sample.pixels[row * sample.width + column]
+          == sample.pixels[(row + lag) * sample.width + column]
+        {
+          equal += 1
+        }
+      }
+      if total > 0, Double(equal) / Double(total) >= 0.9 { return true }
+    }
+    return false
+  }
+
   /// A fixed footer stays at the same viewport rows while the page behind it
   /// advances. Keeping that suffix in every new strip repeats it throughout
   /// the final image, so identify it separately from the moving overlap.
@@ -415,6 +452,20 @@ enum ScreenshotSupport {
     let longestRun: Int
     let matchingRows: Int
     let difference: Double
+  }
+
+  private static func scrollingColumnTiles(
+    in columns: [Int],
+    sampleWidth: Int
+  ) -> [Range<Int>] {
+    let tileWidth = max(1, sampleWidth / 32)
+    var result: [Range<Int>] = []
+    for column in columns {
+      let lower = (column / tileWidth) * tileWidth
+      let tile = lower..<min(sampleWidth, lower + tileWidth)
+      if result.last != tile { result.append(tile) }
+    }
+    return result
   }
 
   private static func scrollingColumnTiles(

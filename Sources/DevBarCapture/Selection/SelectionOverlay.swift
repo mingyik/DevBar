@@ -1043,12 +1043,45 @@ final class SelectionView: NSView {
 
   private func confirm() {
     guard selection.width > 0, selection.height > 0 else { return }
-    let global = selection.offsetBy(dx: screenFrame.minX, dy: screenFrame.minY)
+    var global = selection.offsetBy(dx: screenFrame.minX, dy: screenFrame.minY)
+    if scrollingRequested {
+      global = Self.clampedToTargetWindow(global)
+    }
     complete?(
       Result {
         try CaptureRegion(
           displayID: displayID, globalRect: global, screenFrame: screenFrame, scale: scale)
       })
+  }
+
+  /// A scrolling capture only makes sense on one scrollable surface. Clamp the
+  /// selection to the normal window it overlaps most so the long image never
+  /// contains desktop or another application beside the source window.
+  private static func clampedToTargetWindow(_ rect: CGRect) -> CGRect {
+    guard rect.width > 0, rect.height > 0,
+      let mainTop = NSScreen.screens.first?.frame.maxY,
+      let windows = CGWindowListCopyWindowInfo(
+        [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
+    else { return rect }
+    let ownPID = ProcessInfo.processInfo.processIdentifier
+    var best: (frame: CGRect, area: CGFloat)?
+    for window in windows {
+      guard (window[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
+        (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value != ownPID,
+        (window[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1 > 0.01,
+        let raw = window[kCGWindowBounds as String] as? [String: Any],
+        let bounds = CGRect(dictionaryRepresentation: raw as CFDictionary)
+      else { continue }
+      let cocoa = CGRect(
+        x: bounds.minX, y: mainTop - bounds.maxY,
+        width: bounds.width, height: bounds.height)
+      let overlap = cocoa.intersection(rect)
+      guard !overlap.isNull, overlap.width > 1, overlap.height > 1 else { continue }
+      let area = overlap.width * overlap.height
+      if area > (best?.area ?? 0) { best = (cocoa, area) }
+    }
+    guard let best else { return rect }
+    return rect.intersection(best.frame)
   }
 }
 

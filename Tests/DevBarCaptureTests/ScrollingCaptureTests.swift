@@ -400,3 +400,44 @@ private func testRegion() throws -> CaptureRegion {
   #expect(try Data(contentsOf: first.0) == first.1)
   #expect(try Data(contentsOf: second.0) == second.1)
 }
+
+@Test func scrollingIgnoresPeriodicColumnsWhenMatchingFastScroll() {
+  func sample(_ offset: Int) -> ScreenshotSupport.ScrollingSample {
+    var pixels = [UInt8](repeating: 0, count: 64 * 160)
+    for row in 0..<160 {
+      for column in 0..<64 {
+        if column < 32 {
+          pixels[row * 64 + column] = UInt8((row + offset) % 16 * 15)
+        } else {
+          let seed = UInt32(row + offset)
+          var value = seed &* 2_654_435_761
+          value &+= UInt32(column) &* 97
+          value = ((value >> ((value >> 27) + 5)) ^ value) &* 2_246_822_519
+          pixels[row * 64 + column] = UInt8(truncatingIfNeeded: (value >> 19) ^ value)
+        }
+      }
+    }
+    return .init(width: 64, height: 160, pixels: pixels)
+  }
+  guard
+    case .advanced(let overlap, .forward, let columns) =
+      ScreenshotSupport.scrollingTransition(previous: sample(0), current: sample(40))
+  else {
+    Issue.record("expected a unique match through the text columns")
+    return
+  }
+  #expect(overlap == 120)
+  #expect(columns.lowerBound >= 32)
+}
+
+@Test func scrollingPausesWhenEveryColumnIsPeriodic() {
+  func sample(_ offset: Int) -> ScreenshotSupport.ScrollingSample {
+    let pixels = (0..<(64 * 160)).map { index in
+      UInt8((index / 64 + offset) % 16 * 15)
+    }
+    return .init(width: 64, height: 160, pixels: pixels)
+  }
+  #expect(
+    ScreenshotSupport.scrollingTransition(previous: sample(0), current: sample(40))
+      == .unmatched)
+}
