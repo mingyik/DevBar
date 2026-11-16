@@ -125,7 +125,18 @@ public enum ScreenshotScrollingCapture {
       var lastCaptureAt = ProcessInfo.processInfo.systemUptime
       var scrollPending = false
       var finishRequestedAt: TimeInterval?
-      if let preview = makePreview(slices) { await onPreview(preview) }
+      var lastPreviewAt: TimeInterval = 0
+      func publishPreview(force: Bool = false) async {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard force || now - lastPreviewAt >= 0.25 else { return }
+        lastPreviewAt = now
+        guard
+          let preview = makePreview(
+            footerSlice.map { contentWithHeader() + [$0] } ?? contentWithHeader())
+        else { return }
+        await onPreview(preview)
+      }
+      await publishPreview(force: true)
       await onProgress(totalHeight, false)
 
       while true {
@@ -324,11 +335,7 @@ public enum ScreenshotScrollingCapture {
             lastDirection = saved.direction
             footerSlice = saved.footer
             rollback = nil
-            if let preview = makePreview(
-              footerSlice.map { contentWithHeader() + [$0] } ?? contentWithHeader())
-            {
-              await onPreview(preview)
-            }
+            await publishPreview(force: true)
           }
           hasUnmatchedContent = true
           // Stay locked until a later moving frame shows the original bands.
@@ -435,12 +442,7 @@ public enum ScreenshotScrollingCapture {
         anchors.remember(currentContent, at: position)
         if let direction = placed.direction { lastDirection = direction }
         hasUnmatchedContent = false
-        if extraRows > 0,
-          let preview = makePreview(
-            footerSlice.map { contentWithHeader() + [$0] } ?? contentWithHeader())
-        {
-          await onPreview(preview)
-        }
+        if extraRows > 0 { await publishPreview() }
         await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, false)
         scrollPending = !frameIsStable || lastCaptureAt - lastChangedAt < settleInterval
       }

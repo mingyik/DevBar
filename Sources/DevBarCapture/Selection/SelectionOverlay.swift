@@ -1095,7 +1095,8 @@ final class SelectionView: NSView {
         [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
     else { return nil }
     let ownPID = ProcessInfo.processInfo.processIdentifier
-    var best: (frame: CGRect, id: CGWindowID, area: CGFloat)?
+    var frames: [CGRect] = []
+    var ids: [CGWindowID] = []
     for window in windows {
       guard (window[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
         (window[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value != ownPID,
@@ -1104,16 +1105,32 @@ final class SelectionView: NSView {
         let raw = window[kCGWindowBounds as String] as? [String: Any],
         let bounds = CGRect(dictionaryRepresentation: raw as CFDictionary)
       else { continue }
-      let cocoa = CGRect(
-        x: bounds.minX, y: mainTop - bounds.maxY,
-        width: bounds.width, height: bounds.height)
-      let overlap = cocoa.intersection(rect)
+      frames.append(
+        CGRect(
+          x: bounds.minX, y: mainTop - bounds.maxY,
+          width: bounds.width, height: bounds.height))
+      ids.append(CGWindowID(number))
+    }
+    guard let index = windowChoice(frames: frames, selection: rect) else { return nil }
+    return (frames[index], ids[index])
+  }
+
+  /// Window frames arrive front to back. A larger window behind the visible one
+  /// can cover more of the selection; the window the person sees at the
+  /// selection's center must win, with the largest overlap only as a fallback.
+  nonisolated static func windowChoice(frames: [CGRect], selection: CGRect) -> Int? {
+    let center = CGPoint(x: selection.midX, y: selection.midY)
+    if let frontmost = frames.firstIndex(where: { $0.contains(center) }) {
+      return frontmost
+    }
+    var best: (index: Int, area: CGFloat)?
+    for (index, frame) in frames.enumerated() {
+      let overlap = frame.intersection(selection)
       guard !overlap.isNull, overlap.width > 0, overlap.height > 0 else { continue }
       let area = overlap.width * overlap.height
-      if area > (best?.area ?? 0) { best = (cocoa, CGWindowID(number), area) }
+      if area > (best?.area ?? 0) { best = (index, area) }
     }
-    guard let best else { return nil }
-    return (best.frame, best.id)
+    return best?.index
   }
 }
 

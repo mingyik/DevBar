@@ -272,3 +272,13 @@ import Testing
   #expect(region?.pixelRect.width == 500)
   #expect(region?.pixelRect.height == 300)
 }
+
+@Test func scrollingSelectionPrefersTheFrontmostWindowAtItsCenter() {
+  let behind = CGRect(x: 0, y: 0, width: 1000, height: 1000)
+  let front = CGRect(x: 100, y: 100, width: 500, height: 600)
+  let selection = CGRect(x: 150, y: 150, width: 300, height: 300)
+  #expect(SelectionView.windowChoice(frames: [front, behind], selection: selection) == 0)
+  // Center outside every window: fall back to the largest overlap.
+  let offCenter = CGRect(x: 700, y: 700, width: 200, height: 200)
+  #expect(SelectionView.windowChoice(frames: [front, behind], selection: offCenter) == 1)
+}
