@@ -136,10 +136,14 @@ export class PageShell {
     replaceAll(this.view, text, event);
   }
   showPreview(show: boolean): void {
-    this.mode = show ? "preview" : "source";
-    this.source.hidden = show;
-    this.preview.hidden = !show;
-    if (!show) this.view.focus();
+    this.setDisplay(show ? "preview" : "source");
+  }
+  setDisplay(mode: "source" | "preview" | "split"): void {
+    this.mode = mode === "source" ? "source" : "preview";
+    this.source.hidden = mode === "preview";
+    this.preview.hidden = mode === "source";
+    this.content.classList.toggle("split", mode === "split");
+    if (mode === "source" || mode === "split") this.view.focus();
   }
   updateInfo(message?: string): void {
     this.info.textContent = message ?? "";

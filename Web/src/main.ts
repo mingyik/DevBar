@@ -14,7 +14,6 @@ import { QRPage } from "./qr/page";
 import { JsonPage } from "./tools/json/page";
 import { PageShell, type PageState } from "./editor/page-shell";
 import { installReadOnlyScrollbars } from "./styles/readonly-scroll";
-import { startDocumentEditor } from "./doc/editor-window";
 import "./styles/app.css";
 import "./styles/pages.css";
 import "./styles/contrast.css";
@@ -126,12 +125,6 @@ const bridge = {
               : "source",
         );
         break;
-      case "doc.setEditorText":
-        doc.applyEditorText(
-          typeof payload.text === "string" ? payload.text : "",
-          typeof payload.documentId === "string" ? payload.documentId : null,
-        );
-        break;
       case "state.flush":
         await transitions.catch(() => {});
         await save();
@@ -152,10 +145,6 @@ const bridge = {
   },
   docStatus(text?: string | null) {
     return doc.documentStatus(text);
-  },
-  applyEditorText(text: string, documentId: string | null) {
-    doc.applyEditorText(text, documentId);
-    return { ok: true };
   },
   docText() {
     return doc.documentText();
@@ -181,9 +170,7 @@ declare global {
   }
 }
 if (typeof document !== "undefined") {
-  if (new URLSearchParams(location.search).has("doc-editor"))
-    startDocumentEditor();
-  else void start();
+  void start();
 }
 async function start(): Promise<void> {
   installReadOnlyScrollbars(document);

@@ -18,8 +18,7 @@
   overflow: hidden;
   overscroll-behavior: none;
 }
-.page-content,
-.doc-editor-source {
+.page-content {
   background: var(--panel-card);
   border-radius: var(--radius-medium);
 }
@@ -32,6 +31,26 @@
 }
 .has-info .source,
 .has-info .preview {
+  bottom: 74px;
+}
+.page-content.split .source {
+  right: calc(50% + var(--stroke-hairline) / 2);
+}
+.page-content.split .preview {
+  left: calc(50% + var(--stroke-hairline) / 2);
+}
+.page-content.split::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 52px;
+  width: var(--stroke-hairline);
+  transform: translateX(-50%);
+  background: var(--line-divider);
+  pointer-events: none;
+}
+.page-content.split.has-info::after {
   bottom: 74px;
 }
 .source .cm-editor {
@@ -401,43 +420,4 @@ button:disabled {
 #doc .page-toolbar .icon-save:disabled {
   color: var(--icon-primary);
   opacity: 0.45;
-}
-
-.doc-editor-window {
-  position: relative;
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  height: 100%;
-  overflow: hidden;
-}
-.doc-editor-window[hidden] {
-  display: none;
-}
-.doc-editor-source {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  overflow: hidden;
-}
-.doc-editor-window .cm-editor {
-  height: 100%;
-  background: transparent;
-}
-.doc-editor-window .cm-gutters,
-.doc-editor-window .cm-scroller {
-  background: transparent;
-}
-.doc-editor-window .cm-content {
-  padding: 14px 22px 58px 12px;
-}
-.doc-editor-clear {
-  position: absolute;
-  right: 14px;
-  bottom: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 2;
 }
