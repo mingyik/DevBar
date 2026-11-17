@@ -120,6 +120,7 @@ private final class CaptureHUDState {
               self.resizeHUDForProgress()
             }
           }
+          self.stopEscapeMonitor()
           self.hud?.orderOut(nil)
           self.hidePreview()
           selection.dismissScrollingOverlay()
@@ -139,6 +140,7 @@ private final class CaptureHUDState {
         } else {
           guard let selected else { return }
           image = selected.1
+          self.stopEscapeMonitor()
         }
         try Task.checkCancellation()
         if scrolling && !self.state.saveToDisk {
@@ -177,6 +179,7 @@ private final class CaptureHUDState {
   /// Same result as the progress bar's cancel button: drop the selection or
   /// the in-progress stitch and write nothing.
   func cancel() {
+    stopEscapeMonitor()
     task?.cancel()
     hidePreview()
     hud?.orderOut(nil)
@@ -187,6 +190,7 @@ private final class CaptureHUDState {
   private func startEscapeMonitor() {
     guard escapeTask == nil else { return }
     escapeTask = Task { [weak self] in
+      guard !Task.isCancelled else { return }
       for await event in KeyboardShortcuts.events(for: .captureExit) where event == .keyUp {
         self?.cancel()
       }
@@ -194,6 +198,8 @@ private final class CaptureHUDState {
   }
 
   private func stopEscapeMonitor() {
+    // Release the OS hot key now, even if capture/encoding is still unwinding.
+    KeyboardShortcuts.disable(.captureExit)
     escapeTask?.cancel()
     escapeTask = nil
   }
@@ -213,11 +219,7 @@ private final class CaptureHUDState {
       self?.state.saveToDisk = true
       finish.request()
     }
-    state.cancel = { [weak self] in
-      self?.task?.cancel()
-      self?.hidePreview()
-      self?.hud?.orderOut(nil)
-    }
+    state.cancel = { [weak self] in self?.cancel() }
     showHUD(displayID: region.displayID)
     showPreview(region: region)
   }
