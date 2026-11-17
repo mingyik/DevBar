@@ -549,27 +549,59 @@ import Testing
     )) as? Bool == true)
 }
 
-@MainActor @Test func singleWindowHostsSidebarSplitAndNeverSpawnsAuxiliaryPanels() {
+@MainActor @Test func singleWindowHostsSidebarSplitAndNeverSpawnsAuxiliaryPanels() async throws {
   _ = NSApplication.shared
+  let webRoot = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    .appending(path: "Web/dist")
   let defaults = UserDefaults(suiteName: "devbar.singlewin.\(UUID())")!
-  let theme = ThemeManager(defaults: defaults)
-  let model = PanelModel(defaults: defaults)
-  #expect(!model.documentSidebarVisible)
-  #expect(!model.documentSplit)
-
-  model.prepareToOpen(page: .doc)
-  model.documentSidebarVisible = true
-  model.documentSplit = true
-  #expect(model.documentSidebarVisible)
-  model.documentSplit = false
-  #expect(model.documentSidebarVisible)
-
-  let auxiliaryWindows = NSApp.windows.filter {
+  let controller = PanelController(theme: ThemeManager(defaults: defaults), webRoot: webRoot)
+  controller.model.pinned = true
+  controller.model.prepareToOpen(page: .doc)
+  controller.show(anchor: nil, activateApplication: false)
+  defer { controller.dismiss() }
+  for _ in 0..<100 {
+    if (try? await controller.webHost.webView.evaluateJavaScript("!!window.__devbar")) as? Bool
+      == true
+    {
+      break
+    }
+    try await Task.sleep(for: .milliseconds(50))
+  }
+  let webView = controller.webHost.webView
+  controller.webHost.importFile(text: "# Single window", name: "note.md", document: true)
+  controller.webHost.setDocumentDisplay("split")
+  for _ in 0..<100 {
+    if controller.model.documentSplit { break }
+    try await Task.sleep(for: .milliseconds(50))
+  }
+  #expect(controller.model.documentSplit)
+  for _ in 0..<2 {
+    controller.model.onToggleDocumentSidebar?()
+    try await Task.sleep(for: .milliseconds(100))
+    #expect(controller.webHost.webView === webView)
+    #expect(webView.window === controller.panel)
+  }
+  #expect(!controller.model.documentSidebarVisible)
+  let controls = try await webView.evaluateJavaScript(
+    """
+    (() => {
+      const content = document.querySelector('#doc .page-content');
+      const exportButton = content.querySelector('.split-preview-export');
+      const toolbar = content.querySelector('.page-toolbar');
+      return content.classList.contains('split') && exportButton.parentElement === content
+        && !toolbar.contains(exportButton)
+        && toolbar.contains(content.querySelector('.icon-save'))
+        && toolbar.contains(content.querySelector('.icon-clear'))
+        && getComputedStyle(toolbar, '::before').display === 'none';
+    })()
+    """)
+  #expect(controls as? Bool == true)
+  let auxiliary = NSApp.windows.filter {
     let name = NSStringFromClass(type(of: $0))
     return name.contains("DocumentSidebarPanel") || name.contains("DocumentEditorPanel")
   }
-  #expect(auxiliaryWindows.isEmpty)
-  _ = theme
+  #expect(auxiliary.isEmpty)
 }
 
 @MainActor @Test func captureMarkdownMultiPaneScreenshotsIfRequested() async throws {

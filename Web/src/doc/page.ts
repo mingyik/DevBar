@@ -267,6 +267,13 @@ export class DocPage {
           : strings.modeEdit,
     );
     this.toggle.hidden = !this.previewAllowed;
+    if (this.display === "split") {
+      this.exportButton.classList.add("split-preview-export");
+      this.shell.content.append(this.exportButton);
+    } else {
+      this.exportButton.classList.remove("split-preview-export");
+      this.shell.fixed.append(this.exportButton);
+    }
     this.clearButton.hidden = this.display === "preview";
     this.exportButton.hidden =
       this.display === "source" || !this.previewAllowed;

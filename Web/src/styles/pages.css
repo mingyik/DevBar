@@ -421,3 +421,28 @@ button:disabled {
   color: var(--icon-primary);
   opacity: 0.45;
 }
+
+/* Split Markdown keeps editing actions on the left and only export on the right. */
+#doc .page-content.split .page-toolbar {
+  right: calc(50% + 12px);
+}
+#doc .page-content.split .page-toolbar::before {
+  display: none;
+}
+#doc .page-content.split .preview {
+  bottom: 0;
+  padding-bottom: 52px;
+}
+#doc .page-content.split::after {
+  bottom: 0;
+}
+#doc .page-content.split .file-label,
+#doc .page-content.split .page-info {
+  right: calc(50% + 12px);
+}
+#doc .split-preview-export {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 3;
+}
