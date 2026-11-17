@@ -280,7 +280,7 @@ public final class SelectionOverlay {
           global.minY + bottomPts + max(0, (global.height - topPts - bottomPts - verticalSpan) / 2)
         frame = CGRect(x: x, y: y, width: thickness, height: verticalSpan)
       }
-      panel.setFrame(frame, display: false)
+      panel.setFrame(frame, display: true)
     }
   }
 
@@ -1790,6 +1790,13 @@ private final class InsetHandleView: NSView {
 
   private var cursor: NSCursor {
     edge == .right ? .resizeLeftRight : .resizeUpDown
+  }
+
+  override func draw(_ dirtyRect: NSRect) {
+    // WindowServer passes clicks through fully transparent (alpha == 0) pixels
+    // on non-opaque windows; a minimal alpha keeps the handle strip clickable.
+    NSColor.black.withAlphaComponent(0.01).setFill()  // devbar:allow-color
+    bounds.fill()
   }
 
   override func resetCursorRects() {
