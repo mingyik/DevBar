@@ -430,8 +430,7 @@ button:disabled {
   display: none;
 }
 #doc .page-content.split .preview {
-  bottom: 0;
-  padding-bottom: 52px;
+  bottom: 52px;
 }
 #doc .page-content.split::after {
   bottom: 0;

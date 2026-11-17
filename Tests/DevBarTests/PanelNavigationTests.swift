@@ -593,7 +593,9 @@ import Testing
         && !toolbar.contains(exportButton)
         && toolbar.contains(content.querySelector('.icon-save'))
         && toolbar.contains(content.querySelector('.icon-clear'))
-        && getComputedStyle(toolbar, '::before').display === 'none';
+        && getComputedStyle(toolbar, '::before').display === 'none'
+        && content.querySelector('.preview').getBoundingClientRect().bottom
+          <= exportButton.getBoundingClientRect().top;
     })()
     """)
   #expect(controls as? Bool == true)
