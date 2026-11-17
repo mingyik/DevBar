@@ -34,10 +34,10 @@
   bottom: 74px;
 }
 .page-content.split .source {
-  right: calc(50% + var(--stroke-hairline) / 2);
+  right: calc(50% + (var(--stroke-hairline) + 1px) / 2);
 }
 .page-content.split .preview {
-  left: calc(50% + var(--stroke-hairline) / 2);
+  left: calc(50% + (var(--stroke-hairline) + 1px) / 2);
 }
 .page-content.split::after {
   content: "";
@@ -45,7 +45,7 @@
   left: 50%;
   top: 0;
   bottom: 52px;
-  width: var(--stroke-hairline);
+  width: calc(var(--stroke-hairline) + 1px);
   transform: translateX(-50%);
   background: var(--line-divider);
   pointer-events: none;

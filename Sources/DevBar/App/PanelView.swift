@@ -26,19 +26,24 @@ struct PanelView: View {
   var body: some View {
     let scheme = theme.effective
     let _ = theme.increaseContrast
+    let showsSidebar = model.page == .doc && model.documentSidebarVisible && !model.dropActive
     HStack(spacing: 0) {
-      if model.page == .doc, model.documentSidebarVisible, !model.dropActive {
-        DocumentSidebarView(
-          theme: theme, session: documents, width: model.documentSidebarWidth,
-          onOpen: { model.onOpenDocument?($0) },
-          onOpenDraft: { model.onOpenDocumentDraft?($0) },
-          onPick: { model.onPickDocument?() }
-        )
-        Rectangle()
-          .fill(DesignTokens.lineDivider(scheme))
-          .frame(width: 0.7)
-          .padding(.vertical, 10)
+      HStack(spacing: 0) {
+        if showsSidebar {
+          DocumentSidebarView(
+            theme: theme, session: documents, width: model.documentSidebarWidth,
+            onOpen: { model.onOpenDocument?($0) },
+            onOpenDraft: { model.onOpenDocumentDraft?($0) },
+            onPick: { model.onPickDocument?() }
+          )
+          Rectangle()
+            .fill(DesignTokens.lineDivider(scheme))
+            .frame(width: 0.7)
+            .padding(.vertical, 10)
+        }
       }
+      .frame(width: showsSidebar ? model.documentSidebarWidth + 0.7 : 0)
+      .clipped()
       mainColumn(scheme)
     }
     .animation(.easeInOut(duration: 0.15), value: model.dropActive)

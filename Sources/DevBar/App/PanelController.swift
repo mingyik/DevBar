@@ -39,7 +39,7 @@ final class PanelController {
   private let logger = Logger(subsystem: "local.devbar.app", category: "panel")
   private let signposter = OSSignposter(subsystem: "local.devbar.app", category: "panel")
 
-  init(theme: ThemeManager) {
+  init(theme: ThemeManager, webRoot: URL? = nil) {
     #if DEBUG
       let model = PanelModel(defaults: SelfCheckEnvironment.defaults)
       let clipboard = ClipboardController(
@@ -53,7 +53,7 @@ final class PanelController {
       let model = PanelModel()
       let clipboard = ClipboardController(theme: theme)
     #endif
-    let webHost = WebHost(theme: theme)
+    let webHost = WebHost(theme: theme, webRoot: webRoot)
     self.clipboard = clipboard
     self.model = model
     self.theme = theme

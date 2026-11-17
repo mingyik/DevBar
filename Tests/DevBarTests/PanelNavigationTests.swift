@@ -499,6 +499,46 @@ import Testing
     (try? await host.webView.evaluateJavaScript(
       "document.querySelector('#doc .page-content')?.classList.contains('split') === true"
     )) as? Bool == true)
+
+  // 7. Split editor and preview synchronize scroll proportionally.
+  let longDoc = (1...80).map { "Line \($0)\n\nParagraph \($0) content." }.joined(separator: "\n\n")
+  host.importFile(text: longDoc, name: "long.md", document: true)
+  host.setDocumentDisplay("split")
+  for _ in 0..<100 {
+    if (try? await host.webView.evaluateJavaScript(
+      """
+      (() => {
+        const s = document.querySelector('#doc .cm-scroller');
+        const p = document.querySelector('#doc .preview');
+        return !!s && !!p && s.scrollHeight > s.clientHeight && p.scrollHeight > p.clientHeight;
+      })()
+      """
+    )) as? Bool == true {
+      break
+    }
+    try? await Task.sleep(for: .milliseconds(50))
+  }
+  _ = try await host.webView.evaluateJavaScript(
+    """
+    (() => {
+      const s = document.querySelector('#doc .cm-scroller');
+      s.scrollTop = Math.round((s.scrollHeight - s.clientHeight) * 0.5);
+      s.dispatchEvent(new Event('scroll'));
+      return true;
+    })()
+    """)
+  try? await Task.sleep(for: .milliseconds(50))
+  let syncedPreview =
+    (try? await host.webView.evaluateJavaScript(
+      """
+      (() => {
+        const p = document.querySelector('#doc .preview');
+        const ratio = p.scrollTop / (p.scrollHeight - p.clientHeight);
+        return ratio > 0.4 && ratio < 0.6;
+      })()
+      """
+    )) as? Bool
+  #expect(syncedPreview == true)
 }
 
 @MainActor @Test func singleWindowHostsSidebarSplitAndNeverSpawnsAuxiliaryPanels() {
@@ -522,4 +562,80 @@ import Testing
   }
   #expect(auxiliaryWindows.isEmpty)
   _ = theme
+}
+
+@MainActor @Test func captureMarkdownMultiPaneScreenshotsIfRequested() async throws {
+  guard let outDir = ProcessInfo.processInfo.environment["DEVBAR_DOC_REVIEW_DIR"], !outDir.isEmpty
+  else { return }
+  _ = NSApplication.shared
+  let webDist = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .appending(path: "Web/dist")
+  let sample = """
+    # DevBar Markdown
+
+    单窗口多面板布局验证：
+
+    - 左侧目录栏
+    - 中间编辑器
+    - 右侧实时预览
+
+    ```swift
+    let layout = PanelLayout.documentPanelSize(
+      enlarged: false, split: true, sidebar: true, visibleFrame: frame)
+    ```
+    """
+  let dirURL = URL(fileURLWithPath: outDir)
+  try FileManager.default.createDirectory(at: dirURL, withIntermediateDirectories: true)
+
+  for themeName in ["light", "dark"] {
+    let defaults = UserDefaults(suiteName: "devbar.docreview.\(themeName).\(UUID())")!
+    let theme = ThemeManager(defaults: defaults)
+    theme.mode = themeName == "dark" ? .dark : .light
+    let controller = PanelController(theme: theme, webRoot: webDist)
+    controller.model.pinned = true
+    controller.model.autoImport = false
+    controller.model.page = .doc
+    controller.show(anchor: nil, activateApplication: false)
+
+    for _ in 0..<200 {
+      if (try? await controller.webHost.webView.evaluateJavaScript("!!window.__devbar")) as? Bool
+        == true
+      {
+        break
+      }
+      try? await Task.sleep(for: .milliseconds(50))
+    }
+    controller.webHost.importFile(text: sample, name: "README.md", document: true)
+    try? await Task.sleep(for: .milliseconds(400))
+
+    func capture(_ name: String) async throws {
+      try? await Task.sleep(for: .milliseconds(400))
+      _ = try? await controller.webHost.webView.evaluateJavaScript(
+        "new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => r(true))))")
+      controller.panel.displayIfNeeded()
+      let path = dirURL.appending(path: "\(name).png").path
+      let process = Process()
+      process.executableURL = URL(fileURLWithPath: "/usr/sbin/screencapture")
+      process.arguments = ["-x", "-o", "-l", "\(controller.panel.windowNumber)", path]
+      try process.run()
+      process.waitUntilExit()
+    }
+
+    try await capture("1pane-edit-\(themeName)")
+
+    controller.model.onToggleDocumentSidebar?()
+    try await capture("2pane-sidebar-\(themeName)")
+
+    controller.model.onToggleDocumentSidebar?()
+    controller.webHost.setDocumentDisplay("split")
+    try await capture("2pane-split-\(themeName)")
+
+    controller.model.onToggleDocumentSidebar?()
+    try await capture("3pane-split-sidebar-\(themeName)")
+
+    controller.dismiss()
+  }
 }

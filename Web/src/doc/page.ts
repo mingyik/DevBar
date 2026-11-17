@@ -53,6 +53,7 @@ export class DocPage {
   private infoTimer: ReturnType<typeof setTimeout> | undefined;
   private renderKey = "";
   private released = false;
+  private scrollSource: "editor" | "preview" | null = null;
   private pending: Promise<void> = Promise.resolve();
   private toggle: HTMLButtonElement;
   private saveButton: HTMLButtonElement;
@@ -111,6 +112,12 @@ export class DocPage {
     bindPreviewLinks(shell.preview, (url) => {
       void post("link.open", { url });
     });
+    shell.view.scrollDOM.addEventListener("scroll", () => {
+      this.syncSplitScroll("editor");
+    });
+    shell.preview.addEventListener("scroll", () => {
+      this.syncSplitScroll("preview");
+    });
     shell.preview.addEventListener("click", (event) => {
       const button = (event.target as Element).closest<HTMLButtonElement>(
         ".diagram-copy",
@@ -156,6 +163,22 @@ export class DocPage {
     return document.documentElement.dataset.theme === "dark"
       ? ("dark" as const)
       : ("light" as const);
+  }
+  private syncSplitScroll(origin: "editor" | "preview") {
+    if (this.display !== "split") return;
+    if (this.scrollSource && this.scrollSource !== origin) return;
+    const from =
+      origin === "editor" ? this.shell.view.scrollDOM : this.shell.preview;
+    const to =
+      origin === "editor" ? this.shell.preview : this.shell.view.scrollDOM;
+    const fromMax = from.scrollHeight - from.clientHeight;
+    const toMax = to.scrollHeight - to.clientHeight;
+    if (fromMax <= 0 || toMax <= 0) return;
+    this.scrollSource = origin;
+    to.scrollTop = Math.round((from.scrollTop / fromMax) * toMax);
+    requestAnimationFrame(() => {
+      if (this.scrollSource === origin) this.scrollSource = null;
+    });
   }
   private setMode(mode: DocMode) {
     this.mode = mode;
