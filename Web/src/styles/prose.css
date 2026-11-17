@@ -1,6 +1,6 @@
 .prose {
   container-type: inline-size;
-  color: var(--text-primary);
+  color: var(--markdown-text-body);
   font:
     var(--font-body) / var(--font-line-height) -apple-system,
     BlinkMacSystemFont,
@@ -27,6 +27,7 @@
 .prose h6 {
   margin: 1.2em 0 0.55em;
   line-height: 1.4;
+  color: var(--markdown-text-heading);
 }
 .prose h1 {
   font-size: 1.35em;
@@ -48,11 +49,11 @@
 }
 .prose h1,
 .prose h2 {
-  border-bottom: var(--stroke-hairline) solid var(--line-divider);
+  border-bottom: var(--stroke-hairline) solid var(--markdown-line);
   padding-bottom: 0.35em;
 }
 .prose a {
-  color: var(--text-primary);
+  color: var(--markdown-text-link);
   text-decoration: underline;
   text-decoration-thickness: var(--stroke-hairline);
   text-underline-offset: 0.18em;
@@ -61,17 +62,25 @@
   text-decoration-thickness: var(--stroke-strong);
 }
 .prose blockquote {
-  border-left: 2px solid
-    color-mix(in srgb, var(--text-primary) 25%, transparent);
-  color: var(--text-secondary);
+  border-left: 2px solid var(--markdown-quote-border);
+  color: var(--markdown-text-quote);
   padding-left: 0.9em;
   margin-left: 0;
   margin-right: 0;
 }
 .prose hr {
   border: 0;
-  border-top: var(--stroke-hairline) solid var(--line-divider);
+  border-top: var(--stroke-hairline) solid var(--markdown-line);
   margin: 1.2em 0;
+}
+.prose li::marker {
+  color: var(--markdown-text-heading);
+}
+.prose strong {
+  color: var(--markdown-text-strong);
+}
+.prose em {
+  color: var(--markdown-text-emphasis);
 }
 .prose img {
   max-width: 100%;

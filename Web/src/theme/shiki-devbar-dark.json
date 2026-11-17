@@ -1,37 +1,40 @@
 {
   "comment": "自动生成，勿手改。来源：design/tokens.json",
-  "name": "devbar-dark",
-  "displayName": "DevBar Dark",
+  "name": "devbar-tomorrow-dark",
+  "displayName": "DevBar Tomorrow Dark",
   "type": "dark",
   "colors": {
-    "editor.background": "#FFFFFF13",
-    "editor.foreground": "#FFFFFF"
+    "editor.background": "#34383C",
+    "editor.foreground": "#D7DBD9"
   },
   "tokenColors": [
     {
       "scope": [
-        "keyword",
-        "storage.type",
-        "storage.modifier",
         "support.type.property-name",
         "support.type.property-name.json",
-        "meta.object-literal.key"
+        "meta.object-literal.key",
+        "variable.other.property"
       ],
       "settings": {
-        "foreground": "#FFFFFF",
-        "fontStyle": "bold"
+        "foreground": "#8CB2CC"
+      }
+    },
+    {
+      "scope": ["keyword", "storage.type", "storage.modifier"],
+      "settings": {
+        "foreground": "#C8A3C8"
       }
     },
     {
       "scope": ["string"],
       "settings": {
-        "foreground": "#FFFFFFBF"
+        "foreground": "#BECD79"
       }
     },
     {
       "scope": ["constant.numeric"],
       "settings": {
-        "foreground": "#FFFFFF"
+        "foreground": "#F2A26B"
       }
     },
     {
@@ -41,21 +44,35 @@
         "constant.language.null"
       ],
       "settings": {
-        "foreground": "#FFFFFF",
-        "fontStyle": "italic"
+        "foreground": "#E77373"
       }
     },
     {
       "scope": ["comment"],
       "settings": {
-        "foreground": "#FFFFFF99",
-        "fontStyle": "italic"
+        "foreground": "#A6A9A8"
       }
     },
     {
       "scope": ["punctuation"],
       "settings": {
-        "foreground": "#FFFFFF99"
+        "foreground": "#D7DBD9"
+      }
+    },
+    {
+      "scope": [
+        "entity.name.function",
+        "support.function",
+        "meta.function-call.generic"
+      ],
+      "settings": {
+        "foreground": "#8CCDC6"
+      }
+    },
+    {
+      "scope": ["entity.name.type", "entity.name.class", "support.type"],
+      "settings": {
+        "foreground": "#C8A3C8"
       }
     }
   ]

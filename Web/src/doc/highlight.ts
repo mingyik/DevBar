@@ -1,7 +1,8 @@
 import { createHighlighterCore } from "shiki/core";
 import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
-import light from "shiki/themes/github-light.mjs";
-import dark from "shiki/themes/github-dark.mjs";
+import type { ThemeInput } from "shiki";
+import light from "../theme/shiki-devbar-light.json";
+import dark from "../theme/shiki-devbar-dark.json";
 export type Theme = "light" | "dark";
 const aliases: Record<string, string> = {
   js: "javascript",
@@ -35,10 +36,7 @@ let highlighter: ReturnType<typeof createHighlighterCore> | undefined;
 let warned = false;
 export function getHighlighter() {
   return (highlighter ??= createHighlighterCore({
-    themes: [
-      { ...light, type: "light" },
-      { ...dark, type: "dark" },
-    ],
+    themes: [light as ThemeInput, dark as ThemeInput],
     langs: [
       import("@shikijs/langs/json"),
       import("@shikijs/langs/javascript"),
@@ -84,7 +82,7 @@ export async function highlightCode(
     const renderer = await getHighlighter();
     return renderer.codeToHtml(text, {
       lang,
-      theme: theme === "dark" ? "github-dark" : "github-light",
+      theme: `devbar-tomorrow-${theme}`,
     });
   } catch {
     if (!warned) {

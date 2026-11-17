@@ -74,7 +74,13 @@ export function compositeOpaque(color: string, alpha: number, backdrop: string):
 }
 
 export function isTextRole(key: string): boolean {
-  return key.startsWith("text.") || key.startsWith("syntax.") || key === "selection.text";
+  return (
+    key.startsWith("text.") ||
+    key.startsWith("syntax.") ||
+    key.startsWith("markdown.text.") ||
+    key.startsWith("markdown.syntax.") ||
+    key === "selection.text"
+  );
 }
 
 export function resolveColor(tokens: Tokens, scheme: Scheme, key: string, seen = new Set<string>()): ColorToken {
@@ -412,20 +418,23 @@ function shikiSettings(token: ColorToken, role: Role | undefined): { foreground:
 }
 
 function renderShiki(tokens: Tokens, scheme: Scheme): string {
-  const foreground = resolveColor(tokens, scheme, "text.primary");
-  const background = resolveColor(tokens, scheme, "panel.card");
+  const foreground = resolveColor(tokens, scheme, "markdown.text.body");
+  const background = resolveColor(tokens, scheme, "markdown.surface.code");
   const scopes: Array<[string, string[]]> = [
-    ["syntax.keyword", ["keyword", "storage.type", "storage.modifier", "support.type.property-name", "support.type.property-name.json", "meta.object-literal.key"]],
-    ["syntax.string", ["string"]],
-    ["syntax.number", ["constant.numeric"]],
-    ["syntax.constant", ["constant.language", "constant.language.boolean", "constant.language.null"]],
-    ["syntax.comment", ["comment"]],
-    ["syntax.punct", ["punctuation"]],
+    ["markdown.syntax.key", ["support.type.property-name", "support.type.property-name.json", "meta.object-literal.key", "variable.other.property"]],
+    ["markdown.syntax.keyword", ["keyword", "storage.type", "storage.modifier"]],
+    ["markdown.syntax.string", ["string"]],
+    ["markdown.syntax.number", ["constant.numeric"]],
+    ["markdown.syntax.constant", ["constant.language", "constant.language.boolean", "constant.language.null"]],
+    ["markdown.syntax.comment", ["comment"]],
+    ["markdown.syntax.punct", ["punctuation"]],
+    ["markdown.syntax.function", ["entity.name.function", "support.function", "meta.function-call.generic"]],
+    ["markdown.syntax.type", ["entity.name.type", "entity.name.class", "support.type"]],
   ];
   const theme = {
     comment: header,
-    name: `devbar-${scheme}`,
-    displayName: scheme === "light" ? "DevBar Light" : "DevBar Dark",
+    name: `devbar-tomorrow-${scheme}`,
+    displayName: scheme === "light" ? "DevBar Tomorrow Light" : "DevBar Tomorrow Dark",
     type: scheme,
     colors: {
       "editor.background": hexWithAlpha(background),

@@ -1,6 +1,6 @@
 .prose .table-wrap {
   overflow-x: auto;
-  border: var(--stroke-hairline) solid var(--line-border);
+  border: var(--stroke-hairline) solid var(--markdown-line);
   border-radius: var(--radius-medium);
   margin: 0.75em 0;
 }
@@ -13,7 +13,7 @@
 .prose td {
   padding: 6px 10px;
   vertical-align: middle;
-  border-bottom: var(--stroke-hairline) solid var(--line-border);
+  border-bottom: var(--stroke-hairline) solid var(--markdown-line);
   white-space: normal;
   min-width: 4em;
   max-width: min(28em, 65cqi);
@@ -24,8 +24,8 @@
 .prose th {
   text-align: left;
   font-weight: 600;
-  background: var(--panel-card);
-  border-bottom-width: var(--stroke-strong);
+  background: var(--markdown-surface-table-header);
+  border-bottom: var(--stroke-strong) solid var(--markdown-line);
 }
 .prose td.num,
 .prose th.num {
