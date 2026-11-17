@@ -166,6 +166,93 @@ enum ScreenshotSupport {
     )
   }
 
+  /// Picks an interior row inside the shared overlap zone to place the splice
+  /// seam, shifting the cut away from edge fades, shadows, and text baselines.
+  static func scrollingBestSeamDepth(
+    previousEdgeFrame: CGImage,
+    currentFrame: CGImage,
+    sharedRows: Int,
+    topInset: Int,
+    bottomInset: Int,
+    rightCrop: Int,
+    fromBottom: Bool
+  ) -> Int {
+    let width = currentFrame.width
+    let height = currentFrame.height
+    guard previousEdgeFrame.width == width, previousEdgeFrame.height == height,
+      sharedRows >= 12, width > 0, height > topInset + bottomInset
+    else { return 0 }
+    let keptWidth = max(1, width - max(0, rightCrop))
+    let minDepth = min(max(4, sharedRows / 6), sharedRows / 3)
+    let maxDepth = min(sharedRows / 2, max(minDepth, sharedRows - 4))
+    guard maxDepth > minDepth else { return 0 }
+
+    let bandHeight = maxDepth - minDepth + 1
+    let prevStartY = fromBottom
+      ? height - bottomInset - 1 - maxDepth
+      : topInset + minDepth
+    let currStartY = fromBottom
+      ? topInset + sharedRows - 1 - maxDepth
+      : height - bottomInset - sharedRows + minDepth
+    let currExtendedY = max(0, currStartY - 1)
+    let currExtendedBottom = min(height, currStartY + bandHeight + 1)
+    let currExtendedHeight = currExtendedBottom - currExtendedY
+    guard prevStartY >= 0, prevStartY + bandHeight <= height,
+      currExtendedHeight >= bandHeight
+    else { return minDepth }
+
+    guard
+      let prevBand = grayscalePixels(
+        previousEdgeFrame,
+        rect: CGRect(x: 0, y: prevStartY, width: keptWidth, height: bandHeight)),
+      let currBand = grayscalePixels(
+        currentFrame,
+        rect: CGRect(x: 0, y: currExtendedY, width: keptWidth, height: currExtendedHeight))
+    else { return minDepth }
+
+    let step = max(1, keptWidth / 128)
+    let currOffset = currStartY - currExtendedY
+    var bestDepth = minDepth
+    var bestScore = Double.infinity
+
+    for depth in minDepth...maxDepth {
+      let localIndex = fromBottom ? (maxDepth - depth) : (depth - minDepth)
+      let prevRowOffset = localIndex * keptWidth
+      let currRowIndex = currOffset + localIndex
+      let currRowOffset = currRowIndex * keptWidth
+      let hasAbove = currRowIndex > 0
+      let hasBelow = currRowIndex + 1 < currExtendedHeight
+
+      var diffSum = 0
+      var activitySum = 0
+      var sampleCount = 0
+      var column = 0
+      while column < keptWidth {
+        let p = Int(prevBand[prevRowOffset + column])
+        let c = Int(currBand[currRowOffset + column])
+        diffSum += abs(p - c)
+        if column + step < keptWidth {
+          activitySum += abs(c - Int(currBand[currRowOffset + column + step]))
+        }
+        if hasAbove {
+          activitySum += abs(c - Int(currBand[(currRowIndex - 1) * keptWidth + column]))
+        }
+        if hasBelow {
+          activitySum += abs(c - Int(currBand[(currRowIndex + 1) * keptWidth + column]))
+        }
+        sampleCount += 1
+        column += step
+      }
+      guard sampleCount > 0 else { continue }
+      let score = (Double(diffSum) * 4.0 + Double(activitySum)) / Double(sampleCount)
+      if score < bestScore {
+        bestScore = score
+        bestDepth = depth
+      }
+    }
+    return bestDepth
+  }
+
   enum ScrollingDirection: Equatable {
     case forward
     case backward

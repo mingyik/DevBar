@@ -1375,3 +1375,53 @@ private func registrationSample(_ offset: Int) -> ScreenshotSupport.ScrollingSam
   #expect(image.width == 80 - reportedRight)
   #expect(image.height == 180)
 }
+
+@MainActor @Test func scrollingOverlapSeamReplacesBottomFadeArtifact() async throws {
+  func fadedBottomFrame(offset: Int) -> CGImage {
+    let base = uniqueFrame(offset: offset)
+    let width = base.width
+    let height = base.height
+    var bytes = [UInt8]((base.dataProvider?.data as Data?) ?? Data())
+    // Bottom 6 rows of each viewport have a translucent darkening fade.
+    for row in (height - 6)..<height {
+      for col in 0..<width {
+        bytes[row * width + col] = UInt8(Int(bytes[row * width + col]) / 2)
+      }
+    }
+    return CGImage(
+      width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 8, bytesPerRow: width,
+      space: CGColorSpaceCreateDeviceGray(), bitmapInfo: .init(rawValue: 0),
+      provider: CGDataProvider(data: Data(bytes) as CFData)!, decode: nil,
+      shouldInterpolate: false, intent: .defaultIntent)!
+  }
+  let frames = Frames([0, 40, 80].map(fadedBottomFrame))
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(),
+    onProgress: { _, _ in }, nextFrame: { await frames.next() })
+  guard case .partial(let image) = result else {
+    Issue.record("expected stitched result")
+    return
+  }
+  #expect(image.height == 200)
+  // Compare rows 0..194 (everything above the final viewport's natural bottom 6px fade)
+  // against the clean un-faded stitch.
+  let cleanFrames = Frames([0, 40, 80].map { uniqueFrame(offset: $0) })
+  let expectedResult = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(),
+    onProgress: { _, _ in }, nextFrame: { await cleanFrames.next() })
+  guard case .partial(let reference) = expectedResult else {
+    Issue.record("expected clean reference")
+    return
+  }
+  let actualCrop = try #require(image.cropping(to: CGRect(x: 0, y: 0, width: 64, height: 194)))
+  let expectedCrop = try #require(reference.cropping(to: CGRect(x: 0, y: 0, width: 64, height: 194)))
+  func gray(_ img: CGImage) -> Data {
+    var out = [UInt8](repeating: 0, count: img.width * img.height)
+    let ctx = CGContext(
+      data: &out, width: img.width, height: img.height, bitsPerComponent: 8,
+      bytesPerRow: img.width, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: 0)!
+    ctx.draw(img, in: CGRect(x: 0, y: 0, width: img.width, height: img.height))
+    return Data(out)
+  }
+  #expect(gray(actualCrop) == gray(expectedCrop))
+}

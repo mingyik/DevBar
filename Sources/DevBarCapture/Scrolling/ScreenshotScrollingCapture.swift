@@ -245,6 +245,48 @@ public enum ScreenshotScrollingCapture {
         previewStale = false
         await onPreview(preview)
       }
+      func trimLeadingRows(_ rows: Int) -> Bool {
+        var remaining = rows
+        while remaining > 0, !slices.isEmpty {
+          let firstSlice = slices[0]
+          if firstSlice.height <= remaining {
+            remaining -= firstSlice.height
+            retainedPixels -= firstSlice.width * firstSlice.height
+            slices.removeFirst()
+          } else {
+            guard
+              let trimmed = copiedStrip(
+                from: firstSlice, columns: 0..<firstSlice.width,
+                topCrop: remaining, bottomCrop: 0)
+            else { return false }
+            retainedPixels -= firstSlice.width * remaining
+            slices[0] = trimmed
+            remaining = 0
+          }
+        }
+        return true
+      }
+      func trimTrailingRows(_ rows: Int) -> Bool {
+        var remaining = rows
+        while remaining > 0, !slices.isEmpty {
+          let lastSlice = slices[slices.count - 1]
+          if lastSlice.height <= remaining {
+            remaining -= lastSlice.height
+            retainedPixels -= lastSlice.width * lastSlice.height
+            slices.removeLast()
+          } else {
+            guard
+              let trimmed = copiedStrip(
+                from: lastSlice, columns: 0..<lastSlice.width,
+                topCrop: 0, bottomCrop: remaining)
+            else { return false }
+            retainedPixels -= lastSlice.width * remaining
+            slices[slices.count - 1] = trimmed
+            remaining = 0
+          }
+        }
+        return true
+      }
       func applyInsets(_ next: ScrollingInsetControl.Values) async -> Bool {
         userTopSet = next.top != nil
         userBottomSet = next.bottom != nil
@@ -277,22 +319,7 @@ public enum ScreenshotScrollingCapture {
           }
           let deltaTop = newTop - fixedTopPixels
           if deltaTop > 0 {
-            var remaining = deltaTop
-            while remaining > 0, !slices.isEmpty {
-              let firstSlice = slices[0]
-              if firstSlice.height <= remaining {
-                remaining -= firstSlice.height
-                slices.removeFirst()
-              } else {
-                guard
-                  let trimmed = copiedStrip(
-                    from: firstSlice, columns: 0..<firstSlice.width,
-                    topCrop: remaining, bottomCrop: 0)
-                else { return false }
-                slices[0] = trimmed
-                remaining = 0
-              }
-            }
+            guard trimLeadingRows(deltaTop) else { return false }
           } else if deltaTop < 0 {
             guard
               let prepended = copiedStrip(
@@ -303,22 +330,7 @@ public enum ScreenshotScrollingCapture {
           }
           let deltaBottom = newBottom - fixedBottomPixels
           if deltaBottom > 0 {
-            var remaining = deltaBottom
-            while remaining > 0, !slices.isEmpty {
-              let lastSlice = slices[slices.count - 1]
-              if lastSlice.height <= remaining {
-                remaining -= lastSlice.height
-                slices.removeLast()
-              } else {
-                guard
-                  let trimmed = copiedStrip(
-                    from: lastSlice, columns: 0..<lastSlice.width,
-                    topCrop: 0, bottomCrop: remaining)
-                else { return false }
-                slices[slices.count - 1] = trimmed
-                remaining = 0
-              }
-            }
+            guard trimTrailingRows(deltaBottom) else { return false }
           } else if deltaBottom < 0 {
             guard
               let appended = copiedStrip(
@@ -865,10 +877,19 @@ public enum ScreenshotScrollingCapture {
             guard footerSlice != nil else { return .failed }
           }
           if prepend > 0 {
+            let seam = min(
+              ScreenshotSupport.scrollingBestSeamDepth(
+                previousEdgeFrame: topFrame, currentFrame: current,
+                sharedRows: sharedRows, topInset: fixedTopPixels,
+                bottomInset: fixedBottomPixels, rightCrop: rightCrop, fromBottom: false),
+              max(0, min(sharedRows - 1, totalHeight - 1)))
+            if seam > 0 {
+              guard trimLeadingRows(seam) else { return .failed }
+            }
             guard
               let strip = copiedStrip(
                 from: current, columns: columns, topCrop: fixedTopPixels,
-                bottomCrop: current.height - fixedTopPixels - prepend)
+                bottomCrop: current.height - fixedTopPixels - prepend - seam)
             else { return .failed }
             slices.insert(strip, at: 0)
             topFrame = current
@@ -876,10 +897,19 @@ public enum ScreenshotScrollingCapture {
             retainedPixels += strip.width * strip.height
           }
           if append > 0 {
+            let seam = min(
+              ScreenshotSupport.scrollingBestSeamDepth(
+                previousEdgeFrame: bottomFrame, currentFrame: current,
+                sharedRows: sharedRows, topInset: fixedTopPixels,
+                bottomInset: fixedBottomPixels, rightCrop: rightCrop, fromBottom: true),
+              max(0, min(sharedRows - 1, totalHeight - 1)))
+            if seam > 0 {
+              guard trimTrailingRows(seam) else { return .failed }
+            }
             guard
               let strip = copiedStrip(
                 from: current, columns: columns,
-                topCrop: current.height - fixedBottomPixels - append,
+                topCrop: current.height - fixedBottomPixels - append - seam,
                 bottomCrop: fixedBottomPixels)
             else { return .failed }
             slices.append(strip)
