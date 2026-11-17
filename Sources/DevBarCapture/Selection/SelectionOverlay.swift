@@ -915,8 +915,17 @@ final class SelectionView: NSView, NSTextFieldDelegate {
     if !captureInProgress {
       NSColor.black.withAlphaComponent(0.4).setFill()  // devbar:allow-color
       bounds.fill()
+    } else if !selection.isEmpty {
+      // Keep the frozen selection readable while the page below scrolls.
+      let mask = NSBezierPath(rect: bounds)
+      mask.append(NSBezierPath(rect: selection))
+      mask.windingRule = .evenOdd
+      NSColor.black.withAlphaComponent(0.4).setFill()  // devbar:allow-color
+      mask.fill()
     }
-    if selection.isEmpty, anchor == nil, !captureInProgress, let hoveredWindowFrame {
+    if selection.isEmpty, anchor == nil, !captureInProgress, !scrollingRequested,
+      let hoveredWindowFrame
+    {
       NSGraphicsContext.saveGraphicsState()
       NSBezierPath(rect: hoveredWindowFrame).addClip()
       if let frame = frozenFrame {
@@ -996,7 +1005,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
 
   override func mouseMoved(with event: NSEvent) {
     let point = convert(event.locationInWindow, from: nil)
-    if selection.isEmpty, anchor == nil, !captureInProgress {
+    if selection.isEmpty, anchor == nil, !captureInProgress, !scrollingRequested {
       hoveredWindowFrame = Self.targetWindow(
         for: CGRect(
           x: point.x + screenFrame.minX, y: point.y + screenFrame.minY,
@@ -1110,6 +1119,12 @@ final class SelectionView: NSView, NSTextFieldDelegate {
       if local.width > 1, local.height > 1 {
         windowCandidate = (point, local)
         anchor = point
+        if scrollingRequested {
+          // Lock the window immediately so moving the mouse cannot switch it.
+          selection = local
+          hoveredWindowFrame = nil
+          needsDisplay = true
+        }
         return
       }
     }
@@ -1372,7 +1387,9 @@ final class SelectionView: NSView, NSTextFieldDelegate {
     let end = convert(event.locationInWindow, from: nil)
     if let candidate = windowCandidate {
       windowCandidate = nil
-      if hypot(end.x - candidate.start.x, end.y - candidate.start.y) < 4 {
+      if hypot(end.x - candidate.start.x, end.y - candidate.start.y) < 12,
+        candidate.frame.contains(end)
+      {
         anchor = nil
         selection = candidate.frame
         needsDisplay = true

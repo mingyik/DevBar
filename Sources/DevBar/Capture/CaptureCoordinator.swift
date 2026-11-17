@@ -19,6 +19,9 @@ private final class CaptureHUDState {
 }
 
 @MainActor final class CaptureCoordinator {
+  /// The selection overlay uses `.screenSaver`; progress UI must sit above it.
+  private static let overlayLevel = NSWindow.Level(
+    rawValue: NSWindow.Level.screenSaver.rawValue + 1)
   private unowned let panel: PanelController
   private var task: Task<Void, Never>?
   private var hud: NSPanel?
@@ -238,16 +241,29 @@ private final class CaptureHUDState {
       x: screen.frame.minX + region.rectInPoints.minX,
       y: screen.frame.maxY - region.rectInPoints.maxY,
       width: region.rectInPoints.width, height: region.rectInPoints.height)
-    let x = rect.maxX + width + 8 <= visible.maxX ? rect.maxX + 8 : rect.minX - width - 8
+    let fitsRight = rect.maxX + width + 8 <= visible.maxX
+    let fitsLeft = rect.minX - width - 8 >= visible.minX
+    let x: CGFloat
+    let y: CGFloat
+    if fitsRight || fitsLeft {
+      x = fitsRight ? rect.maxX + 8 : rect.minX - width - 8
+      y = rect.maxY - height
+    } else if rect.minY - height - 8 >= visible.minY {
+      x = min(max(rect.maxX - width, visible.minX + 8), visible.maxX - width - 8)
+      y = rect.minY - height - 8
+    } else {
+      x = min(max(rect.maxX - width, visible.minX + 8), visible.maxX - width - 8)
+      y = rect.maxY + 8
+    }
     let frame = PanelLayout.clamp(
-      CGRect(x: x, y: rect.maxY - height, width: width, height: height), in: visible)
+      CGRect(x: x, y: y, width: width, height: height), in: visible)
     let window =
       previewWindow
       ?? NSPanel(
         contentRect: frame,
         styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false
-    window.level = .statusBar
+    window.level = Self.overlayLevel
     window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
     window.isOpaque = false
     window.backgroundColor = .clear
@@ -312,7 +328,7 @@ private final class CaptureHUDState {
         contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered,
         defer: false)
     window.isReleasedWhenClosed = false
-    window.level = .statusBar
+    window.level = Self.overlayLevel
     window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
     window.isOpaque = false
     window.backgroundColor = .clear
@@ -370,7 +386,7 @@ private final class CaptureHUDState {
         contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered,
         defer: false)
     window.isReleasedWhenClosed = false
-    window.level = .statusBar
+    window.level = Self.overlayLevel
     window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
     window.isOpaque = false
     window.backgroundColor = .clear
