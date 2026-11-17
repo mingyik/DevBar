@@ -19,6 +19,7 @@ final class PanelController {
   private var openGeneration = 0
   private var documentAlertVisible = false
   private let host: NSHostingView<PanelView>
+  private var layoutAnimationTask: Task<Void, Never>?
   private var outsideMonitor: Any?
   private var activationObserver: NSObjectProtocol?
   private var resignObserver: NSObjectProtocol?
@@ -246,6 +247,7 @@ final class PanelController {
   }
 
   private func finishDismiss() {
+    layoutAnimationTask?.cancel()
     panel.orderOut(nil)
     previewHideTask?.cancel()
     hideClipboardPreview()
@@ -457,16 +459,13 @@ final class PanelController {
   }
 
   private func installChrome() {
-    host.translatesAutoresizingMaskIntoConstraints = false
     let container = NSView()
-    container.addSubview(host)
     panel.contentView = container
-    NSLayoutConstraint.activate([
-      host.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-      host.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-      host.topAnchor.constraint(equalTo: container.topAnchor),
-      host.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-    ])
+    host.sizingOptions = []
+    host.translatesAutoresizingMaskIntoConstraints = true
+    host.autoresizingMask = [.width, .height]
+    host.frame = container.bounds
+    container.addSubview(host)
     panel.appearance = theme.appearance()
   }
 
@@ -521,23 +520,60 @@ final class PanelController {
         enlarged: model.enlarged, split: model.documentSplit,
         sidebar: model.documentSidebarVisible, visibleFrame: placed.visible)
       size = layout.panelSize
-      model.documentSidebarWidth = layout.sidebarWidth
+      if model.documentSidebarWidth != layout.sidebarWidth {
+        model.documentSidebarWidth = layout.sidebarWidth
+      }
     } else if model.showsEnlarge, model.enlarged, !model.dropActive {
       size.height = floor(placed.visible.height * 4 / 5)
     }
     let frame = PanelLayout.frame(
       iconCenterX: placed.centerX, menuBarBottomY: placed.menuBottom,
       size: size, visibleFrame: placed.visible)
-    guard animated, panel.isVisible, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    let sidebar =
+      model.page == .doc && model.documentSidebarVisible && !model.dropActive
+      ? model.documentSidebarWidth + 0.7 : 0
+    layoutAnimationTask?.cancel()
+    guard animated, panel.isVisible, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+      panel.frame != frame || model.documentSidebarPresentationWidth != sidebar
     else {
-      panel.setFrame(frame, display: true)
+      applyLayout(frame: frame, sidebar: sidebar)
       return
     }
-    NSAnimationContext.runAnimationGroup(
-      { context in
-        context.duration = 0.15
-        panel.animator().setFrame(frame, display: true)
-      }, completionHandler: nil)
+    let startFrame = panel.frame
+    let startSidebar = model.documentSidebarPresentationWidth
+    layoutAnimationTask = Task { @MainActor [weak self] in
+      let started = CACurrentMediaTime()
+      while !Task.isCancelled {
+        guard let self else { return }
+        let t = min(1, (CACurrentMediaTime() - started) / 0.22)
+        let progress = t * t * (3 - 2 * t)
+        func interpolate(_ a: CGFloat, _ b: CGFloat) -> CGFloat { a + (b - a) * progress }
+        self.applyLayout(
+          frame: CGRect(
+            x: interpolate(startFrame.minX, frame.minX),
+            y: interpolate(startFrame.minY, frame.minY),
+            width: interpolate(startFrame.width, frame.width),
+            height: interpolate(startFrame.height, frame.height)),
+          sidebar: interpolate(startSidebar, sidebar))
+        if t >= 1 { return }
+        try? await Task.sleep(for: .milliseconds(16))
+      }
+    }
+  }
+
+  private func applyLayout(frame: CGRect, sidebar: CGFloat) {
+    var transaction = Transaction()
+    transaction.disablesAnimations = true
+    withTransaction(transaction) {
+      model.documentSidebarPresentationWidth = sidebar
+      panel.setFrame(frame, display: false)
+      if let content = panel.contentView {
+        host.frame = content.bounds
+        content.layoutSubtreeIfNeeded()
+        host.layoutSubtreeIfNeeded()
+      }
+      panel.displayIfNeeded()
+    }
   }
 
   private func handleOutsideClick() {
