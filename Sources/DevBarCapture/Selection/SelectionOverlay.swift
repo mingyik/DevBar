@@ -218,8 +218,17 @@ final class SelectionView: NSView, NSTextFieldDelegate {
   private var moveOrigin: CGRect?
   private var resizeHandle: CGPoint?
   private var toolbar: NSVisualEffectView?
+  private struct TextAnnotation {
+    var text: String
+    var origin: CGPoint
+    var wrapWidth: CGFloat
+    var maxHeight: CGFloat
+    var color: NSColor
+    var fontSize: CGFloat
+  }
+
   private var mosaicFrame: CGImage?
-  private var texts: [(String, CGPoint, CGFloat, NSColor, CGFloat)] = []
+  private var texts: [TextAnnotation] = []
   private var undoKinds: [String] = []
   private var selectedMark: Int?
   private var selectedText: Int?
@@ -288,15 +297,20 @@ final class SelectionView: NSView, NSTextFieldDelegate {
         }
       }
     }
-    for (text, origin, wrapWidth, color, size) in texts {
-      let rect = textRect(text: text, origin: origin, wrapWidth: wrapWidth, fontSize: size)
-      let drawRect = CGRect(x: rect.minX, y: rect.minY, width: wrapWidth, height: rect.height)
-      (text as NSString).draw(
+    for item in texts {
+      let rect = textRect(
+        text: item.text, origin: item.origin, wrapWidth: item.wrapWidth,
+        maxHeight: item.maxHeight, fontSize: item.fontSize)
+      let drawRect = CGRect(x: rect.minX, y: rect.minY, width: item.wrapWidth, height: rect.height)
+      NSGraphicsContext.saveGraphicsState()
+      NSBezierPath(rect: drawRect).addClip()
+      (item.text as NSString).draw(
         with: drawRect,
         options: [.usesLineFragmentOrigin, .usesFontLeading],
         attributes: [
-          .font: NSFont.systemFont(ofSize: size), .foregroundColor: color,
+          .font: NSFont.systemFont(ofSize: item.fontSize), .foregroundColor: item.color,
         ])
+      NSGraphicsContext.restoreGraphicsState()
     }
     NSGraphicsContext.restoreGraphicsState()
   }
@@ -414,22 +428,28 @@ final class SelectionView: NSView, NSTextFieldDelegate {
       || hypot(point.x - end[0].x, point.y - end[0].y) < 9
   }
 
-  private func textRect(text: String, origin: CGPoint, wrapWidth: CGFloat, fontSize: CGFloat)
-    -> CGRect
-  {
+  private func textRect(
+    text: String, origin: CGPoint, wrapWidth: CGFloat, maxHeight: CGFloat, fontSize: CGFloat
+  ) -> CGRect {
     let bounding = (text as NSString).boundingRect(
-      with: CGSize(width: max(1, wrapWidth), height: .greatestFiniteMagnitude),
+      with: CGSize(width: max(1, wrapWidth), height: max(1, maxHeight)),
       options: [.usesLineFragmentOrigin, .usesFontLeading],
       attributes: [.font: NSFont.systemFont(ofSize: fontSize)])
     return CGRect(
-      x: origin.x, y: origin.y, width: ceil(bounding.width), height: ceil(bounding.height))
+      x: origin.x, y: origin.y,
+      width: min(wrapWidth, ceil(bounding.width)),
+      height: min(maxHeight, ceil(bounding.height)))
   }
 
   private func textBounds(_ index: Int) -> CGRect {
-    textRect(
-      text: texts[index].0, origin: texts[index].1, wrapWidth: texts[index].2,
-      fontSize: texts[index].4)
+    let item = texts[index]
+    return textRect(
+      text: item.text, origin: item.origin, wrapWidth: item.wrapWidth,
+      maxHeight: item.maxHeight, fontSize: item.fontSize)
   }
+
+  var markBoundsForTesting: [CGRect] { marks.map(\.1.bounds) }
+  var textBoundsForTesting: [CGRect] { texts.indices.map { textBounds($0) } }
 
   private func makeToolbar(cornerRadius: CGFloat) -> NSVisualEffectView {
     let bar = NSVisualEffectView()
@@ -1114,7 +1134,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
         selectedText = index
         draggingTextIndex = index
         dragStartPoint = point
-        dragTextOrigin = texts[index].1
+        dragTextOrigin = texts[index].origin
         showToolbar()
         anchor = nil
         needsDisplay = true
@@ -1188,8 +1208,12 @@ final class SelectionView: NSView, NSTextFieldDelegate {
   @objc private func commitText(_ field: NSTextField) {
     if !field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
       let wrapWidth = max(1, field.frame.width - 12)
+      let maxHeight = max(1, field.frame.height - 8)
       let origin = CGPoint(x: field.frame.minX + 6, y: field.frame.minY + 4)
-      texts.append((field.stringValue, origin, wrapWidth, ink, fontSize))
+      texts.append(
+        TextAnnotation(
+          text: field.stringValue, origin: origin, wrapWidth: wrapWidth,
+          maxHeight: maxHeight, color: ink, fontSize: fontSize))
       undoKinds.append("text")
       selectedText = texts.count - 1
     }
@@ -1206,7 +1230,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
       let bounds = textBounds(index)
       let maxX = max(selection.minX, selection.maxX - bounds.width)
       let maxY = max(selection.minY, selection.maxY - bounds.height)
-      texts[index].1 = CGPoint(
+      texts[index].origin = CGPoint(
         x: min(max(origin.x + point.x - start.x, selection.minX), maxX),
         y: min(max(origin.y + point.y - start.y, selection.minY), maxY))
       needsDisplay = true

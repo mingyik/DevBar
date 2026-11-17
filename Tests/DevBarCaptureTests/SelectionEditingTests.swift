@@ -331,33 +331,42 @@ import Testing
   view.mouseMoved(with: try event(.mouseMoved, CGPoint(x: 230, y: 250)))
   #expect(NSCursor.current == NSCursor.openHand)
 
-  // Draw a rectangle and resize it from its right-middle handle.
+  // Draw a rectangle and resize it from its right-middle and left-middle handles.
   try button("rect").performClick(nil)
   view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 200, y: 200)))
   view.mouseDragged(with: try event(.leftMouseDragged, CGPoint(x: 300, y: 280)))
   view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 300, y: 280)))
-  let beforeResize = try CaptureFileWriter.encode(#require(view.exportFrame()))
+  #expect(view.markBoundsForTesting.last == CGRect(x: 200, y: 200, width: 100, height: 80))
   view.mouseMoved(with: try event(.mouseMoved, CGPoint(x: 300, y: 240)))
   #expect(NSCursor.current == NSCursor.resizeLeftRight)
   view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 300, y: 240)))
   view.mouseDragged(with: try event(.leftMouseDragged, CGPoint(x: 400, y: 240)))
   view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 400, y: 240)))
-  let afterResize = try CaptureFileWriter.encode(#require(view.exportFrame()))
-  #expect(afterResize != beforeResize)
+  #expect(view.markBoundsForTesting.last == CGRect(x: 200, y: 200, width: 200, height: 80))
+  view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 200, y: 240)))
+  view.mouseDragged(with: try event(.leftMouseDragged, CGPoint(x: 150, y: 240)))
+  view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 150, y: 240)))
+  #expect(view.markBoundsForTesting.last == CGRect(x: 150, y: 200, width: 250, height: 80))
 
-  // Draw an ellipse, hover top-middle handle, and resize it.
+  // Draw an ellipse, hover top-middle handle, resize it, and clamp to selection.
   try button("ellipse").performClick(nil)
   view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 320, y: 200)))
   view.mouseDragged(with: try event(.leftMouseDragged, CGPoint(x: 420, y: 280)))
   view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 420, y: 280)))
-  let beforeEllipseResize = try CaptureFileWriter.encode(#require(view.exportFrame()))
   view.mouseMoved(with: try event(.mouseMoved, CGPoint(x: 370, y: 280)))
   #expect(NSCursor.current == NSCursor.resizeUpDown)
   view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 370, y: 280)))
   view.mouseDragged(with: try event(.leftMouseDragged, CGPoint(x: 370, y: 360)))
   view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 370, y: 360)))
-  let afterEllipseResize = try CaptureFileWriter.encode(#require(view.exportFrame()))
-  #expect(afterEllipseResize != beforeEllipseResize)
+  #expect(view.markBoundsForTesting.last == CGRect(x: 320, y: 200, width: 100, height: 160))
+  view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 420, y: 360)))
+  view.mouseDragged(with: try event(.leftMouseDragged, CGPoint(x: 700, y: 500)))
+  view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 700, y: 500)))
+  let clampedEllipse = try #require(view.markBoundsForTesting.last)
+  #expect(abs(clampedEllipse.minX - 320) < 0.001)
+  #expect(abs(clampedEllipse.minY - 200) < 0.001)
+  #expect(abs(clampedEllipse.width - 280) < 0.001)
+  #expect(abs(clampedEllipse.height - 250) < 0.001)
 }
 
 @MainActor @Test func textFieldAlwaysStaysWithinSelectionBounds() throws {
@@ -407,4 +416,12 @@ import Testing
   slider.doubleValue = 36
   NSApp.sendAction(try #require(slider.action), to: slider.target, from: slider)
   #expect(view.selection.contains(narrowField.frame))
+
+  // Committing overflowing multi-line text keeps committed bounds within selection.
+  let expectedOrigin = CGPoint(x: narrowField.frame.minX + 6, y: narrowField.frame.minY + 4)
+  NSApp.sendAction(try #require(narrowField.action), to: narrowField.target, from: narrowField)
+  #expect(view.subviews.compactMap { $0 as? NSTextField }.isEmpty)
+  let committedBounds = try #require(view.textBoundsForTesting.first)
+  #expect(committedBounds.origin == expectedOrigin)
+  #expect(view.selection.contains(committedBounds))
 }
