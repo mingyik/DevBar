@@ -1029,9 +1029,9 @@ private func uniqueFrame(offset: Int) -> CGImage {
 }
 
 @MainActor @Test func scrollingResumesAfterAJumpThatSkippedOverlap() async throws {
-  // The jump frames are unverified and stay held. Returning to the confirmed
-  // frame and scrolling forward lets the first jump frame be placed by its
-  // overlap with 120; the second jump frame is still not corroborated.
+  // The jump frames chain into a fragment [200, 360). Returning to the
+  // confirmed frame and scrolling forward to 120 bridges the fragment onto
+  // the main chain and merges all of it at once.
   let frames = Frames([0, 40, 200, 240, 40, 80, 120].map(uniqueFrame))
   let result = await ScreenshotScrollingCapture.captureFrames(
     region: try testRegion(), finishSignal: .init(),
@@ -1040,7 +1040,7 @@ private func uniqueFrame(offset: Int) -> CGImage {
     Issue.record("expected retained result when the source ends")
     return
   }
-  let referenceFrames = Frames([0, 40, 80, 120, 160, 200].map(uniqueFrame))
+  let referenceFrames = Frames([0, 40, 80, 120, 160, 200, 240].map(uniqueFrame))
   let referenceResult = await ScreenshotScrollingCapture.captureFrames(
     region: try testRegion(), finishSignal: .init(),
     onProgress: { _, _ in }, nextFrame: { await referenceFrames.next() })
@@ -1048,7 +1048,7 @@ private func uniqueFrame(offset: Int) -> CGImage {
     Issue.record("expected baseline image")
     return
   }
-  #expect(image.height == 320)
+  #expect(image.height == 360)
   #expect(image.dataProvider?.data as Data? == reference.dataProvider?.data as Data?)
 }
 
@@ -1424,4 +1424,27 @@ private func registrationSample(_ offset: Int) -> ScreenshotSupport.ScrollingSam
     return Data(out)
   }
   #expect(gray(actualCrop) == gray(expectedCrop))
+}
+
+@MainActor @Test func scrollingMergesMultiFrameFragmentChainAcrossGaps() async throws {
+  // Jump past a gap, scroll across three frames [200, 240, 280] that chain
+  // together, then return to [40, 80, 120] to bridge the entire fragment.
+  let frames = Frames([0, 40, 200, 240, 280, 40, 80, 120].map(uniqueFrame))
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(),
+    onProgress: { _, _ in }, nextFrame: { await frames.next() })
+  guard case .partial(let image) = result else {
+    Issue.record("expected stitched result after fragment chain merge")
+    return
+  }
+  let referenceFrames = Frames([0, 40, 80, 120, 160, 200, 240, 280].map(uniqueFrame))
+  let expectedResult = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(),
+    onProgress: { _, _ in }, nextFrame: { await referenceFrames.next() })
+  guard case .partial(let reference) = expectedResult else {
+    Issue.record("expected baseline reference")
+    return
+  }
+  #expect(image.height == 400)
+  #expect(image.dataProvider?.data as Data? == reference.dataProvider?.data as Data?)
 }
