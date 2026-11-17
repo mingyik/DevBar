@@ -1,6 +1,7 @@
 import AppKit
 import DevBarCapture
 import DevBarCore
+import KeyboardShortcuts
 import Observation
 import SwiftUI
 
@@ -28,6 +29,7 @@ private final class CaptureHUDState {
   private let noticeState = CaptureHUDState()
   private var noticeTask: Task<Void, Never>?
   private var savedNoticeTask: Task<Void, Never>?
+  private var escapeTask: Task<Void, Never>?
 
   init(panel: PanelController) { self.panel = panel }
 
@@ -62,8 +64,12 @@ private final class CaptureHUDState {
     noticeHUD?.orderOut(nil)
     task = Task { [weak self] in
       guard let self else { return }
-      defer { self.task = nil }
+      defer {
+        self.task = nil
+        self.stopEscapeMonitor()
+      }
       guard await self.panel.prepareForCapture() else { return }
+      if scrolling { self.startEscapeMonitor() }
       do {
         let selection = SelectionOverlay(
           appearanceName: self.panel.theme.appearance()?.name,
@@ -78,6 +84,7 @@ private final class CaptureHUDState {
         let image: CGImage
         var completionMessage = Strings.captureSaved
         if scrolling {
+          self.startEscapeMonitor()
           let region: CaptureRegion
           if let selected {
             region = selected.0
@@ -162,6 +169,30 @@ private final class CaptureHUDState {
         self.showNotice(Strings.captureFailed, path: nil)
       }
     }
+  }
+
+  /// Same result as the progress bar's cancel button: drop the selection or
+  /// the in-progress stitch and write nothing.
+  func cancel() {
+    task?.cancel()
+    hidePreview()
+    hud?.orderOut(nil)
+  }
+
+  /// Esc exits an in-progress long capture from any app. The hot key is only
+  /// registered while a long capture is active, so other apps keep their Esc.
+  private func startEscapeMonitor() {
+    guard escapeTask == nil else { return }
+    escapeTask = Task { [weak self] in
+      for await event in KeyboardShortcuts.events(for: .captureExit) where event == .keyUp {
+        self?.cancel()
+      }
+    }
+  }
+
+  private func stopEscapeMonitor() {
+    escapeTask?.cancel()
+    escapeTask = nil
   }
 
   private func showProgress(region: CaptureRegion, finish: ScreenshotScrollingCapture.FinishSignal)
