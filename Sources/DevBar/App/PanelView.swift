@@ -26,27 +26,18 @@ struct PanelView: View {
   var body: some View {
     let scheme = theme.effective
     let _ = theme.increaseContrast
-    HStack(spacing: 0) {
-      HStack(spacing: 0) {
-        if model.page == .doc {
-          DocumentSidebarView(
-            theme: theme, session: documents, width: model.documentSidebarWidth,
-            onOpen: { model.onOpenDocument?($0) },
-            onOpenDraft: { model.onOpenDocumentDraft?($0) },
-            onPick: { model.onPickDocument?() }
-          )
-          Rectangle()
-            .fill(DesignTokens.lineDivider(scheme))
-            .frame(width: 0.7)
-            .padding(.vertical, 10)
+    Group {
+      if model.page == .doc && !model.dropActive {
+        ZStack(alignment: .leading) {
+          documentSidebar(scheme)
+          mainColumn(scheme)
+            .frame(width: model.documentContentWidth)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+      } else {
+        mainColumn(scheme)
       }
-      .frame(
-        width: model.page == .doc && !model.dropActive ? model.documentSidebarPresentationWidth : 0,
-        alignment: .leading
-      )
-      .clipped()
-      mainColumn(scheme)
     }
     .animation(.easeInOut(duration: 0.15), value: model.dropActive)
     .onDrop(of: [.fileURL], delegate: PanelFileDrop(model: model))
@@ -58,6 +49,24 @@ struct PanelView: View {
     .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
       refreshTitleShortcut()
     }
+  }
+
+  private func documentSidebar(_ scheme: ColorScheme) -> some View {
+    HStack(spacing: 0) {
+      DocumentSidebarView(
+        theme: theme, session: documents, width: model.documentSidebarWidth,
+        onOpen: { model.onOpenDocument?($0) },
+        onOpenDraft: { model.onOpenDocumentDraft?($0) },
+        onPick: { model.onPickDocument?() }
+      )
+      Rectangle()
+        .fill(DesignTokens.lineDivider(scheme))
+        .frame(width: 0.7)
+        .padding(.vertical, 10)
+    }
+    .frame(width: model.documentSidebarPresentationWidth, alignment: .leading)
+    .frame(maxHeight: .infinity, alignment: .topLeading)
+    .clipped()
   }
 
   private func mainColumn(_ scheme: ColorScheme) -> some View {

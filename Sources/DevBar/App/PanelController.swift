@@ -519,7 +519,9 @@ final class PanelController {
     }
   }
 
-  private func reposition(animated: Bool = true) {
+  private func reposition(
+    animated: Bool = true, avoidDocumentContentReflow: Bool = false
+  ) {
     let screens = NSScreen.screens.map {
       PanelLayout.DisplaySlice(frame: $0.frame, visibleFrame: $0.visibleFrame)
     }
@@ -532,6 +534,8 @@ final class PanelController {
       model.page == .doc && documentWindowUserMoved && panel.isVisible
       ? panel.screen?.visibleFrame ?? placed.visible : placed.visible
     var size = model.panelSize
+    var sidebar: CGFloat = 0
+    var documentContentWidthChanged = false
     if model.page == .doc, !model.dropActive {
       let layout = PanelLayout.documentPanelSize(
         enlarged: model.enlarged, split: model.documentSplit,
@@ -540,6 +544,10 @@ final class PanelController {
       if model.documentSidebarWidth != layout.sidebarWidth {
         model.documentSidebarWidth = layout.sidebarWidth
       }
+      sidebar = model.documentSidebarVisible ? model.documentSidebarWidth + 0.7 : 0
+      let contentWidth = max(0, layout.panelSize.width - sidebar)
+      documentContentWidthChanged = abs(model.documentContentWidth - contentWidth) >= 0.5
+      if documentContentWidthChanged { model.documentContentWidth = contentWidth }
     } else if model.showsEnlarge, model.enlarged, !model.dropActive {
       size.height = floor(layoutVisible.height * 4 / 5)
     }
@@ -557,11 +565,10 @@ final class PanelController {
         iconCenterX: placed.centerX, menuBarBottomY: placed.menuBottom,
         size: size, visibleFrame: layoutVisible)
     }
-    let sidebar =
-      model.page == .doc && model.documentSidebarVisible && !model.dropActive
-      ? model.documentSidebarWidth + 0.7 : 0
     layoutAnimationTask?.cancel()
-    guard animated, panel.isVisible, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
+    let shouldAnimate = animated && !(avoidDocumentContentReflow && documentContentWidthChanged)
+    guard shouldAnimate, panel.isVisible,
+      !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion,
       panel.frame != frame || model.documentSidebarPresentationWidth != sidebar
     else {
       applyLayout(frame: frame, sidebar: sidebar)
@@ -641,7 +648,7 @@ final class PanelController {
     guard panel.isVisible, model.page == .doc else { return }
     documents.pruneMissingRecent()
     model.documentSidebarVisible.toggle()
-    reposition(animated: true)
+    reposition(animated: true, avoidDocumentContentReflow: true)
   }
 
   func openDocument(_ url: URL) async {
