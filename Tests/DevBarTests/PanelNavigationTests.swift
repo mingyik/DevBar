@@ -319,3 +319,207 @@ import Testing
   #expect(closes == 1)
   #expect(cycles == 0)
 }
+
+@MainActor @Test func markdownSingleWindowSplitLifecycleAndPersistence() async throws {
+  _ = NSApplication.shared
+  let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: root) }
+  try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+  let webDist = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .appending(path: "Web/dist")
+  let theme = ThemeManager(defaults: UserDefaults(suiteName: "devbar.docsplit.\(UUID())")!)
+  let host = WebHost(
+    theme: theme, webRoot: webDist, store: ScreenStateStore(directory: root, inMemory: true))
+  host.webView.frame = NSRect(x: 0, y: 0, width: 960, height: 600)
+  host.setPanelVisible(true)
+
+  for _ in 0..<200 {
+    if (try? await host.webView.evaluateJavaScript("!!window.__devbar")) as? Bool == true { break }
+    try? await Task.sleep(for: .milliseconds(50))
+  }
+  host.showScreen("doc")
+  host.importFile(text: "# Initial", name: "note.md", document: true)
+  for _ in 0..<100 {
+    if await host.documentText() == "# Initial" { break }
+    try? await Task.sleep(for: .milliseconds(50))
+  }
+
+  // 1. Edit -> Preview -> Split -> Edit preserves text, visibility, and equal pane widths.
+  _ = try await host.webView.evaluateJavaScript(
+    """
+    (() => {
+      const view = document.querySelector('#doc .cm-content')?.cmTile?.root?.view;
+      if (!view) return false;
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: '# Edited' }, userEvent: 'input.type' });
+      return true;
+    })()
+    """)
+  host.cycleDocumentMode()  // source -> preview
+  for _ in 0..<100 {
+    if (try? await host.webView.evaluateJavaScript(
+      "document.querySelector('#doc .source')?.hidden === true && document.querySelector('#doc .preview')?.hidden === false"
+    )) as? Bool == true {
+      break
+    }
+    try? await Task.sleep(for: .milliseconds(50))
+  }
+  #expect(
+    (try? await host.webView.evaluateJavaScript(
+      "document.querySelector('#doc .page-content')?.classList.contains('split') === false"
+    )) as? Bool == true)
+
+  host.cycleDocumentMode()  // preview -> split
+  var splitReady = false
+  for _ in 0..<100 {
+    if (try? await host.webView.evaluateJavaScript(
+      """
+      (() => {
+        const content = document.querySelector('#doc .page-content');
+        const src = document.querySelector('#doc .source');
+        const prv = document.querySelector('#doc .preview');
+        return !!content?.classList.contains('split') && !src?.hidden && !prv?.hidden
+          && (prv?.textContent?.includes('Edited') ?? false);
+      })()
+      """
+    )) as? Bool == true {
+      splitReady = true
+      break
+    }
+    try? await Task.sleep(for: .milliseconds(50))
+  }
+  #expect(splitReady)
+  let equalWidth =
+    (try? await host.webView.evaluateJavaScript(
+      """
+      (() => {
+        const s = document.querySelector('#doc .source').getBoundingClientRect().width;
+        const p = document.querySelector('#doc .preview').getBoundingClientRect().width;
+        return s > 100 && p > 100 && Math.abs(s - p) <= 2;
+      })()
+      """
+    )) as? Bool
+  #expect(equalWidth == true)
+
+  host.cycleDocumentMode()  // split -> source
+  for _ in 0..<100 {
+    if (try? await host.webView.evaluateJavaScript(
+      "document.querySelector('#doc .preview')?.hidden === true"
+    )) as? Bool == true {
+      break
+    }
+    try? await Task.sleep(for: .milliseconds(50))
+  }
+  #expect(await host.documentText() == "# Edited")
+
+  // 3 & 4. Rapid typing + typing during in-flight save does not overwrite newer text.
+  host.setDocumentDisplay("split")
+  for _ in 0..<100 {
+    if (try? await host.webView.evaluateJavaScript(
+      "document.querySelector('#doc .page-content')?.classList.contains('split') === true"
+    )) as? Bool == true {
+      break
+    }
+    try? await Task.sleep(for: .milliseconds(50))
+  }
+  var saveContinuation: CheckedContinuation<String, Never>?
+  var savedPayloadText: String?
+  host.saveDocument = { text, _ in
+    savedPayloadText = text
+    return await withCheckedContinuation { continuation in
+      saveContinuation = continuation
+    }
+  }
+  _ = try await host.webView.evaluateJavaScript(
+    """
+    (() => {
+      const view = document.querySelector('#doc .cm-content')?.cmTile?.root?.view;
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: '# Rapid' }, userEvent: 'input.type' });
+      document.querySelector('#doc .icon-save').click();
+      return true;
+    })()
+    """)
+  for _ in 0..<100 {
+    if saveContinuation != nil { break }
+    try? await Task.sleep(for: .milliseconds(20))
+  }
+  #expect(savedPayloadText == "# Rapid")
+  _ = try await host.webView.evaluateJavaScript(
+    """
+    (() => {
+      const view = document.querySelector('#doc .cm-content')?.cmTile?.root?.view;
+      view.dispatch({ changes: { from: view.state.doc.length, to: view.state.doc.length, insert: ' + during-save' }, userEvent: 'input.type' });
+      return true;
+    })()
+    """)
+  saveContinuation?.resume(
+    returning: ##"{"status":"saved","fileName":"note.md","documentId":"doc-1","text":"# Rapid"}"##)
+  for _ in 0..<100 {
+    if (try? await host.webView.evaluateJavaScript(
+      "document.querySelector('#doc .icon-save')?.disabled === false"
+    )) as? Bool == true {
+      break
+    }
+    try? await Task.sleep(for: .milliseconds(20))
+  }
+  #expect(await host.documentText() == "# Rapid + during-save")
+  #expect((await host.documentStatus())?["dirty"] as? Bool == true)
+
+  // 5. Resize, release memory, and restore keeps split mode and preview content.
+  host.webView.frame = NSRect(x: 0, y: 0, width: 720, height: 600)
+  host.setPanelVisible(false)
+  await host.flushHiddenMemory()
+  host.setPanelVisible(true)
+  var restoredSplit = false
+  for _ in 0..<200 {
+    if (try? await host.webView.evaluateJavaScript(
+      """
+      (() => {
+        const content = document.querySelector('#doc .page-content');
+        const prv = document.querySelector('#doc .preview');
+        return !!content?.classList.contains('split') && !prv?.hidden
+          && (prv?.textContent?.includes('during-save') ?? false);
+      })()
+      """
+    )) as? Bool == true {
+      restoredSplit = true
+      break
+    }
+    try? await Task.sleep(for: .milliseconds(50))
+  }
+  #expect(restoredSplit)
+
+  // 6. Export in split mode preserves split mode.
+  _ = try await host.webView.evaluateJavaScript(
+    "document.querySelector('#doc .icon-exportImage')?.click(); true")
+  try? await Task.sleep(for: .milliseconds(100))
+  #expect(
+    (try? await host.webView.evaluateJavaScript(
+      "document.querySelector('#doc .page-content')?.classList.contains('split') === true"
+    )) as? Bool == true)
+}
+
+@MainActor @Test func singleWindowHostsSidebarSplitAndNeverSpawnsAuxiliaryPanels() {
+  _ = NSApplication.shared
+  let defaults = UserDefaults(suiteName: "devbar.singlewin.\(UUID())")!
+  let theme = ThemeManager(defaults: defaults)
+  let model = PanelModel(defaults: defaults)
+  #expect(!model.documentSidebarVisible)
+  #expect(!model.documentSplit)
+
+  model.prepareToOpen(page: .doc)
+  model.documentSidebarVisible = true
+  model.documentSplit = true
+  #expect(model.documentSidebarVisible)
+  model.documentSplit = false
+  #expect(model.documentSidebarVisible)
+
+  let auxiliaryWindows = NSApp.windows.filter {
+    let name = NSStringFromClass(type(of: $0))
+    return name.contains("DocumentSidebarPanel") || name.contains("DocumentEditorPanel")
+  }
+  #expect(auxiliaryWindows.isEmpty)
+  _ = theme
+}

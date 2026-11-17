@@ -51,3 +51,42 @@ import Testing
     #expect(fallbackPlacement.visible == fallback)
   }
 }
+
+@Test func documentPanelSizeExpandsForSplitAndSidebarAndClampsToNarrowScreens() {
+  let wide = CGRect(x: 0, y: 0, width: 1600, height: 1000)
+  let single = PanelLayout.documentPanelSize(
+    enlarged: false, split: false, sidebar: false, visibleFrame: wide)
+  #expect(single.panelSize == CGSize(width: 480, height: 600))
+  #expect(single.sidebarWidth == 0)
+
+  let twoWithSidebar = PanelLayout.documentPanelSize(
+    enlarged: false, split: false, sidebar: true, visibleFrame: wide)
+  #expect(twoWithSidebar.sidebarWidth == PanelLayout.sidebarWidth)
+  #expect(twoWithSidebar.panelSize.width == 480 + PanelLayout.sidebarWidth)
+
+  let twoSplit = PanelLayout.documentPanelSize(
+    enlarged: false, split: true, sidebar: false, visibleFrame: wide)
+  #expect(twoSplit.sidebarWidth == 0)
+  #expect(twoSplit.panelSize.width == 960)
+
+  let threePanes = PanelLayout.documentPanelSize(
+    enlarged: false, split: true, sidebar: true, visibleFrame: wide)
+  #expect(threePanes.sidebarWidth == PanelLayout.sidebarWidth)
+  #expect(threePanes.panelSize.width == 960 + PanelLayout.sidebarWidth)
+
+  for narrowWidth in [CGFloat(1024), 760, 560] {
+    let narrow = CGRect(x: 0, y: 0, width: narrowWidth, height: 700)
+    let layout = PanelLayout.documentPanelSize(
+      enlarged: true, split: true, sidebar: true, visibleFrame: narrow)
+    #expect(layout.panelSize.width <= narrow.width)
+    #expect(layout.panelSize.height <= narrow.height)
+    #expect(
+      layout.sidebarWidth >= PanelLayout.minSidebarWidth
+        || layout.sidebarWidth < narrow.width)
+    #expect(layout.panelSize.width - layout.sidebarWidth >= 300)
+    let frame = PanelLayout.frame(
+      iconCenterX: narrow.maxX - 30, menuBarBottomY: narrow.maxY,
+      size: layout.panelSize, visibleFrame: narrow)
+    #expect(narrow.contains(frame))
+  }
+}
