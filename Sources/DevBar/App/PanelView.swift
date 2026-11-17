@@ -29,7 +29,7 @@ struct PanelView: View {
     let showsSidebar = model.page == .doc && model.documentSidebarVisible && !model.dropActive
     HStack(spacing: 0) {
       HStack(spacing: 0) {
-        if showsSidebar {
+        if model.page == .doc {
           DocumentSidebarView(
             theme: theme, session: documents, width: model.documentSidebarWidth,
             onOpen: { model.onOpenDocument?($0) },
@@ -42,8 +42,13 @@ struct PanelView: View {
             .padding(.vertical, 10)
         }
       }
-      .frame(width: showsSidebar ? model.documentSidebarWidth + 0.7 : 0)
+      .frame(width: showsSidebar ? model.documentSidebarWidth + 0.7 : 0, alignment: .leading)
       .clipped()
+      .animation(
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+          ? nil : .easeInOut(duration: 0.22),
+        value: showsSidebar
+      )
       mainColumn(scheme)
     }
     .animation(.easeInOut(duration: 0.15), value: model.dropActive)
@@ -84,7 +89,7 @@ struct PanelView: View {
     .padding(.horizontal, 10)
     .padding(.top, 12)
     .padding(.bottom, 10)
-    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
   }
 
   private func refreshTitleShortcut() {
@@ -599,16 +604,18 @@ private struct WebViewBox: NSViewRepresentable {
     }
   }
 
-  private func mount(_ view: NSView, in container: NSView) {
-    view.translatesAutoresizingMaskIntoConstraints = false
-    container.addSubview(view)
-    NSLayoutConstraint.activate([
-      view.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-      view.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-      view.topAnchor.constraint(equalTo: container.topAnchor),
-      view.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-    ])
+  func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSView, context: Context) -> CGSize? {
+    guard let width = proposal.width, let height = proposal.height else { return nil }
+    return CGSize(width: max(0, width), height: max(0, height))
   }
+
+  private func mount(_ view: NSView, in container: NSView) {
+    view.translatesAutoresizingMaskIntoConstraints = true
+    view.autoresizingMask = [.width, .height]
+    view.frame = container.bounds
+    container.addSubview(view)
+  }
+
 }
 
 extension PanelModel.Page {

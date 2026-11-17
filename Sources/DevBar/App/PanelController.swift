@@ -521,7 +521,9 @@ final class PanelController {
         enlarged: model.enlarged, split: model.documentSplit,
         sidebar: model.documentSidebarVisible, visibleFrame: placed.visible)
       size = layout.panelSize
-      model.documentSidebarWidth = layout.sidebarWidth
+      if model.documentSidebarWidth != layout.sidebarWidth {
+        model.documentSidebarWidth = layout.sidebarWidth
+      }
     } else if model.showsEnlarge, model.enlarged, !model.dropActive {
       size.height = floor(placed.visible.height * 4 / 5)
     }
@@ -531,11 +533,12 @@ final class PanelController {
     guard animated, panel.isVisible, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     else {
       panel.setFrame(frame, display: true)
+      panel.contentView?.layoutSubtreeIfNeeded()
       return
     }
     NSAnimationContext.runAnimationGroup(
       { context in
-        context.duration = 0.15
+        context.duration = 0.22
         panel.animator().setFrame(frame, display: true)
       }, completionHandler: nil)
   }
@@ -568,14 +571,14 @@ final class PanelController {
     documentMode = resolved
     model.documentDisplay = resolved
     model.documentSplit = resolved == "split"
-    if changed { reposition(animated: false) }
+    if changed { reposition(animated: true) }
   }
 
   private func toggleDocumentSidebar() {
     guard panel.isVisible, model.page == .doc else { return }
     documents.pruneMissingRecent()
     model.documentSidebarVisible.toggle()
-    reposition(animated: false)
+    reposition(animated: true)
   }
 
   func openDocument(_ url: URL) async {
