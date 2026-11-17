@@ -74,6 +74,7 @@ private final class CaptureHUDState {
       guard await self.panel.prepareForCapture() else { return }
       self.startEscapeMonitor()
       do {
+        let insets = ScrollingInsetControl()
         let selection = SelectionOverlay(
           appearanceName: self.panel.theme.appearance()?.name,
           iconColor: NSColor(DesignTokens.captureToolbarIcon(self.panel.theme.effective)),
@@ -81,6 +82,7 @@ private final class CaptureHUDState {
           toolbarTintColor: NSColor(DesignTokens.captureToolbarTint(self.panel.theme.effective)),
           toolbarBorderColor: NSColor(DesignTokens.captureToolbarBorder(self.panel.theme.effective))
         )
+        selection.insetControl = insets
         defer { selection.dismissScrollingOverlay() }
         let selected = scrolling ? nil : try await selection.selectImage()
         let scrolling = scrolling || selection.scrollingRequested
@@ -101,7 +103,10 @@ private final class CaptureHUDState {
             finish.request()
           }
           let result = await ScreenshotScrollingCapture.capture(
-            region: region, finishSignal: finish,
+            region: region, finishSignal: finish, insets: insets,
+            onInsets: { top, bottom, right in
+              selection.setScrollingInsets(top: top, bottom: bottom, right: right)
+            },
             onPreview: { [weak self] image in
               self?.state.preview = NSImage(
                 cgImage: image, size: NSSize(width: image.width, height: image.height))

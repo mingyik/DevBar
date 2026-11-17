@@ -14,7 +14,8 @@ public enum ScreenshotScrollingCapture {
   /// frame can reveal where it belongs and fill the skipped rows.
   private struct HeldFrame {
     let content: CGImage
-    let sample: ScreenshotSupport.ScrollingSample
+    let rawSample: ScreenshotSupport.ScrollingSample
+    var sample: ScreenshotSupport.ScrollingSample
     var imageBytes: Int { content.bytesPerRow * content.height }
   }
 
@@ -24,13 +25,27 @@ public enum ScreenshotScrollingCapture {
   public final class FinishSignal: @unchecked Sendable {
     private let lock = NSLock()
     private var requested = false
+    private var observer: (@Sendable () -> Void)?
 
     public init() {}
 
     public func request() {
+      var notify: (@Sendable () -> Void)?
       lock.lock()
-      requested = true
+      if !requested {
+        requested = true
+        notify = observer
+      }
       lock.unlock()
+      notify?()
+    }
+
+    func onRequest(_ handler: (@Sendable () -> Void)?) {
+      lock.lock()
+      observer = handler
+      let alreadyRequested = requested
+      lock.unlock()
+      if alreadyRequested { handler?() }
     }
 
     var isRequested: Bool {
@@ -58,18 +73,31 @@ public enum ScreenshotScrollingCapture {
     let viewport: Int
     let pixels: Int
     let sample: ScreenshotSupport.ScrollingSample
+    let rawSample: ScreenshotSupport.ScrollingSample
     let anchors: ScreenshotSupport.ScrollingAnchors
+    let fullAnchors: ScreenshotSupport.ScrollingAnchors
     let direction: ScreenshotSupport.ScrollingDirection?
     let footer: CGImage?
+    let topFrame: CGImage
+    let bottomFrame: CGImage
   }
 
   private static let sampleInterval: TimeInterval = 0.03
   private static let settleInterval: TimeInterval = 0.22
   private static let finishGraceInterval: TimeInterval = 0.85
+  /// Matching needs a band of moving rows; edge bands may not consume it.
+  static func minimumContentHeight(frameHeight: Int) -> Int {
+    min(frameHeight, max(48, frameHeight / 3))
+  }
+  static func minimumContentWidth(frameWidth: Int) -> Int {
+    min(frameWidth, max(32, frameWidth / 4))
+  }
 
   public static func capture(
     region: CaptureRegion,
     finishSignal: FinishSignal,
+    insets: ScrollingInsetControl? = nil,
+    onInsets: @escaping @MainActor (_ top: Int, _ bottom: Int, _ right: Int) -> Void = { _, _, _ in },
     onPreview: @escaping @MainActor (CGImage) -> Void = { _ in },
     onLimitReached: @escaping @MainActor () -> Void = {},
     onProgress: @escaping @MainActor (Int, Bool) -> Void
@@ -80,9 +108,16 @@ public enum ScreenshotScrollingCapture {
     else {
       return Task.isCancelled ? .cancelled : .failed
     }
-    defer { source.stop() }
+    finishSignal.onRequest { source.wake() }
+    insets?.onChange { source.repeatLastFrameIfIdle() }
+    defer {
+      finishSignal.onRequest(nil)
+      insets?.onChange(nil)
+      source.stop()
+    }
     return await captureFrames(
-      region: region, finishSignal: finishSignal, onPreview: onPreview,
+      region: region, finishSignal: finishSignal, insets: insets, onInsets: onInsets,
+      onPreview: onPreview,
       onLimitReached: {
         source.stop()
         onLimitReached()
@@ -96,6 +131,8 @@ public enum ScreenshotScrollingCapture {
     region: CaptureRegion,
     finishSignal: FinishSignal,
     heightLimit: Int = ScreenshotSupport.scrollingCaptureMaximumHeight,
+    insets insetControl: ScrollingInsetControl? = nil,
+    onInsets: @escaping @MainActor (Int, Int, Int) -> Void = { _, _, _ in },
     onPreview: @escaping @MainActor (CGImage) -> Void = { _ in },
     onLimitReached: @escaping @MainActor () -> Void = {},
     onProgress: @escaping @MainActor (Int, Bool) -> Void,
@@ -121,12 +158,24 @@ public enum ScreenshotScrollingCapture {
         return .failed
       }
       try Task.checkCancellation()
-      guard let firstSample = sample(first) else { return .failed }
+      var insetVersion = -1
+      var wantedInsets = insetControl?.changes(since: &insetVersion) ?? .init()
+      var rightCrop = min(
+        max(0, wantedInsets.right),
+        first.width - minimumContentWidth(frameWidth: first.width))
+      func masked(_ sample: ScreenshotSupport.ScrollingSample) -> ScreenshotSupport.ScrollingSample {
+        ScreenshotSupport.scrollingMaskedSample(
+          sample, sourceWidth: first.width, rightPixels: rightCrop)
+      }
+      guard let rawFirstSample = sample(first) else { return .failed }
+      var firstSample = masked(rawFirstSample)
 
       let startedAt = currentTime()
       var slices = [first]
       var capturedFrames = 1
+      var rawPreviousSample = rawFirstSample
       var previousSample = firstSample
+      var rawLastObservedSample = rawFirstSample
       var lastObservedSample = firstSample
       var totalHeight = first.height
       var viewportTop = 0
@@ -136,16 +185,29 @@ public enum ScreenshotScrollingCapture {
       var contentSampleColumns: Range<Int>?
       var contentPixelColumns: Range<Int>?
       var fixedTopPixels = 0
+      var autoTopPixels = 0
       var headerSlice: CGImage?
       var anchors = ScreenshotSupport.ScrollingAnchors()
       anchors.remember(firstSample, at: 0)
+      var fullAnchors = ScreenshotSupport.ScrollingAnchors()
+      fullAnchors.remember(rawFirstSample, at: 0)
+      var rawOriginSample = rawFirstSample
       var originSample = firstSample
       /// Last frame whose position was confirmed against the captured content.
       var confirmedContent = firstSample
       var lastDirection: ScreenshotSupport.ScrollingDirection?
       var fixedBottomPixels = 0
+      var autoBottomPixels = 0
       var footerSlice: CGImage?
       var heldFrames: [HeldFrame] = []
+      /// Frames whose content edges are the captured top and bottom. Edge
+      /// bands are re-cut from them when the person moves an inset.
+      var topFrame = first
+      var bottomFrame = first
+      var userTopSet = wantedInsets.top != nil
+      var userBottomSet = wantedInsets.bottom != nil
+      let frameHeight = first.height
+      let minimumContent = minimumContentHeight(frameHeight: frameHeight)
       func contentWithHeader() -> [CGImage] { headerSlice.map { [$0] + slices } ?? slices }
       var rollback: AppendRollback?
       var fixedLayoutChanged = false
@@ -164,14 +226,146 @@ public enum ScreenshotScrollingCapture {
         }
         lastPreviewAt = now
         guard
-          let preview = makePreview(
-            footerSlice.map { contentWithHeader() + [$0] } ?? contentWithHeader())
+          let full = makePreview(
+            footerSlice.map { contentWithHeader() + [$0] } ?? contentWithHeader()),
+          let preview = croppedRight(
+            full,
+            pixels: Int(
+              (Double(rightCrop) * Double(full.width) / Double(first.width)).rounded()))
         else {
           previewStale = true
           return
         }
         previewStale = false
         await onPreview(preview)
+      }
+      func applyInsets(_ next: ScrollingInsetControl.Values) async -> Bool {
+        userTopSet = next.top != nil
+        userBottomSet = next.bottom != nil
+        let maxRight = max(0, first.width - minimumContentWidth(frameWidth: first.width))
+        let newRight = min(max(0, next.right), maxRight)
+        let maxTotal = max(0, frameHeight - minimumContent)
+        let requestedTop = next.top ?? autoTopPixels
+        let requestedBottom = next.bottom ?? autoBottomPixels
+        let newTop = min(max(0, requestedTop), maxTotal)
+        let newBottom = min(max(0, requestedBottom), max(0, maxTotal - newTop))
+        guard newTop != fixedTopPixels || newBottom != fixedBottomPixels || newRight != rightCrop
+        else { return true }
+        let columns = contentPixelColumns ?? (0..<first.width)
+        if newTop != fixedTopPixels || newBottom != fixedBottomPixels {
+          if newTop > 0 {
+            headerSlice = copiedStrip(
+              from: topFrame, columns: columns, topCrop: 0, bottomCrop: frameHeight - newTop)
+            guard headerSlice != nil else { return false }
+          } else {
+            headerSlice = nil
+          }
+          if newBottom > 0 {
+            footerSlice = copiedStrip(
+              from: bottomFrame, columns: columns, topCrop: frameHeight - newBottom, bottomCrop: 0)
+            guard footerSlice != nil else { return false }
+          } else {
+            footerSlice = nil
+          }
+          let deltaTop = newTop - fixedTopPixels
+          if deltaTop > 0 {
+            var remaining = deltaTop
+            while remaining > 0, !slices.isEmpty {
+              let firstSlice = slices[0]
+              if firstSlice.height <= remaining {
+                remaining -= firstSlice.height
+                slices.removeFirst()
+              } else {
+                guard
+                  let trimmed = copiedStrip(
+                    from: firstSlice, columns: 0..<firstSlice.width,
+                    topCrop: remaining, bottomCrop: 0)
+                else { return false }
+                slices[0] = trimmed
+                remaining = 0
+              }
+            }
+          } else if deltaTop < 0 {
+            guard
+              let prepended = copiedStrip(
+                from: topFrame, columns: columns,
+                topCrop: newTop, bottomCrop: frameHeight - fixedTopPixels)
+            else { return false }
+            slices.insert(prepended, at: 0)
+          }
+          let deltaBottom = newBottom - fixedBottomPixels
+          if deltaBottom > 0 {
+            var remaining = deltaBottom
+            while remaining > 0, !slices.isEmpty {
+              let lastSlice = slices[slices.count - 1]
+              if lastSlice.height <= remaining {
+                remaining -= lastSlice.height
+                slices.removeLast()
+              } else {
+                guard
+                  let trimmed = copiedStrip(
+                    from: lastSlice, columns: 0..<lastSlice.width,
+                    topCrop: 0, bottomCrop: remaining)
+                else { return false }
+                slices[slices.count - 1] = trimmed
+                remaining = 0
+              }
+            }
+          } else if deltaBottom < 0 {
+            guard
+              let appended = copiedStrip(
+                from: bottomFrame, columns: columns,
+                topCrop: frameHeight - fixedBottomPixels, bottomCrop: newBottom)
+            else { return false }
+            slices.append(appended)
+          }
+          if slices.isEmpty {
+            guard
+              let fallback = copiedStrip(
+                from: topFrame, columns: columns, topCrop: newTop, bottomCrop: newBottom)
+            else { return false }
+            slices = [fallback]
+          }
+          fixedTopPixels = newTop
+          fixedBottomPixels = newBottom
+          totalHeight = slices.reduce(0) { $0 + $1.height }
+          capturedBottom = capturedTop + totalHeight
+          retainedPixels = slices.reduce(0) { $0 + $1.width * $1.height }
+          rollback = nil
+          fixedLayoutChanged = false
+        }
+        if newRight != rightCrop {
+          rightCrop = newRight
+          firstSample = masked(rawFirstSample)
+          previousSample = masked(rawPreviousSample)
+          lastObservedSample = masked(rawLastObservedSample)
+          for index in heldFrames.indices {
+            heldFrames[index].sample = masked(heldFrames[index].rawSample)
+          }
+        }
+        originSample = masked(rawOriginSample)
+        guard
+          let updatedConfirmed = ScreenshotSupport.scrollingContentSample(
+            originSample, top: fixedTopPixels, bottom: fixedBottomPixels)
+        else { return false }
+        confirmedContent = updatedConfirmed
+        anchors = .init()
+        for entry in fullAnchors.entries {
+          if let content = ScreenshotSupport.scrollingContentSample(
+            masked(entry.sample), top: fixedTopPixels, bottom: fixedBottomPixels)
+          {
+            anchors.remember(content, at: entry.top)
+          }
+        }
+        await onInsets(fixedTopPixels, fixedBottomPixels, rightCrop)
+        await publishPreview(force: true)
+        await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, hasUnmatchedContent)
+        return true
+      }
+      if wantedInsets.top != nil || wantedInsets.bottom != nil {
+        guard await applyInsets(wantedInsets) else { return .failed }
+      } else {
+        await onInsets(fixedTopPixels, fixedBottomPixels, rightCrop)
       }
       func flushStalePreview(now: TimeInterval, force: Bool = false) async {
         guard previewStale, force || now - lastPreviewAt >= 0.25 else { return }
@@ -186,12 +380,16 @@ public enum ScreenshotScrollingCapture {
         }
         try Task.checkCancellation()
         return completed(
-          slices: contentWithHeader(), footerSlice: footerSlice,
+          slices: contentWithHeader(), footerSlice: footerSlice, rightCrop: rightCrop,
           region: region, result: .limited)
       }
-      func hold(_ content: CGImage, sample: ScreenshotSupport.ScrollingSample) {
+      func hold(
+        _ content: CGImage,
+        rawSample: ScreenshotSupport.ScrollingSample,
+        sample: ScreenshotSupport.ScrollingSample
+      ) {
         guard sample.pixels.count <= Self.maximumHeldImageBytes else { return }
-        heldFrames.append(HeldFrame(content: content, sample: sample))
+        heldFrames.append(HeldFrame(content: content, rawSample: rawSample, sample: sample))
         while heldFrames.count > Self.maximumHeldFrames
           || heldFrames.reduce(0, { $0 + $1.imageBytes }) > Self.maximumHeldImageBytes
         {
@@ -255,6 +453,7 @@ public enum ScreenshotScrollingCapture {
                 bottomCrop: held.content.height - fixedTopPixels - prepend)
             else { return (nil, merged, true) }
             slices.insert(strip, at: 0)
+            topFrame = held.content
             capturedTop = heldTop
             retainedPixels += strip.width * strip.height
           }
@@ -266,11 +465,13 @@ public enum ScreenshotScrollingCapture {
                 bottomCrop: fixedBottomPixels)
             else { return (nil, merged, true) }
             slices.append(strip)
+            bottomFrame = held.content
             capturedBottom = heldBottom
             retainedPixels += strip.width * strip.height
           }
           totalHeight = capturedBottom - capturedTop
           anchors.remember(heldContent, at: heldTop)
+          fullAnchors.remember(held.rawSample, at: heldTop)
           heldFrames.remove(at: index)
           merged = true
         }
@@ -281,6 +482,10 @@ public enum ScreenshotScrollingCapture {
 
       while true {
         try Task.checkCancellation()
+
+        if let nextInsets = insetControl?.changes(since: &insetVersion) {
+          guard await applyInsets(nextInsets) else { return .failed }
+        }
 
         let now = currentTime()
         await flushStalePreview(now: now)
@@ -296,7 +501,7 @@ public enum ScreenshotScrollingCapture {
           await flushStalePreview(now: now, force: true)
           return completedByUser(
             slices: contentWithHeader(),
-            footerSlice: footerSlice,
+            footerSlice: footerSlice, rightCrop: rightCrop,
             region: region,
             hasUnmatchedContent: hasUnmatchedContent)
         }
@@ -328,18 +533,22 @@ public enum ScreenshotScrollingCapture {
           }
           await flushStalePreview(now: now, force: true)
           return completed(
-            slices: contentWithHeader(), footerSlice: footerSlice,
+            slices: contentWithHeader(), footerSlice: footerSlice, rightCrop: rightCrop,
             region: region, result: .partial)
         }
         guard let current = contentFrame(frame),
-          let currentSample = sample(current)
+          let rawCurrentSample = sample(current)
         else {
           await flushStalePreview(now: now, force: true)
           return completed(
-            slices: contentWithHeader(), footerSlice: footerSlice,
+            slices: contentWithHeader(), footerSlice: footerSlice, rightCrop: rightCrop,
             region: region, result: .partial)
         }
         try Task.checkCancellation()
+        if let nextInsets = insetControl?.changes(since: &insetVersion) {
+          guard await applyInsets(nextInsets) else { return .failed }
+        }
+        let currentSample = masked(rawCurrentSample)
         capturedFrames += 1
         lastCaptureAt = currentTime()
         let frameIsStable = ScreenshotSupport.scrollingSamplesAreStable(
@@ -347,25 +556,44 @@ public enum ScreenshotScrollingCapture {
           currentSample,
           contentColumns: contentSampleColumns)
         let observedBefore = lastObservedSample
+        rawLastObservedSample = rawCurrentSample
         lastObservedSample = currentSample
         if !frameIsStable { lastChangedAt = lastCaptureAt }
         var transition: ScreenshotSupport.ScrollingTransition = .unmatched
-        if contentSampleColumns == nil {
+        if contentSampleColumns == nil,
+          let prevBand = ScreenshotSupport.scrollingContentSample(
+            previousSample, top: fixedTopPixels, bottom: fixedBottomPixels),
+          let currBand = ScreenshotSupport.scrollingContentSample(
+            currentSample, top: fixedTopPixels, bottom: fixedBottomPixels)
+        {
           transition = ScreenshotSupport.scrollingTransition(
-            previous: previousSample, current: currentSample)
+            previous: prevBand, current: currBand)
         }
 
         if contentSampleColumns == nil,
           case .advanced(let overlap, _, let matchedColumns) = transition,
-          overlap >= max(24, currentSample.height / 4)
+          let prevBand = ScreenshotSupport.scrollingContentSample(
+            previousSample, top: fixedTopPixels, bottom: fixedBottomPixels),
+          let currBand = ScreenshotSupport.scrollingContentSample(
+            currentSample, top: fixedTopPixels, bottom: fixedBottomPixels),
+          overlap >= max(24, currBand.height / 4)
         {
           // Fixed strips are identified only after moving content has matched.
-          let top = ScreenshotSupport.scrollingFixedTopRows(
-            previous: previousSample, current: currentSample, overlap: overlap,
+          let detectedTop = ScreenshotSupport.scrollingFixedTopRows(
+            previous: prevBand, current: currBand, overlap: overlap,
             contentColumns: matchedColumns)
-          let bottom = ScreenshotSupport.scrollingFixedBottomRows(
-            previous: previousSample, current: currentSample, overlap: overlap,
+          let detectedBottom = ScreenshotSupport.scrollingFixedBottomRows(
+            previous: prevBand, current: currBand, overlap: overlap,
             contentColumns: matchedColumns)
+          let maxTotal = max(0, frameHeight - minimumContent)
+          let autoTop = min(fixedTopPixels + detectedTop, maxTotal)
+          let autoBottom = min(fixedBottomPixels + detectedBottom, max(0, maxTotal - autoTop))
+          autoTopPixels = autoTop
+          autoBottomPixels = autoBottom
+          let top = userTopSet ? min(fixedTopPixels, maxTotal) : autoTop
+          let bottom = userBottomSet
+            ? min(fixedBottomPixels, max(0, maxTotal - top))
+            : min(autoBottom, max(0, maxTotal - top))
           // Only the frame immediately after the first one has a known offset
           // with it. A later first match may still overlap the origin after
           // transient unmatched frames; only when it does not may the document
@@ -379,11 +607,12 @@ public enum ScreenshotScrollingCapture {
             case .advanced(let originOverlap, _, _) = ScreenshotSupport.scrollingTransition(
               previous: originContent, current: lateContent,
               contentColumns: matchedColumns),
-            originOverlap >= max(24, currentSample.height / 4)
+            originOverlap >= max(24, originContent.height / 4)
           {
             continuesOrigin = true
           }
           let base = continuesOrigin ? first : current
+          let rawBaseSample = continuesOrigin ? rawFirstSample : rawCurrentSample
           let baseSample = continuesOrigin ? firstSample : currentSample
           guard top + bottom < base.height,
             let cropped = copiedStrip(
@@ -395,17 +624,23 @@ public enum ScreenshotScrollingCapture {
           fixedBottomPixels = bottom
           contentSampleColumns = matchedColumns
           contentPixelColumns = 0..<current.width
+          topFrame = base
+          bottomFrame = base
           if top > 0 {
             headerSlice = copiedStrip(
               from: base, columns: 0..<base.width,
               topCrop: 0, bottomCrop: base.height - top)
             guard headerSlice != nil else { return .failed }
+          } else {
+            headerSlice = nil
           }
           if bottom > 0 {
             footerSlice = copiedStrip(
               from: base, columns: 0..<base.width,
               topCrop: base.height - bottom, bottomCrop: 0)
             guard footerSlice != nil else { return .failed }
+          } else {
+            footerSlice = nil
           }
           slices = [cropped]
           totalHeight = cropped.height
@@ -415,10 +650,15 @@ public enum ScreenshotScrollingCapture {
           retainedPixels = cropped.width * cropped.height
           anchors = .init()
           anchors.remember(initialContent, at: 0)
+          fullAnchors = .init()
+          fullAnchors.remember(rawBaseSample, at: 0)
           confirmedContent = initialContent
+          rawOriginSample = rawBaseSample
           originSample = baseSample
+          rawPreviousSample = rawBaseSample
           previousSample = baseSample
           lastDirection = nil
+          await onInsets(fixedTopPixels, fixedBottomPixels, rightCrop)
         }
 
         guard current.width == first.width, current.height == first.height,
@@ -427,7 +667,7 @@ public enum ScreenshotScrollingCapture {
         else {
           await flushStalePreview(now: now, force: true)
           return completed(
-            slices: contentWithHeader(), footerSlice: footerSlice,
+            slices: contentWithHeader(), footerSlice: footerSlice, rightCrop: rightCrop,
             region: region, result: .partial)
         }
 
@@ -454,7 +694,8 @@ public enum ScreenshotScrollingCapture {
               previous: observedBefore, current: currentSample,
               overlap: observedOverlap, contentColumns: columns)
             fixedLayoutChanged =
-              abs(top - fixedTopPixels) > 2 || abs(bottom - fixedBottomPixels) > 2
+              (!userTopSet && abs(top - fixedTopPixels) > 2)
+              || (!userBottomSet && abs(bottom - fixedBottomPixels) > 2)
           }
         }
         if fixedLayoutChanged && currentSample == previousSample {
@@ -468,14 +709,20 @@ public enum ScreenshotScrollingCapture {
             capturedBottom = saved.bottom
             viewportTop = saved.viewport
             retainedPixels = saved.pixels
+            rawPreviousSample = saved.rawSample
             previousSample = saved.sample
+            rawOriginSample = saved.rawSample
             originSample = saved.sample
+            topFrame = saved.topFrame
+            bottomFrame = saved.bottomFrame
             let restored =
               ScreenshotSupport.scrollingContentSample(
                 saved.sample, top: fixedTopPixels, bottom: fixedBottomPixels) ?? saved.sample
             confirmedContent = restored
             anchors = saved.anchors
+            fullAnchors = saved.fullAnchors
             anchors.remember(restored, at: saved.viewport)
+            fullAnchors.remember(saved.rawSample, at: saved.viewport)
             lastDirection = saved.direction
             footerSlice = saved.footer
             rollback = nil
@@ -503,7 +750,7 @@ public enum ScreenshotScrollingCapture {
           // A jump with no reliable overlap is not new content and must never
           // move the stitch. Keep the frame so a later bridge frame can place
           // it and fill the skipped rows.
-          hold(current, sample: currentSample)
+          hold(current, rawSample: rawCurrentSample, sample: currentSample)
           hasUnmatchedContent = true
           scrollPending = false
           await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, true)
@@ -513,9 +760,11 @@ public enum ScreenshotScrollingCapture {
         guard let columns = contentPixelColumns else {
           // The moving content is not cropped yet; adopt the position only.
           viewportTop = placed.position
+          rawOriginSample = rawCurrentSample
           originSample = currentSample
           confirmedContent = currentContent
           anchors.remember(currentContent, at: placed.position)
+          fullAnchors.remember(rawCurrentSample, at: placed.position)
           if let direction = placed.direction { lastDirection = direction }
           hasUnmatchedContent = false
           await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, false)
@@ -550,7 +799,9 @@ public enum ScreenshotScrollingCapture {
           rollback = AppendRollback(
             slices: slices, height: totalHeight, top: capturedTop, bottom: capturedBottom,
             viewport: viewportTop, pixels: retainedPixels, sample: originSample,
-            anchors: anchors, direction: lastDirection, footer: footerSlice)
+            rawSample: rawOriginSample, anchors: anchors, fullAnchors: fullAnchors,
+            direction: lastDirection, footer: footerSlice, topFrame: topFrame,
+            bottomFrame: bottomFrame)
           if fixedBottomPixels > 0 {
             footerSlice = copiedStrip(
               from: current, columns: columns,
@@ -564,6 +815,7 @@ public enum ScreenshotScrollingCapture {
                 bottomCrop: current.height - fixedTopPixels - prepend)
             else { return .failed }
             slices.insert(strip, at: 0)
+            topFrame = current
             capturedTop = position
             retainedPixels += strip.width * strip.height
           }
@@ -575,6 +827,7 @@ public enum ScreenshotScrollingCapture {
                 bottomCrop: fixedBottomPixels)
             else { return .failed }
             slices.append(strip)
+            bottomFrame = current
             capturedBottom = position + contentHeight
             retainedPixels += strip.width * strip.height
           }
@@ -589,9 +842,11 @@ public enum ScreenshotScrollingCapture {
         if merge.merged { await publishPreview() }
 
         viewportTop = position
+        rawOriginSample = rawCurrentSample
         originSample = currentSample
         confirmedContent = currentContent
         anchors.remember(currentContent, at: position)
+        fullAnchors.remember(rawCurrentSample, at: position)
         if let direction = placed.direction { lastDirection = direction }
         hasUnmatchedContent = false
         if extraRows > 0 { await publishPreview() }
@@ -608,19 +863,20 @@ public enum ScreenshotScrollingCapture {
   private static func completedByUser(
     slices: [CGImage],
     footerSlice: CGImage?,
+    rightCrop: Int,
     region: CaptureRegion,
     hasUnmatchedContent: Bool
   ) -> Result {
     guard hasUnmatchedContent else {
       return completed(
         slices: slices,
-        footerSlice: footerSlice,
+        footerSlice: footerSlice, rightCrop: rightCrop,
         region: region,
         result: .success)
     }
     return completed(
       slices: slices,
-      footerSlice: footerSlice,
+      footerSlice: footerSlice, rightCrop: rightCrop,
       region: region,
       result: .partial)
   }
@@ -634,12 +890,15 @@ public enum ScreenshotScrollingCapture {
   private static func completed(
     slices: [CGImage],
     footerSlice: CGImage?,
+    rightCrop: Int,
     region: CaptureRegion,
     result: CompletedResult
   ) -> Result {
     guard !Task.isCancelled else { return .cancelled }
     let completedSlices = footerSlice.map { slices + [$0] } ?? slices
-    guard let image = stitch(completedSlices) else {
+    guard let stitched = stitch(completedSlices),
+      let image = croppedRight(stitched, pixels: rightCrop)
+    else {
       return Task.isCancelled ? .cancelled : .failed
     }
     guard !Task.isCancelled else { return .cancelled }
@@ -649,6 +908,14 @@ public enum ScreenshotScrollingCapture {
     case .partial: return .partial(capture)
     case .limited: return .limited(capture)
     }
+  }
+
+  /// Leave out the excluded right band (overlay scroller, window edge).
+  static func croppedRight(_ image: CGImage, pixels: Int) -> CGImage? {
+    guard pixels > 0 else { return image }
+    let width = image.width - pixels
+    guard width > 0 else { return nil }
+    return image.cropping(to: CGRect(x: 0, y: 0, width: width, height: image.height))
   }
 
   /// ScreenCaptureKit can pad a region with a transparent edge row. Keeping

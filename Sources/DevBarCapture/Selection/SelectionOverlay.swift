@@ -9,9 +9,15 @@ import CoreImage
 @MainActor
 public final class SelectionOverlay {
   private var panels: [NSPanel] = []
+  private var insetHandles: [InsetHandlePanel] = []
+  private weak var activeScrollingView: SelectionView?
+  private var activeScrollingRegion: CaptureRegion?
+  private var isDraggingInset = false
+  private var dragStartPixels = 0
   private var frozenFrames: [CGDirectDisplayID: CGImage] = [:]
   public private(set) var scrollingRequested = false
   public private(set) var saveRequested = false
+  public var insetControl: ScrollingInsetControl?
   private var renderedFrame: CGImage?
   private var preparing = false
   private var continuation: CheckedContinuation<CaptureRegion, any Error>?
@@ -137,9 +143,17 @@ public final class SelectionOverlay {
     continuation = nil
     timeoutTask?.cancel()
     timeoutTask = nil
-    if case .success = result, scrollingRequested {
+    if case .success(let region) = result, scrollingRequested {
       for panel in panels {
-        (panel.contentView as? SelectionView)?.beginScrollingProgress()
+        guard let view = panel.contentView as? SelectionView else { continue }
+        if view.displayID == region.displayID {
+          view.beginScrollingProgress(region: region, initialInsets: insetControl?.current)
+          activeScrollingView = view
+          activeScrollingRegion = region
+          setupInsetHandles(for: view, region: region)
+        } else {
+          view.beginScrollingProgress()
+        }
         panel.ignoresMouseEvents = true
         if panel.isKeyWindow { panel.resignKey() }
       }
@@ -148,9 +162,122 @@ public final class SelectionOverlay {
     }
     reply.resume(with: result)
   }
+
+  public func setScrollingInsets(top: Int, bottom: Int, right: Int) {
+    guard !isDraggingInset, let view = activeScrollingView, let region = activeScrollingRegion else {
+      return
+    }
+    view.topInsetPixels = top
+    view.bottomInsetPixels = bottom
+    view.rightInsetPixels = right
+    view.needsDisplay = true
+    layoutInsetHandles(for: view, region: region)
+  }
+
   public func dismissScrollingOverlay() {
+    for handle in insetHandles { handle.orderOut(nil) }
+    insetHandles.removeAll()
+    activeScrollingView = nil
+    activeScrollingRegion = nil
+    isDraggingInset = false
     for panel in panels { panel.orderOut(nil) }
     panels.removeAll()
+  }
+
+  private func setupInsetHandles(for view: SelectionView, region: CaptureRegion) {
+    for handle in insetHandles { handle.orderOut(nil) }
+    insetHandles.removeAll()
+    let level = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1)
+    for edge in InsetEdge.allCases {
+      let handleView = InsetHandleView(edge: edge)
+      handleView.onDragStart = { [weak self, weak view] in
+        guard let self, let view else { return }
+        self.isDraggingInset = true
+        switch edge {
+        case .top: self.dragStartPixels = view.topInsetPixels
+        case .bottom: self.dragStartPixels = view.bottomInsetPixels
+        case .right: self.dragStartPixels = view.rightInsetPixels
+        }
+      }
+      handleView.onDrag = { [weak self, weak view] startPoint, currentPoint in
+        guard let self, let view else { return }
+        let frameWidth = max(1, Int(region.pixelRect.width))
+        let frameHeight = max(1, Int(region.pixelRect.height))
+        let minContentHeight = ScreenshotScrollingCapture.minimumContentHeight(
+          frameHeight: frameHeight)
+        let minContentWidth = ScreenshotScrollingCapture.minimumContentWidth(
+          frameWidth: frameWidth)
+        switch edge {
+        case .top:
+          let delta = Int(((startPoint.y - currentPoint.y) * region.scale).rounded())
+          let maxTop = max(0, frameHeight - minContentHeight - view.bottomInsetPixels)
+          let nextTop = min(max(0, self.dragStartPixels + delta), maxTop)
+          view.topInsetPixels = nextTop
+          self.insetControl?.update { $0.top = nextTop }
+        case .bottom:
+          let delta = Int(((currentPoint.y - startPoint.y) * region.scale).rounded())
+          let maxBottom = max(0, frameHeight - minContentHeight - view.topInsetPixels)
+          let nextBottom = min(max(0, self.dragStartPixels + delta), maxBottom)
+          view.bottomInsetPixels = nextBottom
+          self.insetControl?.update { $0.bottom = nextBottom }
+        case .right:
+          let delta = Int(((startPoint.x - currentPoint.x) * region.scale).rounded())
+          let maxRight = max(0, frameWidth - minContentWidth)
+          let nextRight = min(max(0, self.dragStartPixels + delta), maxRight)
+          view.rightInsetPixels = nextRight
+          self.insetControl?.update { $0.right = nextRight }
+        }
+        view.needsDisplay = true
+        self.layoutInsetHandles(for: view, region: region)
+      }
+      handleView.onDragEnd = { [weak self] in
+        self?.isDraggingInset = false
+      }
+      let panel = InsetHandlePanel(
+        contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
+        backing: .buffered, defer: false)
+      panel.isReleasedWhenClosed = false
+      panel.level = level
+      panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle, .stationary]
+      panel.isOpaque = false
+      panel.backgroundColor = .clear
+      panel.hasShadow = false
+      panel.ignoresMouseEvents = false
+      panel.animationBehavior = .none
+      panel.contentView = handleView
+      insetHandles.append(panel)
+      panel.orderFrontRegardless()
+    }
+    layoutInsetHandles(for: view, region: region)
+  }
+
+  private func layoutInsetHandles(for view: SelectionView, region: CaptureRegion) {
+    let global = view.selection.offsetBy(dx: view.screenFrame.minX, dy: view.screenFrame.minY)
+    let topPts = CGFloat(view.topInsetPixels) / region.scale
+    let bottomPts = CGFloat(view.bottomInsetPixels) / region.scale
+    let rightPts = CGFloat(view.rightInsetPixels) / region.scale
+    let thickness: CGFloat = 14
+    let horizontalSpan = max(36, global.width - rightPts - 24)
+    let verticalSpan = max(36, global.height - topPts - bottomPts - 24)
+    for panel in insetHandles {
+      guard let handleView = panel.contentView as? InsetHandleView else { continue }
+      let frame: CGRect
+      switch handleView.edge {
+      case .top:
+        let y = global.maxY - topPts - thickness / 2
+        let x = global.minX + max(0, (global.width - rightPts - horizontalSpan) / 2)
+        frame = CGRect(x: x, y: y, width: horizontalSpan, height: thickness)
+      case .bottom:
+        let y = global.minY + bottomPts - thickness / 2
+        let x = global.minX + max(0, (global.width - rightPts - horizontalSpan) / 2)
+        frame = CGRect(x: x, y: y, width: horizontalSpan, height: thickness)
+      case .right:
+        let x = global.maxX - rightPts - thickness / 2
+        let y = global.minY + bottomPts + max(0, (global.height - topPts - bottomPts - verticalSpan) / 2)
+        frame = CGRect(x: x, y: y, width: thickness, height: verticalSpan)
+      }
+      panel.setFrame(frame, display: false)
+    }
   }
 
 }
@@ -189,6 +316,9 @@ final class SelectionView: NSView, NSTextFieldDelegate {
   private var windowCandidate: (start: CGPoint, frame: CGRect)?
   var scrollingRequested = false
   var saveRequested = false
+  var topInsetPixels = 0
+  var bottomInsetPixels = 0
+  var rightInsetPixels = 0
   var onInteraction: (() -> Void)?
   private var captureInProgress = false
   private var tool = "select"
@@ -891,9 +1021,21 @@ final class SelectionView: NSView, NSTextFieldDelegate {
     default: break
     }
   }
-  func beginScrollingProgress() {
+  func beginScrollingProgress(
+    region: CaptureRegion? = nil, initialInsets: ScrollingInsetControl.Values? = nil
+  ) {
     captureInProgress = true
     frozenFrame = nil
+    if let region {
+      selection = CGRect(
+        x: region.rectInPoints.minX,
+        y: screenFrame.height - region.rectInPoints.maxY,
+        width: region.rectInPoints.width,
+        height: region.rectInPoints.height)
+    }
+    topInsetPixels = initialInsets?.top ?? 0
+    bottomInsetPixels = initialInsets?.bottom ?? 0
+    rightInsetPixels = initialInsets?.right ?? 0
     toolbar?.removeFromSuperview()
     optionsBar?.removeFromSuperview()
     toolbar = nil
@@ -955,15 +1097,20 @@ final class SelectionView: NSView, NSTextFieldDelegate {
       outline.stroke()
       drawMarks()
       drawObjectSelection()
-      for point in handles {
-        let dot = NSBezierPath(ovalIn: NSRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8))
-        NSColor.systemBlue.setFill()  // devbar:allow-color
-        dot.fill()
-        NSColor.white.setStroke()  // devbar:allow-color
-        dot.lineWidth = 1
-        dot.stroke()
+      if captureInProgress {
+        drawScrollingInsets()
+      } else {
+        for point in handles {
+          let dot = NSBezierPath(ovalIn: NSRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8))
+          NSColor.systemBlue.setFill()  // devbar:allow-color
+          dot.fill()
+          NSColor.white.setStroke()  // devbar:allow-color
+          dot.lineWidth = 1
+          dot.stroke()
+        }
       }
-      let label = "\(Int(selection.width * scale)) × \(Int(selection.height * scale))"
+      let effectiveWidth = max(1, Int(selection.width * scale) - (captureInProgress ? rightInsetPixels : 0))
+      let label = "\(effectiveWidth) × \(Int(selection.height * scale))"
       let attributes: [NSAttributedString.Key: Any] = [
         .foregroundColor: NSColor.white,
         .font: NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .medium),  // devbar:allow-color
@@ -976,6 +1123,66 @@ final class SelectionView: NSView, NSTextFieldDelegate {
       NSBezierPath(roundedRect: badge, xRadius: 4, yRadius: 4).fill()
       label.draw(at: CGPoint(x: badge.minX + 10, y: badge.minY + 5), withAttributes: attributes)
     }
+  }
+
+  private func drawScrollingInsets() {
+    let topPts = min(selection.height, CGFloat(max(0, topInsetPixels)) / scale)
+    let bottomPts = min(selection.height - topPts, CGFloat(max(0, bottomInsetPixels)) / scale)
+    let rightPts = min(selection.width, CGFloat(max(0, rightInsetPixels)) / scale)
+    let excludedFill = NSColor.black.withAlphaComponent(0.28)  // devbar:allow-color
+    excludedFill.setFill()
+    if topPts > 0 {
+      CGRect(x: selection.minX, y: selection.maxY - topPts, width: selection.width, height: topPts)
+        .fill()
+    }
+    if bottomPts > 0 {
+      CGRect(x: selection.minX, y: selection.minY, width: selection.width, height: bottomPts)
+        .fill()
+    }
+    if rightPts > 0 {
+      CGRect(
+        x: selection.maxX - rightPts, y: selection.minY + bottomPts,
+        width: rightPts, height: max(0, selection.height - topPts - bottomPts)
+      ).fill()
+    }
+    let contentMaxX = selection.maxX - rightPts
+    let topY = selection.maxY - topPts
+    let bottomY = selection.minY + bottomPts
+    NSColor.systemBlue.setStroke()  // devbar:allow-color
+    if topPts > 0 {
+      let line = NSBezierPath()
+      line.lineWidth = 1.5
+      line.move(to: CGPoint(x: selection.minX, y: topY))
+      line.line(to: CGPoint(x: contentMaxX, y: topY))
+      line.stroke()
+    }
+    if bottomPts > 0 {
+      let line = NSBezierPath()
+      line.lineWidth = 1.5
+      line.move(to: CGPoint(x: selection.minX, y: bottomY))
+      line.line(to: CGPoint(x: contentMaxX, y: bottomY))
+      line.stroke()
+    }
+    if rightPts > 0 {
+      let line = NSBezierPath()
+      line.lineWidth = 1.5
+      line.move(to: CGPoint(x: contentMaxX, y: bottomY))
+      line.line(to: CGPoint(x: contentMaxX, y: topY))
+      line.stroke()
+    }
+    func drawPill(_ rect: CGRect) {
+      let pill = NSBezierPath(roundedRect: rect, xRadius: 2.5, yRadius: 2.5)
+      NSColor.systemBlue.setFill()  // devbar:allow-color
+      pill.fill()
+      NSColor.white.setStroke()  // devbar:allow-color
+      pill.lineWidth = 1
+      pill.stroke()
+    }
+    let horizontalMidX = (selection.minX + contentMaxX) / 2
+    let verticalMidY = (bottomY + topY) / 2
+    drawPill(CGRect(x: horizontalMidX - 16, y: topY - 2.5, width: 32, height: 5))
+    drawPill(CGRect(x: horizontalMidX - 16, y: bottomY - 2.5, width: 32, height: 5))
+    drawPill(CGRect(x: contentMaxX - 2.5, y: verticalMidY - 16, width: 5, height: 32))
   }
 
   private var handles: [CGPoint] {
@@ -1537,4 +1744,77 @@ final class SelectionView: NSView, NSTextFieldDelegate {
 
 @MainActor private final class CaptureToolbarTintView: NSView {
   override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+private enum InsetEdge: CaseIterable {
+  case top
+  case bottom
+  case right
+}
+
+@MainActor
+private final class InsetHandlePanel: NSPanel {
+  override var canBecomeKey: Bool { false }
+  override var canBecomeMain: Bool { false }
+}
+
+@MainActor
+private final class InsetHandleView: NSView {
+  let edge: InsetEdge
+  var onDragStart: (() -> Void)?
+  var onDrag: ((CGPoint, CGPoint) -> Void)?
+  var onDragEnd: (() -> Void)?
+  private var dragStartPoint = CGPoint.zero
+
+  init(edge: InsetEdge) {
+    self.edge = edge
+    super.init(frame: .zero)
+  }
+
+  required init?(coder: NSCoder) { nil }
+
+  private var cursor: NSCursor {
+    edge == .right ? .resizeLeftRight : .resizeUpDown
+  }
+
+  override func resetCursorRects() {
+    addCursorRect(bounds, cursor: cursor)
+  }
+
+  override func updateTrackingAreas() {
+    super.updateTrackingAreas()
+    for area in trackingAreas { removeTrackingArea(area) }
+    addTrackingArea(
+      NSTrackingArea(
+        rect: bounds,
+        options: [.cursorUpdate, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+        owner: self))
+  }
+
+  override func cursorUpdate(with event: NSEvent) {
+    cursor.set()
+  }
+
+  override func mouseEntered(with event: NSEvent) {
+    cursor.set()
+  }
+
+  override func mouseMoved(with event: NSEvent) {
+    cursor.set()
+  }
+
+  override func mouseDown(with event: NSEvent) {
+    dragStartPoint = NSEvent.mouseLocation
+    cursor.set()
+    onDragStart?()
+  }
+
+  override func mouseDragged(with event: NSEvent) {
+    cursor.set()
+    onDrag?(dragStartPoint, NSEvent.mouseLocation)
+  }
+
+  override func mouseUp(with event: NSEvent) {
+    onDragEnd?()
+  }
 }

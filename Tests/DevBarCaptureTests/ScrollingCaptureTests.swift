@@ -1151,3 +1151,121 @@ private func registrationSample(_ offset: Int) -> ScreenshotSupport.ScrollingSam
   timeout.cancel()
   #expect(finished, "finish must complete once the grace interval passes")
 }
+
+@MainActor @Test func scrollingInsetControlCropsRightBandAndMasksScrollerColumns() async throws {
+  func frameWithRightBand(offset: Int, bandSalt: Int) -> CGImage {
+    let base = uniqueFrame(offset: offset)
+    let width = base.width
+    let height = base.height
+    var bytes = [UInt8]((base.dataProvider?.data as Data?) ?? Data())
+    for row in 0..<height {
+      for col in (width - 12)..<width {
+        bytes[row * width + col] = UInt8((row * 29 + col * 11 + bandSalt * 53) % 251)
+      }
+    }
+    return CGImage(
+      width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 8, bytesPerRow: width,
+      space: CGColorSpaceCreateDeviceGray(), bitmapInfo: .init(rawValue: 0),
+      provider: CGDataProvider(data: Data(bytes) as CFData)!, decode: nil,
+      shouldInterpolate: false, intent: .defaultIntent)!
+  }
+  let insets = ScrollingInsetControl(.init(right: 12))
+  var reportedInsets: [(Int, Int, Int)] = []
+  let frames = Frames([
+    frameWithRightBand(offset: 0, bandSalt: 1),
+    frameWithRightBand(offset: 40, bandSalt: 2),
+    frameWithRightBand(offset: 80, bandSalt: 3),
+  ])
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), insets: insets,
+    onInsets: { reportedInsets.append(($0, $1, $2)) },
+    onProgress: { _, _ in }, nextFrame: { await frames.next() })
+  guard case .partial(let image) = result else {
+    Issue.record("expected partial stitched image")
+    return
+  }
+  #expect(image.width == 52)
+  #expect(image.height == 200)
+  #expect(reportedInsets.last?.2 == 12)
+}
+
+@MainActor @Test func scrollingInsetControlRespectsManualTopBottomOverLayoutChange() async throws {
+  func frameWithChangingTop(offset: Int, topSalt: Int) -> CGImage {
+    let base = uniqueFrame(offset: offset)
+    let width = base.width
+    let height = base.height
+    var bytes = [UInt8]((base.dataProvider?.data as Data?) ?? Data())
+    for row in 0..<18 {
+      for col in 0..<width {
+        bytes[row * width + col] = UInt8((row * 13 + col * 7 + topSalt * 41) % 251)
+      }
+    }
+    return CGImage(
+      width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 8, bytesPerRow: width,
+      space: CGColorSpaceCreateDeviceGray(), bitmapInfo: .init(rawValue: 0),
+      provider: CGDataProvider(data: Data(bytes) as CFData)!, decode: nil,
+      shouldInterpolate: false, intent: .defaultIntent)!
+  }
+  let insets = ScrollingInsetControl(.init(top: 18, bottom: 10))
+  let frames = Frames([
+    frameWithChangingTop(offset: 0, topSalt: 1),
+    frameWithChangingTop(offset: 30, topSalt: 2),
+    frameWithChangingTop(offset: 60, topSalt: 3),
+  ])
+  var sawUnmatched = false
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), insets: insets,
+    onProgress: { _, unmatched in if unmatched { sawUnmatched = true } },
+    nextFrame: { await frames.next() })
+  #expect(!sawUnmatched)
+  guard case .partial(let image) = result else {
+    Issue.record("expected manual insets to prevent fixed-layout lock")
+    return
+  }
+  #expect(image.height == 180)
+}
+
+@MainActor @Test func scrollingInsetControlUpdatesMidCapture() async throws {
+  let insets = ScrollingInsetControl()
+  actor StepFrames {
+    let base: Frames
+    let insets: ScrollingInsetControl
+    var step = 0
+    init(_ images: [CGImage], insets: ScrollingInsetControl) {
+      self.base = Frames(images)
+      self.insets = insets
+    }
+    func next() async -> CGImage? {
+      step += 1
+      if step == 3 {
+        insets.update {
+          $0.top = 14
+          $0.bottom = 16
+          $0.right = 8
+        }
+      } else if step == 4 {
+        insets.update {
+          $0.top = 6
+          $0.right = 0
+        }
+      }
+      return await base.next()
+    }
+  }
+  let queue = StepFrames([
+    uniqueFrame(offset: 0),
+    uniqueFrame(offset: 30),
+    uniqueFrame(offset: 60),
+    uniqueFrame(offset: 90),
+  ], insets: insets)
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(), insets: insets,
+    onProgress: { _, _ in },
+    nextFrame: { await queue.next() })
+  guard case .partial(let image) = result else {
+    Issue.record("expected stitched result after mid-capture inset updates")
+    return
+  }
+  #expect(image.width == 64)
+  #expect(image.height == 210)
+}

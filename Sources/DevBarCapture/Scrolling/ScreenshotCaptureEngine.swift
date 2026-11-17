@@ -49,6 +49,14 @@ enum ScreenshotCaptureEngine {
 
     var queuedFrameCount: Int { sink?.queuedCount ?? 0 }
 
+    func wake() {
+      sink?.wake()
+    }
+
+    func repeatLastFrameIfIdle() {
+      sink?.repeatLastFrameIfIdle()
+    }
+
     func stop() {
       stream?.stopCapture { _ in }
       sink?.stop()
@@ -63,11 +71,13 @@ enum ScreenshotCaptureEngine {
     static let maximumQueuedFrames = 48
     let queue = DispatchQueue(label: "local.devbar.scrolling.frames")
     private let lock = NSLock()
-    private struct Frame: @unchecked Sendable {
-      let buffer: CVPixelBuffer
+    private enum Frame: @unchecked Sendable {
+      case buffer(CVPixelBuffer)
+      case image(CGImage)
     }
     private var frames: [Frame] = []
     private var waiters: [CheckedContinuation<Frame?, Never>] = []
+    private var lastImage: CGImage?
     private var stopped = false
     private let context = CIContext(options: [.useSoftwareRenderer: false])
 
@@ -88,7 +98,7 @@ enum ScreenshotCaptureEngine {
       if !waiters.isEmpty {
         let waiter = waiters.removeFirst()
         lock.unlock()
-        waiter.resume(returning: Frame(buffer: buffer))
+        waiter.resume(returning: .buffer(buffer))
         return
       }
       // Keep the oldest unprocessed frames. Dropping them skips the path the
@@ -97,7 +107,7 @@ enum ScreenshotCaptureEngine {
         lock.unlock()
         return
       }
-      frames.append(Frame(buffer: buffer))
+      frames.append(.buffer(buffer))
       lock.unlock()
     }
 
@@ -117,8 +127,47 @@ enum ScreenshotCaptureEngine {
         }
       }
       guard let frame else { return nil }
-      let image = CIImage(cvPixelBuffer: frame.buffer)
-      return context.createCGImage(image, from: image.extent)
+      switch frame {
+      case .buffer(let buffer):
+        let ciImage = CIImage(cvPixelBuffer: buffer)
+        guard let rendered = context.createCGImage(ciImage, from: ciImage.extent) else {
+          return nil
+        }
+        storeLastImage(rendered)
+        return rendered
+      case .image(let image):
+        return image
+      }
+    }
+
+    private func storeLastImage(_ image: CGImage) {
+      lock.lock()
+      lastImage = image
+      lock.unlock()
+    }
+
+    func wake() {
+      lock.lock()
+      let pending = waiters
+      waiters.removeAll()
+      lock.unlock()
+      for waiter in pending { waiter.resume(returning: nil) }
+    }
+
+    func repeatLastFrameIfIdle() {
+      lock.lock()
+      guard !stopped, frames.isEmpty, let lastImage else {
+        lock.unlock()
+        return
+      }
+      if !waiters.isEmpty {
+        let waiter = waiters.removeFirst()
+        lock.unlock()
+        waiter.resume(returning: .image(lastImage))
+      } else {
+        frames.append(.image(lastImage))
+        lock.unlock()
+      }
     }
 
     func stop() {
@@ -127,6 +176,7 @@ enum ScreenshotCaptureEngine {
       let pending = waiters
       waiters.removeAll()
       frames.removeAll()
+      lastImage = nil
       lock.unlock()
       for waiter in pending { waiter.resume(returning: nil) }
     }

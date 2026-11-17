@@ -54,6 +54,11 @@ enum ScreenshotSupport {
       }
     }
 
+    /// Re-derive every remembered viewpoint, e.g. after masking new columns.
+    mutating func transformSamples(_ transform: (ScrollingSample) -> ScrollingSample) {
+      entries = entries.map { Entry(sample: transform($0.sample), top: $0.top) }
+    }
+
     enum Registration: Equatable {
       case position(Int)
       case unavailable
@@ -128,6 +133,24 @@ enum ScreenshotSupport {
       }
       return .position(best.position)
     }
+  }
+
+  /// Blank the sample columns that belong to an excluded right band. Constant
+  /// columns are non-informative, so the matcher ignores them.
+  static func scrollingMaskedSample(
+    _ sample: ScrollingSample, sourceWidth: Int, rightPixels: Int
+  ) -> ScrollingSample {
+    guard rightPixels > 0, sourceWidth > 0, sample.isValid else { return sample }
+    let kept = max(0, sourceWidth - rightPixels)
+    let start = min(
+      sample.width, Int((Double(kept) * Double(sample.width) / Double(sourceWidth)).rounded(.down)))
+    guard start < sample.width else { return sample }
+    var pixels = sample.pixels
+    for row in 0..<sample.height {
+      let base = row * sample.width
+      for column in start..<sample.width { pixels[base + column] = 0 }
+    }
+    return ScrollingSample(width: sample.width, height: sample.height, pixels: pixels)
   }
 
   static func scrollingContentSample(
