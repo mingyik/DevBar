@@ -25,7 +25,10 @@ final class PanelController {
   private var resignObserver: NSObjectProtocol?
   private var dismissing = false
   private var lastAnchor: CGRect?
+  private var documentWindowUserMoved = false
+  private var applyingLayout = false
   private var previousPage: PanelModel.Page?
+  private var windowMoveObserver: NSObjectProtocol?
   private var clipboardPreview: NSPanel?
   private var clipboardPreviewItemID: UUID?
   private var clipboardPreviewState: ClipboardHoverPreviewState?
@@ -134,6 +137,14 @@ final class PanelController {
     panel.onCyclePage = { [weak self] backwards in
       self?.model.cyclePage(backwards: backwards)
     }
+    windowMoveObserver = NotificationCenter.default.addObserver(
+      forName: NSWindow.didMoveNotification, object: panel, queue: nil
+    ) { [weak self] _ in
+      MainActor.assumeIsolated {
+        guard let self, self.model.page == .doc, !self.applyingLayout else { return }
+        self.documentWindowUserMoved = true
+      }
+    }
     resignObserver = NotificationCenter.default.addObserver(
       forName: NSWindow.didResignKeyNotification,
       object: panel,
@@ -169,6 +180,8 @@ final class PanelController {
   }
 
   private func finishPageChange(from previous: PanelModel.Page?, to next: PanelModel.Page) {
+    panel.isMovableByWindowBackground = next == .doc
+    if next != .doc { documentWindowUserMoved = false }
     if previous == .clipboard, next != .clipboard { releaseClipboardVisualCaches() }
     if next == .clipboard, clipboard.needsVisualCacheReload {
       Task { await clipboard.restoreVisualCaches() }
@@ -461,6 +474,7 @@ final class PanelController {
   private func installChrome() {
     let container = NSView()
     panel.contentView = container
+    panel.isMovableByWindowBackground = model.page == .doc
     host.sizingOptions = []
     host.translatesAutoresizingMaskIntoConstraints = true
     host.autoresizingMask = [.width, .height]
@@ -476,7 +490,7 @@ final class PanelController {
     }
     panel.appearance = theme.appearance()
     webHost.syncAppearance(
-      panelSize: model.enlarged && model.showsEnlarge ? "large" : "normal",
+      panelSize: model.page == .doc ? "large" : "normal",
       autoImport: model.autoImport)
     if model.page == .json || model.page == .qr {
       webHost.showScreen(model.page.rawValue)
@@ -514,21 +528,35 @@ final class PanelController {
       NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main ?? NSScreen.screens[0]
     let placed = PanelLayout.placement(
       anchor: lastAnchor, screens: screens, fallbackVisible: mouseScreen.visibleFrame)
+    let layoutVisible =
+      model.page == .doc && documentWindowUserMoved && panel.isVisible
+      ? panel.screen?.visibleFrame ?? placed.visible : placed.visible
     var size = model.panelSize
     if model.page == .doc, !model.dropActive {
       let layout = PanelLayout.documentPanelSize(
         enlarged: model.enlarged, split: model.documentSplit,
-        sidebar: model.documentSidebarVisible, visibleFrame: placed.visible)
+        sidebar: model.documentSidebarVisible, visibleFrame: layoutVisible)
       size = layout.panelSize
       if model.documentSidebarWidth != layout.sidebarWidth {
         model.documentSidebarWidth = layout.sidebarWidth
       }
     } else if model.showsEnlarge, model.enlarged, !model.dropActive {
-      size.height = floor(placed.visible.height * 4 / 5)
+      size.height = floor(layoutVisible.height * 4 / 5)
     }
-    let frame = PanelLayout.frame(
-      iconCenterX: placed.centerX, menuBarBottomY: placed.menuBottom,
-      size: size, visibleFrame: placed.visible)
+    let frame: CGRect
+    if model.page == .doc, documentWindowUserMoved, panel.isVisible {
+      frame = PanelLayout.clamp(
+        CGRect(
+          x: panel.frame.maxX - size.width,
+          y: panel.frame.maxY - size.height,
+          width: size.width,
+          height: size.height),
+        in: layoutVisible)
+    } else {
+      frame = PanelLayout.frame(
+        iconCenterX: placed.centerX, menuBarBottomY: placed.menuBottom,
+        size: size, visibleFrame: layoutVisible)
+    }
     let sidebar =
       model.page == .doc && model.documentSidebarVisible && !model.dropActive
       ? model.documentSidebarWidth + 0.7 : 0
@@ -562,6 +590,8 @@ final class PanelController {
   }
 
   private func applyLayout(frame: CGRect, sidebar: CGFloat) {
+    applyingLayout = true
+    defer { applyingLayout = false }
     var transaction = Transaction()
     transaction.disablesAnimations = true
     withTransaction(transaction) {

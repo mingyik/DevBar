@@ -167,16 +167,6 @@ struct PanelView: View {
       actionButton(model.pinned ? "pin.fill" : "pin.slash", label: Strings.pin, scheme: scheme) {
         model.pinned.toggle()
       }
-      if model.showsEnlarge {
-        actionButton(
-          model.enlarged
-            ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right",
-          label: Strings.enlarge,
-          scheme: scheme
-        ) {
-          model.enlarged.toggle()
-        }
-      }
     }
   }
 

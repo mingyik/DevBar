@@ -46,16 +46,16 @@ import Testing
   #expect(model.page == .json)
 }
 
-@MainActor @Test func pageSizesKeepEnlargementOnlyWithinSession() {
+@MainActor @Test func pageSizesUseMediumJSONAndLargeMarkdownDefaults() {
   let defaults = UserDefaults(suiteName: "local.devbar.test.sizes.\(UUID())")!
   let model = PanelModel(defaults: defaults)
   #expect(model.panelSize == CGSize(width: 380, height: 520))
   model.page = .json
-  #expect(model.panelSize == CGSize(width: 480, height: 600))
+  #expect(model.panelSize == CGSize(width: 560, height: 660))
   model.enlarged = true
   #expect(model.panelSize == CGSize(width: 640, height: 720))
   model.page = .doc
-  #expect(model.panelSize == CGSize(width: 480, height: 600))
+  #expect(model.panelSize == CGSize(width: 640, height: 720))
   model.page = .qr
   #expect(model.panelSize == CGSize(width: 360, height: 480))
   model.page = .json
@@ -66,7 +66,7 @@ import Testing
   restored.page = .json
   #expect(!restored.enlarged)
   restored.page = .doc
-  #expect(!restored.enlarged)
+  #expect(restored.enlarged)
 }
 
 @MainActor @Test func removedEncodeMemoryMigratesToJSONAndFourPageCycle() {

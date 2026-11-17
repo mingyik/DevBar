@@ -52,7 +52,7 @@ final class PanelModel {
   var autoImport: Bool { didSet { defaults.set(autoImport, forKey: Self.autoImportKey) } }
   var pinned = false
   private var jsonEnlarged = false
-  private var docEnlarged = false
+  private var docEnlarged = true
   var enlarged: Bool {
     get { page == .json ? jsonEnlarged : page == .doc ? docEnlarged : false }
     set {
@@ -63,7 +63,9 @@ final class PanelModel {
     if dropActive { return CGSize(width: 400, height: 144) }
     return switch page {
     case .clipboard: CGSize(width: 380, height: 520)
-    case .json, .doc: enlarged ? CGSize(width: 640, height: 720) : CGSize(width: 480, height: 600)
+    case .json:
+      enlarged ? CGSize(width: 640, height: 720) : CGSize(width: 560, height: 660)
+    case .doc: enlarged ? CGSize(width: 640, height: 720) : CGSize(width: 480, height: 600)
     case .qr: CGSize(width: 360, height: 480)
     case .settings: CGSize(width: 420, height: 560)
     }
