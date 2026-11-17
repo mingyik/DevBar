@@ -184,6 +184,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
   var complete: ((Result<CaptureRegion, any Error>) -> Void)?
   private var anchor: CGPoint?
   private(set) var selection = CGRect.zero
+  private var hoveredWindowFrame: CGRect?
   private var windowCandidate: (start: CGPoint, frame: CGRect)?
   var scrollingRequested = false
   var saveRequested = false
@@ -915,6 +916,20 @@ final class SelectionView: NSView, NSTextFieldDelegate {
       NSColor.black.withAlphaComponent(0.4).setFill()  // devbar:allow-color
       bounds.fill()
     }
+    if selection.isEmpty, anchor == nil, !captureInProgress, let hoveredWindowFrame {
+      NSGraphicsContext.saveGraphicsState()
+      NSBezierPath(rect: hoveredWindowFrame).addClip()
+      if let frame = frozenFrame {
+        NSImage(cgImage: frame, size: bounds.size).draw(in: bounds)
+      } else {
+        NSGraphicsContext.current?.cgContext.clear(hoveredWindowFrame)
+      }
+      NSGraphicsContext.restoreGraphicsState()
+      NSColor.systemBlue.setStroke()  // devbar:allow-color
+      let outline = NSBezierPath(rect: hoveredWindowFrame)
+      outline.lineWidth = 3
+      outline.stroke()
+    }
     if !selection.isEmpty {
       if let frame = frozenFrame {
         NSGraphicsContext.saveGraphicsState()
@@ -974,11 +989,23 @@ final class SelectionView: NSView, NSTextFieldDelegate {
   }
 
   override func mouseExited(with event: NSEvent) {
+    hoveredWindowFrame = nil
+    needsDisplay = true
     NSCursor.arrow.set()
   }
 
   override func mouseMoved(with event: NSEvent) {
-    updateCursor(at: convert(event.locationInWindow, from: nil))
+    let point = convert(event.locationInWindow, from: nil)
+    if selection.isEmpty, anchor == nil, !captureInProgress {
+      hoveredWindowFrame = Self.targetWindow(
+        for: CGRect(
+          x: point.x + screenFrame.minX, y: point.y + screenFrame.minY,
+          width: 1, height: 1))?.frame.offsetBy(
+          dx: -screenFrame.minX, dy: -screenFrame.minY
+        ).intersection(bounds)
+      needsDisplay = true
+    }
+    updateCursor(at: point)
   }
 
   private struct ResizeEdge {
@@ -1071,7 +1098,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
     window?.makeFirstResponder(self)
     let point = convert(event.locationInWindow, from: nil)
     onInteraction?()
-    if scrollingRequested, selection.isEmpty,
+    if selection.isEmpty,
       let target = Self.targetWindow(
         for: CGRect(
           x: point.x + screenFrame.minX, y: point.y + screenFrame.minY,
@@ -1349,7 +1376,9 @@ final class SelectionView: NSView, NSTextFieldDelegate {
         anchor = nil
         selection = candidate.frame
         needsDisplay = true
-        if !selection.isEmpty { confirm() }
+        if !selection.isEmpty {
+          if scrollingRequested { confirm() } else { showToolbar() }
+        }
         return
       }
     }
