@@ -94,7 +94,6 @@ export class PageShell {
   onChange: () => void = () => {};
   onStateChange: () => void = () => {};
   revision = 0;
-  private displayTimer: ReturnType<typeof setTimeout> | undefined;
   readonly root: HTMLElement;
   readonly kind: "json" | "qr" | "doc";
   constructor(root: HTMLElement, kind: "json" | "qr" | "doc") {
@@ -140,22 +139,9 @@ export class PageShell {
     this.setDisplay(show ? "preview" : "source");
   }
   setDisplay(mode: "source" | "preview" | "split"): void {
-    clearTimeout(this.displayTimer);
-    const leavingSplit =
-      this.kind === "doc" &&
-      mode !== "split" &&
-      this.content.classList.contains("split") &&
-      !matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.mode = mode === "source" ? "source" : "preview";
-    this.source.hidden = mode === "preview" && !leavingSplit;
-    this.preview.hidden = mode === "source" && !leavingSplit;
-    this.preview.style.pointerEvents = mode === "source" ? "none" : "";
-    if (leavingSplit) {
-      this.displayTimer = setTimeout(() => {
-        this.source.hidden = mode === "preview";
-        this.preview.hidden = mode === "source";
-      }, 260);
-    }
+    this.source.hidden = mode === "preview";
+    this.preview.hidden = mode === "source";
     this.content.classList.toggle("split", mode === "split");
     if (mode === "source" || mode === "split") this.view.focus();
   }

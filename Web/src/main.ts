@@ -116,13 +116,6 @@ const bridge = {
         scheduleSave();
         break;
       }
-      case "doc.layout":
-        if (typeof payload.paneWidth === "number" && payload.paneWidth > 0)
-          document.documentElement.style.setProperty(
-            "--doc-pane-width",
-            `${payload.paneWidth}px`,
-          );
-        break;
       case "doc.display":
         doc.setDisplayMode(
           payload.mode === "preview"

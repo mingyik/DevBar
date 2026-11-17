@@ -334,12 +334,6 @@ import Testing
   let host = WebHost(
     theme: theme, webRoot: webDist, store: ScreenStateStore(directory: root, inMemory: true))
   host.webView.frame = NSRect(x: 0, y: 0, width: 960, height: 600)
-  let window = NSWindow(
-    contentRect: host.webView.frame, styleMask: .borderless,
-    backing: .buffered, defer: false)
-  window.contentView = host.webView
-  window.orderFrontRegardless()
-  defer { window.orderOut(nil) }
   host.setPanelVisible(true)
 
   for _ in 0..<200 {
@@ -397,25 +391,17 @@ import Testing
     try? await Task.sleep(for: .milliseconds(50))
   }
   #expect(splitReady)
-  var equalWidth = false
-  for _ in 0..<40 {
-    equalWidth =
-      (try? await host.webView.evaluateJavaScript(
-        """
-        (() => {
-          const s = document.querySelector('#doc .source').getBoundingClientRect().width;
-          const p = document.querySelector('#doc .preview').getBoundingClientRect().width;
-          return s > 100 && p > 100 && Math.abs(s - p) <= 2;
-        })()
-        """)) as? Bool == true
-    if equalWidth { break }
-    try await Task.sleep(for: .milliseconds(20))
-  }
-  let widths = try await host.webView.evaluateJavaScript(
-    """
-    ['.source','.preview'].map(s => { const e = document.querySelector('#doc '+s); const r=e.getBoundingClientRect(); const c=getComputedStyle(e); return [r.width,c.left,c.right,c.padding,c.transition]; })
-    """)
-  #expect(equalWidth, "Widths: \(String(describing: widths))")
+  let equalWidth =
+    (try? await host.webView.evaluateJavaScript(
+      """
+      (() => {
+        const s = document.querySelector('#doc .source').getBoundingClientRect().width;
+        const p = document.querySelector('#doc .preview').getBoundingClientRect().width;
+        return s > 100 && p > 100 && Math.abs(s - p) <= 2;
+      })()
+      """
+    )) as? Bool
+  #expect(equalWidth == true)
 
   host.cycleDocumentMode()  // split -> source
   for _ in 0..<100 {
@@ -593,23 +579,7 @@ import Testing
   #expect(controller.model.documentDisplay == "split")
   for _ in 0..<2 {
     controller.model.onToggleDocumentSidebar?()
-    for _ in 0..<15 {
-      try await Task.sleep(for: .milliseconds(20))
-      let container = try #require(webView.superview)
-      #expect(abs(webView.frame.width - container.bounds.width) < 1)
-      #expect(abs(webView.frame.height - container.bounds.height) < 1)
-      let content = try #require(controller.panel.contentView)
-      let rect = container.convert(container.bounds, to: content)
-      #expect(abs(rect.maxX - (content.bounds.maxX - 10)) < 1)
-      let fixedWidths = try await webView.evaluateJavaScript(
-        """
-        (() => {
-          const pane = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--doc-pane-width') || '460');
-          return ['.source','.preview'].every(s => Math.abs(document.querySelector('#doc '+s).getBoundingClientRect().width - pane) < 1);
-        })()
-        """)
-      #expect(fixedWidths as? Bool == true)
-    }
+    try await Task.sleep(for: .milliseconds(100))
     #expect(controller.webHost.webView === webView)
     #expect(webView.window === controller.panel)
   }

@@ -1,6 +1,5 @@
 import CoreGraphics
 import Testing
-
 @testable import DevBarCore
 
 @Test func enlargedPanelStaysInsideTopRightOf13InchScreen() {
@@ -63,17 +62,17 @@ import Testing
   let twoWithSidebar = PanelLayout.documentPanelSize(
     enlarged: false, split: false, sidebar: true, visibleFrame: wide)
   #expect(twoWithSidebar.sidebarWidth == PanelLayout.sidebarWidth)
-  #expect(twoWithSidebar.panelSize.width == 480 + PanelLayout.sidebarWidth + 0.7)
+  #expect(twoWithSidebar.panelSize.width == 480 + PanelLayout.sidebarWidth)
 
   let twoSplit = PanelLayout.documentPanelSize(
     enlarged: false, split: true, sidebar: false, visibleFrame: wide)
   #expect(twoSplit.sidebarWidth == 0)
-  #expect(twoSplit.panelSize.width == 942)
+  #expect(twoSplit.panelSize.width == 960)
 
   let threePanes = PanelLayout.documentPanelSize(
     enlarged: false, split: true, sidebar: true, visibleFrame: wide)
   #expect(threePanes.sidebarWidth == PanelLayout.sidebarWidth)
-  #expect(threePanes.panelSize.width == 942 + PanelLayout.sidebarWidth + 0.7)
+  #expect(threePanes.panelSize.width == 960 + PanelLayout.sidebarWidth)
 
   for narrowWidth in [CGFloat(1024), 760, 560] {
     let narrow = CGRect(x: 0, y: 0, width: narrowWidth, height: 700)

@@ -26,9 +26,10 @@ struct PanelView: View {
   var body: some View {
     let scheme = theme.effective
     let _ = theme.increaseContrast
+    let showsSidebar = model.page == .doc && model.documentSidebarVisible && !model.dropActive
     HStack(spacing: 0) {
       HStack(spacing: 0) {
-        if model.page == .doc {
+        if showsSidebar {
           DocumentSidebarView(
             theme: theme, session: documents, width: model.documentSidebarWidth,
             onOpen: { model.onOpenDocument?($0) },
@@ -41,10 +42,7 @@ struct PanelView: View {
             .padding(.vertical, 10)
         }
       }
-      .frame(
-        width: model.page == .doc && !model.dropActive ? model.documentSidebarPresentationWidth : 0,
-        alignment: .leading
-      )
+      .frame(width: showsSidebar ? model.documentSidebarWidth + 0.7 : 0)
       .clipped()
       mainColumn(scheme)
     }
@@ -86,7 +84,7 @@ struct PanelView: View {
     .padding(.horizontal, 10)
     .padding(.top, 12)
     .padding(.bottom, 10)
-    .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
   private func refreshTitleShortcut() {
@@ -601,18 +599,16 @@ private struct WebViewBox: NSViewRepresentable {
     }
   }
 
-  func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSView, context: Context) -> CGSize? {
-    guard let width = proposal.width, let height = proposal.height else { return nil }
-    return CGSize(width: max(0, width), height: max(0, height))
-  }
-
   private func mount(_ view: NSView, in container: NSView) {
-    view.translatesAutoresizingMaskIntoConstraints = true
-    view.autoresizingMask = [.width, .height]
-    view.frame = container.bounds
+    view.translatesAutoresizingMaskIntoConstraints = false
     container.addSubview(view)
+    NSLayoutConstraint.activate([
+      view.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+      view.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+      view.topAnchor.constraint(equalTo: container.topAnchor),
+      view.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+    ])
   }
-
 }
 
 extension PanelModel.Page {

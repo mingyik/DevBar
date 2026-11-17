@@ -54,7 +54,6 @@ export class DocPage {
   private infoTimer: ReturnType<typeof setTimeout> | undefined;
   private renderKey = "";
   private released = false;
-  private layoutReadyAt = 0;
   private scrollSource: "editor" | "preview" | null = null;
   private pending: Promise<void> = Promise.resolve();
   private toggle: HTMLButtonElement;
@@ -115,7 +114,7 @@ export class DocPage {
               this.shell.preview.clientWidth > 0
             )
               void this.render();
-          }, 260);
+          }, 80);
         }
       }).observe(shell.preview);
     }
@@ -322,7 +321,6 @@ export class DocPage {
     if (!this.previewAllowed && mode !== "source") return;
     if (mode === this.display) return;
     this.display = mode;
-    this.layoutReadyAt = performance.now() + 260;
     this.shell.setDisplay(mode);
     this.updateControls();
     this.shell.onStateChange();
@@ -332,7 +330,6 @@ export class DocPage {
   private cycleDisplayMode() {
     if (!this.previewAllowed) return;
     this.display = nextDisplayMode(this.display);
-    this.layoutReadyAt = performance.now() + 260;
     this.shell.setDisplay(this.display);
     this.updateControls();
     this.shell.onStateChange();
@@ -403,12 +400,6 @@ export class DocPage {
   }
   async render() {
     this.released = false;
-    while (performance.now() < this.layoutReadyAt) {
-      await new Promise<void>((resolve) =>
-        setTimeout(resolve, this.layoutReadyAt - performance.now()),
-      );
-      if (this.released) return;
-    }
     if (!this.previewAllowed) return;
     if (!this.locked) this.setMode(detectDocMode(this.shell.text));
     this.shell.preview.classList.toggle(

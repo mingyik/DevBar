@@ -133,13 +133,6 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     return true
   }
 
-  private var documentPaneWidth: CGFloat = 460
-  func setDocumentPaneWidth(_ width: CGFloat) {
-    guard width != documentPaneWidth else { return }
-    documentPaneWidth = width
-    send(type: "doc.layout", payload: ["paneWidth": .number(Double(width))])
-  }
-
   func toggleDocumentMode() { send(type: "doc.toggleMode", payload: [:]) }
 
   func cycleDocumentMode() { send(type: "doc.cycleMode", payload: [:]) }
@@ -294,7 +287,6 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       ready = true
       let reply = readyPayload()
       flushPending()
-      send(type: "doc.layout", payload: ["paneWidth": .number(Double(documentPaneWidth))])
       applyContrast()
       return reply
     case "input.check":
