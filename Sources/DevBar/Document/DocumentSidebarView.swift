@@ -13,13 +13,15 @@ struct DocumentSidebarView: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 0) {
-      recentHeader
+      section(Strings.documentRecentSection)
       recentList
       if !session.drafts.isEmpty {
         divider
         section(Strings.documentUnsavedSection)
         draftList
       }
+      Spacer(minLength: 12)
+      chooseFileButton
     }
     .padding(.horizontal, 10)
     .padding(.top, 12)
@@ -37,21 +39,16 @@ struct DocumentSidebarView: View {
       .frame(height: 24, alignment: .leading)
   }
 
-  private var recentHeader: some View {
-    HStack(spacing: 6) {
-      section(Strings.documentRecentSection)
-      Spacer(minLength: 0)
-      Button(action: onPick) {
-        Image(systemName: "folder").devbarIconColor(scheme)
-          .font(.system(size: 13))
-          .foregroundStyle(DesignTokens.textSecondary(scheme))
-          .frame(width: 22, height: 22)
-      }
-      .buttonStyle(.plain)
-      .help(Strings.documentChooseFile)
-      .accessibilityLabel(Strings.documentChooseFile)
-      .padding(.trailing, 8)
+  private var chooseFileButton: some View {
+    Button(action: onPick) {
+      Image(systemName: "folder").devbarIconColor(scheme)
+        .font(.system(size: 13))
+        .frame(width: 24, height: 24)
     }
+    .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
+    .help(Strings.documentChooseFile)
+    .accessibilityLabel(Strings.documentChooseFile)
+    .padding(.leading, 8)
   }
 
   private var recentList: some View {
