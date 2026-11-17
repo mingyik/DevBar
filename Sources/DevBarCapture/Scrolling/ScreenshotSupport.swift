@@ -157,6 +157,34 @@ enum ScreenshotSupport {
     case unmatched
   }
 
+  /// A repaint (window activation, scrollbar fade) changes a few text runs
+  /// while the rest of the viewport stays put. Treating that as a jump locks a
+  /// capture that has only one remembered viewport, so a majority of stable
+  /// tiles is enough to call the viewport stationary.
+  static func scrollingSamplesAreMostlyStable(
+    _ previous: ScrollingSample,
+    _ current: ScrollingSample,
+    contentColumns: Range<Int>? = nil,
+    tolerance: Double = 4,
+    minimumStableFraction: Double = 0.75
+  ) -> Bool {
+    guard previous.isValid, current.isValid,
+      previous.width == current.width,
+      previous.height == current.height
+    else { return false }
+    let columns = contentColumns ?? 0..<previous.width
+    guard columns.lowerBound >= 0,
+      columns.upperBound <= previous.width,
+      !columns.isEmpty
+    else { return false }
+    let tiles = scrollingColumnTiles(in: columns, sampleWidth: previous.width)
+    guard tiles.count >= 2 else { return false }
+    let stable = tiles.filter {
+      scrollingDifference(previous, current, columns: $0) <= tolerance
+    }.count
+    return Double(stable) / Double(tiles.count) >= minimumStableFraction
+  }
+
   static func scrollingSamplesAreStable(
     _ previous: ScrollingSample,
     _ current: ScrollingSample,
@@ -240,6 +268,7 @@ enum ScreenshotSupport {
       if informative.count <= 32 {
         selected = informative.map { ($0, $0..<($0 + 1)) }
       } else {
+        guard !tiles.isEmpty else { return .unmatched }
         let perTile = max(1, 32 / tiles.count)
         func movement(_ column: Int) -> Int {
           var difference = 0
@@ -261,19 +290,24 @@ enum ScreenshotSupport {
           }.prefix(perTile).map(\.column).sorted().map { ($0, tile) }
         }
       }
+      // A 33...63 px selection makes one tile per column, so the pick above
+      // can exceed 32 and recurse forever. The follow-up search must stay
+      // at or below 32 columns.
+      let chosen = Array(selected.prefix(32))
+      guard !chosen.isEmpty else { return .unmatched }
       func compact(_ sample: ScrollingSample) -> ScrollingSample {
         var pixels = [UInt8]()
-        pixels.reserveCapacity(selected.count * sample.height)
+        pixels.reserveCapacity(chosen.count * sample.height)
         for row in 0..<sample.height {
           let start = row * sample.width
-          for selection in selected { pixels.append(sample.pixels[start + selection.column]) }
+          for selection in chosen { pixels.append(sample.pixels[start + selection.column]) }
         }
-        return .init(width: selected.count, height: sample.height, pixels: pixels)
+        return .init(width: chosen.count, height: sample.height, pixels: pixels)
       }
       let transition = scrollingTransition(previous: compact(previous), current: compact(current))
       if case .advanced(let overlap, let direction, let matched) = transition {
-        let lower = selected[matched.lowerBound].bounds.lowerBound
-        let upper = selected[matched.upperBound - 1].bounds.upperBound
+        let lower = chosen[matched.lowerBound].bounds.lowerBound
+        let upper = chosen[matched.upperBound - 1].bounds.upperBound
         return .advanced(
           overlap: overlap, direction: direction,
           contentColumns: lower..<upper)
@@ -810,22 +844,6 @@ enum ScreenshotSupport {
       matchingRows: matchingRows,
       comparedRows: rowCount,
       difference: Double(totalDifference) / Double(rowCount * columns.count))
-  }
-
-  static func scrollingPixelRange(
-    sampleColumns: Range<Int>,
-    sampleWidth: Int,
-    imageWidth: Int
-  ) -> Range<Int>? {
-    guard sampleWidth > 0, imageWidth > 0,
-      sampleColumns.lowerBound >= 0,
-      sampleColumns.upperBound <= sampleWidth,
-      !sampleColumns.isEmpty
-    else { return nil }
-    let lower = sampleColumns.lowerBound * imageWidth / sampleWidth
-    let upper = (sampleColumns.upperBound * imageWidth + sampleWidth - 1) / sampleWidth
-    guard lower >= 0, upper <= imageWidth, lower < upper else { return nil }
-    return lower..<upper
   }
 
 }

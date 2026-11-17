@@ -109,7 +109,10 @@ public enum ScreenshotScrollingCapture {
     }
   ) async -> Result {
     do {
-      guard let firstFrame = await nextFrame(), let first = contentFrame(firstFrame) else {
+      guard let firstFrame = await nextFrame(),
+        let first = contentFrame(firstFrame),
+        first.width == Int(region.pixelRect.width)
+      else {
         return Task.isCancelled ? .cancelled : .failed
       }
       guard heightLimit > 0, first.height <= heightLimit,
@@ -650,8 +653,7 @@ public enum ScreenshotScrollingCapture {
 
   /// ScreenCaptureKit can pad a region with a transparent edge row. Keeping
   /// that row in each appended strip produces a dark seam in image viewers.
-  /// Remove only fully transparent outer rows/columns before matching, so the
-  /// overlap and strip coordinates describe the same actual screen pixels.
+  /// Side columns stay: the stitched width is the selection width.
   private static func contentFrame(_ image: CGImage) -> CGImage? {
     if [.none, .noneSkipFirst, .noneSkipLast].contains(image.alphaInfo) { return image }
     let width = image.width
@@ -673,8 +675,6 @@ public enum ScreenshotScrollingCapture {
     guard drawn else { return nil }
     var top = 0
     var bottom = height
-    var left = 0
-    var right = width
     while top < bottom && alpha[(top * width)..<((top + 1) * width)].allSatisfy({ $0 == 0 }) {
       top += 1
     }
@@ -682,15 +682,8 @@ public enum ScreenshotScrollingCapture {
       bottom -= 1
     }
     guard top < bottom else { return nil }
-    while left < right && (top..<bottom).allSatisfy({ alpha[$0 * width + left] == 0 }) {
-      left += 1
-    }
-    while right > left && (top..<bottom).allSatisfy({ alpha[$0 * width + right - 1] == 0 }) {
-      right -= 1
-    }
-    guard left < right else { return nil }
-    if top == 0 && bottom == height && left == 0 && right == width { return image }
-    return image.cropping(to: CGRect(x: left, y: top, width: right - left, height: bottom - top))
+    if top == 0 && bottom == height { return image }
+    return image.cropping(to: CGRect(x: 0, y: top, width: width, height: bottom - top))
   }
 
   private static func sample(_ image: CGImage) -> ScreenshotSupport.ScrollingSample? {
@@ -788,7 +781,8 @@ public enum ScreenshotScrollingCapture {
     guard !Task.isCancelled else { return nil }
     guard let first = slices.first else { return nil }
     guard slices.count > 1 else { return first }
-    let width = slices.map(\.width).min() ?? first.width
+    let width = first.width
+    guard slices.allSatisfy({ $0.width == width }) else { return nil }
     let height = slices.reduce(0) { $0 + $1.height }
     guard
       let context = CGContext(
@@ -881,7 +875,8 @@ public enum ScreenshotScrollingCapture {
       switch anchors.verified(
         matching: content, columns: columns, minimumOverlap: minimumOverlap)
       {
-      case .position(let verified): return Located(position: verified, direction: direction)
+      case .position(let verified):
+        return Located(position: verified, direction: direction)
       case .ambiguous, .unavailable:
         if let revisit = exactSingleAnchorRevisit(
           anchors: anchors, content: content, columns: columns)
@@ -898,6 +893,8 @@ public enum ScreenshotScrollingCapture {
       // jump: adopting the current position avoids stalling the capture.
       if ScreenshotSupport.scrollingSamplesAreStable(
         anchor, content, contentColumns: columns, tolerance: 4)
+        || ScreenshotSupport.scrollingSamplesAreMostlyStable(
+          anchor, content, contentColumns: columns, tolerance: 4)
       {
         return Located(position: anchorTop, direction: nil)
       }
@@ -907,7 +904,8 @@ public enum ScreenshotScrollingCapture {
     switch anchors.verified(
       matching: content, columns: columns, minimumOverlap: minimumOverlap)
     {
-    case .position(let top): return Located(position: top, direction: nil)
+    case .position(let top):
+      return Located(position: top, direction: nil)
     case .ambiguous, .unavailable:
       if let revisit = exactSingleAnchorRevisit(
         anchors: anchors, content: content, columns: columns)

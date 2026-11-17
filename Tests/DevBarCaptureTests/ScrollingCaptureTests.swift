@@ -455,6 +455,93 @@ private func testRegion() throws -> CaptureRegion {
   #expect(image.width == 64)
 }
 
+private func selectionRegion(width: CGFloat, windowID: CGWindowID? = nil) throws -> CaptureRegion {
+  try CaptureRegion(
+    displayID: 1,
+    globalRect: CGRect(x: 12, y: 18, width: width, height: 120),
+    screenFrame: CGRect(x: 0, y: 0, width: 800, height: 600),
+    scale: 1,
+    windowID: windowID)
+}
+
+private func frameWithSideAlpha(offset: Int, width: Int) -> CGImage {
+  let height = 120
+  let context = CGContext(
+    data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+    space: CGColorSpaceCreateDeviceRGB(),
+    bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+  for row in 0..<height {
+    for col in 0..<width {
+      let edge = col < 4 || col >= width - 4
+      let y = row + offset
+      let value = CGFloat((y * 17 + col * 31 + (y / 7) * 13) % 251) / 255
+      if edge {
+        context.setFillColor(CGColor(gray: 0, alpha: 40.0 / 255))  // devbar:allow-color
+      } else {
+        context.setFillColor(CGColor(gray: value, alpha: 1))  // devbar:allow-color
+      }
+      context.fill(CGRect(x: col, y: row, width: 1, height: 1))
+    }
+  }
+  return context.makeImage()!
+}
+
+@MainActor @Test func scrollingKeepsSelectionWidthIncludingWindowEdges() async throws {
+  for width in [48, 96] {
+    let region = try selectionRegion(width: CGFloat(width), windowID: 7)
+    let frames = Frames([
+      frameWithSideAlpha(offset: 0, width: width),
+      frameWithSideAlpha(offset: 42, width: width),
+    ])
+    let result = await ScreenshotScrollingCapture.captureFrames(
+      region: region, finishSignal: .init(),
+      onProgress: { _, _ in }, nextFrame: { await frames.next() })
+    guard case .partial(let image) = result else {
+      Issue.record("expected a stitched image at the selection width")
+      return
+    }
+    #expect(image.width == Int(region.pixelRect.width))
+    #expect(image.width == width)
+    #expect(image.height > 120)
+  }
+}
+
+private func repaintedBand(_ image: CGImage, columns: Range<Int>) -> CGImage {
+  let width = image.width
+  let height = image.height
+  let context = CGContext(
+    data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+    space: CGColorSpaceCreateDeviceRGB(),
+    bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue)!
+  context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+  context.setFillColor(CGColor(red: 0, green: 0, blue: 0, alpha: 1))  // devbar:allow-color
+  context.fill(
+    CGRect(x: columns.lowerBound, y: 0, width: columns.count, height: height))
+  return context.makeImage()!
+}
+
+@MainActor @Test func scrollingTreatsATransientRepaintAsStationary() async throws {
+  // Window activation repaints a narrow band while the viewport stays put.
+  // That must not lock the capture; the next real movement has to append.
+  let base = frame(offset: 0)
+  let frames = Frames([
+    base,
+    repaintedBand(base, columns: 16..<24),
+    repaintedBand(frame(offset: 42), columns: 16..<24),
+  ])
+  var sawUnmatched = false
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(),
+    onProgress: { _, unmatched in if unmatched { sawUnmatched = true } },
+    nextFrame: { await frames.next() })
+  guard case .partial(let image) = result else {
+    Issue.record("expected retained pixels when the source ends")
+    return
+  }
+  #expect(!sawUnmatched)
+  #expect(image.height == 162)
+}
+
 @MainActor @Test func scrollingRecoversWhileReversingDirection() async throws {
   let frames = Frames(
     [frame(offset: 84), frame(offset: 42)]
