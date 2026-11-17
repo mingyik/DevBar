@@ -69,7 +69,7 @@ private final class CaptureHUDState {
         self.stopEscapeMonitor()
       }
       guard await self.panel.prepareForCapture() else { return }
-      if scrolling { self.startEscapeMonitor() }
+      self.startEscapeMonitor()
       do {
         let selection = SelectionOverlay(
           appearanceName: self.panel.theme.appearance()?.name,
@@ -179,8 +179,8 @@ private final class CaptureHUDState {
     hud?.orderOut(nil)
   }
 
-  /// Esc exits an in-progress long capture from any app. The hot key is only
-  /// registered while a long capture is active, so other apps keep their Esc.
+  /// Esc cancels either screenshot mode, including text editing and selection.
+  /// Register only during a capture; defer removes it on every exit path.
   private func startEscapeMonitor() {
     guard escapeTask == nil else { return }
     escapeTask = Task { [weak self] in
