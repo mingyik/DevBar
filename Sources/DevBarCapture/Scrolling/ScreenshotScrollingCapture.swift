@@ -177,10 +177,7 @@ public enum ScreenshotScrollingCapture {
             region: region,
             hasUnmatchedContent: hasUnmatchedContent)
         }
-        if now - startedAt
-          >= ScreenshotSupport.scrollingCaptureMaximumDuration
-          || capturedFrames >= frameLimit
-        {
+        if capturedFrames >= frameLimit {
           await flushStalePreview(now: now, force: true)
           return completed(
             slices: contentWithHeader(),
