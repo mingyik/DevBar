@@ -47,7 +47,7 @@
   --capture-toolbarIcon: rgba(0, 0, 0, 1);
   --markdown-text-body: rgba(96, 97, 94, 1);
   --markdown-text-heading: rgba(0, 143, 147, 1);
-  --markdown-text-link: rgba(168, 92, 0, 1);
+  --markdown-text-link: rgba(57, 122, 64, 1);
   --markdown-text-quote: rgba(231, 33, 24, 1);
   --markdown-text-strong: rgba(168, 92, 0, 1);
   --markdown-text-emphasis: rgba(120, 163, 0, 1);
@@ -106,7 +106,7 @@
   --capture-toolbarIcon: rgba(255, 255, 255, 1);
   --markdown-text-body: rgba(215, 219, 217, 1);
   --markdown-text-heading: rgba(100, 203, 205, 1);
-  --markdown-text-link: rgba(242, 162, 107, 1);
+  --markdown-text-link: rgba(142, 196, 145, 1);
   --markdown-text-quote: rgba(231, 115, 115, 1);
   --markdown-text-strong: rgba(242, 162, 107, 1);
   --markdown-text-emphasis: rgba(190, 205, 121, 1);

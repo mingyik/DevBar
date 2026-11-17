@@ -437,11 +437,11 @@ enum DesignTokens {
   static func markdownTextLink(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 168.0 / 255, green: 92.0 / 255, blue: 0, opacity: 1)
+      return Color(red: 57.0 / 255, green: 122.0 / 255, blue: 64.0 / 255, opacity: 1)
     case .dark:
-      return Color(red: 242.0 / 255, green: 162.0 / 255, blue: 107.0 / 255, opacity: 1)
+      return Color(red: 142.0 / 255, green: 196.0 / 255, blue: 145.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 168.0 / 255, green: 92.0 / 255, blue: 0, opacity: 1)
+      return Color(red: 57.0 / 255, green: 122.0 / 255, blue: 64.0 / 255, opacity: 1)
     }
   }
 
