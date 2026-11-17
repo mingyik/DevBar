@@ -48,6 +48,7 @@ enum ScreenshotCaptureEngine {
     }
 
     var queuedFrameCount: Int { sink?.queuedCount ?? 0 }
+    var droppedFrameCount: Int { sink?.droppedCount ?? 0 }
 
     func wake() {
       sink?.wake()
@@ -66,17 +67,16 @@ enum ScreenshotCaptureEngine {
   }
 
   private final class FrameSink: NSObject, SCStreamOutput, @unchecked Sendable {
-    /// A few seconds of 20 fps frames. Matching has to be able to drain this
-    /// before a scroll-back is discarded.
-    static let maximumQueuedFrames = 48
+    /// Release CVPixelBuffers immediately so ScreenCaptureKit's pool never
+    /// stalls, and bound queued CGImages by count and total pixel budget.
+    static let maximumQueuedFrames = 24
+    static let maximumQueuedPixels = 60_000_000
     let queue = DispatchQueue(label: "local.devbar.scrolling.frames")
     private let lock = NSLock()
-    private enum Frame: @unchecked Sendable {
-      case buffer(CVPixelBuffer)
-      case image(CGImage)
-    }
-    private var frames: [Frame] = []
-    private var waiters: [CheckedContinuation<Frame?, Never>] = []
+    private var frames: [CGImage] = []
+    private var queuedPixels = 0
+    private var droppedFrames = 0
+    private var waiters: [CheckedContinuation<CGImage?, Never>] = []
     private var lastImage: CGImage?
     private var stopped = false
     private let context = CIContext(options: [.useSoftwareRenderer: false])
@@ -87,6 +87,12 @@ enum ScreenshotCaptureEngine {
       return frames.count
     }
 
+    var droppedCount: Int {
+      lock.lock()
+      defer { lock.unlock() }
+      return droppedFrames
+    }
+
     func stream(
       _ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer,
       of outputType: SCStreamOutputType
@@ -94,28 +100,55 @@ enum ScreenshotCaptureEngine {
       guard outputType == .screen, sampleBuffer.isValid,
         let buffer = CMSampleBufferGetImageBuffer(sampleBuffer)
       else { return }
+      let framePixels = CVPixelBufferGetWidth(buffer) * CVPixelBufferGetHeight(buffer)
       lock.lock()
+      let canQueue =
+        !stopped
+        && (!waiters.isEmpty
+          || (frames.count < Self.maximumQueuedFrames
+            && (frames.isEmpty || queuedPixels + framePixels <= Self.maximumQueuedPixels)))
+      if !canQueue {
+        if !stopped { droppedFrames += 1 }
+        lock.unlock()
+        return
+      }
+      lock.unlock()
+
+      let ciImage = CIImage(cvPixelBuffer: buffer)
+      guard let rendered = context.createCGImage(ciImage, from: ciImage.extent) else { return }
+
+      lock.lock()
+      guard !stopped else {
+        lock.unlock()
+        return
+      }
+      lastImage = rendered
       if !waiters.isEmpty {
         let waiter = waiters.removeFirst()
         lock.unlock()
-        waiter.resume(returning: .buffer(buffer))
+        waiter.resume(returning: rendered)
         return
       }
       // Keep the oldest unprocessed frames. Dropping them skips the path the
       // stitcher has not reached yet, so a later scroll-back cannot fill the gap.
-      guard frames.count < Self.maximumQueuedFrames else {
+      guard frames.count < Self.maximumQueuedFrames,
+        frames.isEmpty || queuedPixels + framePixels <= Self.maximumQueuedPixels
+      else {
+        droppedFrames += 1
         lock.unlock()
         return
       }
-      frames.append(.buffer(buffer))
+      frames.append(rendered)
+      queuedPixels += framePixels
       lock.unlock()
     }
 
     func nextImage(wait: Bool) async -> CGImage? {
-      let frame: Frame? = await withCheckedContinuation { continuation in
+      await withCheckedContinuation { continuation in
         lock.lock()
         if !frames.isEmpty {
           let frame = frames.removeFirst()
+          queuedPixels = max(0, queuedPixels - frame.width * frame.height)
           lock.unlock()
           continuation.resume(returning: frame)
         } else if stopped || !wait {
@@ -126,24 +159,6 @@ enum ScreenshotCaptureEngine {
           lock.unlock()
         }
       }
-      guard let frame else { return nil }
-      switch frame {
-      case .buffer(let buffer):
-        let ciImage = CIImage(cvPixelBuffer: buffer)
-        guard let rendered = context.createCGImage(ciImage, from: ciImage.extent) else {
-          return nil
-        }
-        storeLastImage(rendered)
-        return rendered
-      case .image(let image):
-        return image
-      }
-    }
-
-    private func storeLastImage(_ image: CGImage) {
-      lock.lock()
-      lastImage = image
-      lock.unlock()
     }
 
     func wake() {
@@ -163,9 +178,10 @@ enum ScreenshotCaptureEngine {
       if !waiters.isEmpty {
         let waiter = waiters.removeFirst()
         lock.unlock()
-        waiter.resume(returning: .image(lastImage))
+        waiter.resume(returning: lastImage)
       } else {
-        frames.append(.image(lastImage))
+        frames.append(lastImage)
+        queuedPixels += lastImage.width * lastImage.height
         lock.unlock()
       }
     }
@@ -176,6 +192,7 @@ enum ScreenshotCaptureEngine {
       let pending = waiters
       waiters.removeAll()
       frames.removeAll()
+      queuedPixels = 0
       lastImage = nil
       lock.unlock()
       for waiter in pending { waiter.resume(returning: nil) }
@@ -221,7 +238,7 @@ enum ScreenshotCaptureEngine {
     configuration.showsCursor = false
     configuration.colorSpaceName = CGColorSpace.sRGB
     if streaming {
-      configuration.minimumFrameInterval = CMTime(value: 1, timescale: 20)
+      configuration.minimumFrameInterval = CMTime(value: 1, timescale: 30)
       configuration.queueDepth = 8
       configuration.pixelFormat = kCVPixelFormatType_32BGRA
     }

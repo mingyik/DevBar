@@ -982,20 +982,46 @@ public enum ScreenshotScrollingCapture {
     let width = image.width
     let height = image.height
     guard width > 0, height > 0 else { return nil }
-    var alpha = [UInt8](repeating: 0, count: width * height)
-    let drawn = alpha.withUnsafeMutableBytes { bytes -> Bool in
-      guard
-        let context = CGContext(
-          data: bytes.baseAddress, width: width, height: height,
-          bitsPerComponent: 8, bytesPerRow: width,
-          space: CGColorSpaceCreateDeviceGray(),
-          bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue)
-      else { return false }
-      context.interpolationQuality = .none
-      context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
-      return true
+    func alphaRows(y: Int, rows: Int) -> [UInt8]? {
+      guard rows > 0, let strip = image.cropping(to: CGRect(x: 0, y: y, width: width, height: rows))
+      else { return nil }
+      var alpha = [UInt8](repeating: 0, count: width * rows)
+      let drawn = alpha.withUnsafeMutableBytes { bytes -> Bool in
+        guard
+          let context = CGContext(
+            data: bytes.baseAddress, width: width, height: rows,
+            bitsPerComponent: 8, bytesPerRow: width,
+            space: CGColorSpaceCreateDeviceGray(),
+            bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue)
+        else { return false }
+        context.interpolationQuality = .none
+        context.draw(strip, in: CGRect(x: 0, y: 0, width: width, height: rows))
+        return true
+      }
+      return drawn ? alpha : nil
     }
-    guard drawn else { return nil }
+    let edgeCheck = min(4, height)
+    if height > edgeCheck * 2,
+      let topAlpha = alphaRows(y: 0, rows: edgeCheck),
+      let bottomAlpha = alphaRows(y: height - edgeCheck, rows: edgeCheck)
+    {
+      var top = 0
+      while top < edgeCheck && topAlpha[(top * width)..<((top + 1) * width)].allSatisfy({ $0 == 0 }) {
+        top += 1
+      }
+      var bottomOffset = edgeCheck
+      while bottomOffset > 0
+        && bottomAlpha[((bottomOffset - 1) * width)..<(bottomOffset * width)].allSatisfy({ $0 == 0 })
+      {
+        bottomOffset -= 1
+      }
+      if top < edgeCheck && bottomOffset > 0 {
+        let bottom = height - (edgeCheck - bottomOffset)
+        if top == 0 && bottom == height { return image }
+        return image.cropping(to: CGRect(x: 0, y: top, width: width, height: bottom - top))
+      }
+    }
+    guard let alpha = alphaRows(y: 0, rows: height) else { return nil }
     var top = 0
     var bottom = height
     while top < bottom && alpha[(top * width)..<((top + 1) * width)].allSatisfy({ $0 == 0 }) {
