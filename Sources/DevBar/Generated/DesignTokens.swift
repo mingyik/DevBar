@@ -522,6 +522,17 @@ enum DesignTokens {
     }
   }
 
+  static func markdownTableLine(_ scheme: ColorScheme) -> Color {
+    switch scheme {
+    case .light:
+      return Color(red: 176.0 / 255, green: 176.0 / 255, blue: 176.0 / 255, opacity: 1)
+    case .dark:
+      return Color(red: 106.0 / 255, green: 106.0 / 255, blue: 106.0 / 255, opacity: 1)
+    @unknown default:
+      return Color(red: 176.0 / 255, green: 176.0 / 255, blue: 176.0 / 255, opacity: 1)
+    }
+  }
+
   static func markdownLine(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
