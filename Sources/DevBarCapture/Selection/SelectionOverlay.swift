@@ -210,6 +210,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
   }
   private var largeArrow = false
   private var editingArrow: (index: Int, start: Bool, fixed: CGPoint)?
+  private var resizingMark: (index: Int, origin: CGRect, edge: ResizeEdge)?
   private var mosaicBrush = true
   private var optionsBar: NSVisualEffectView?
   private var marks: [(String, NSBezierPath, NSColor, CGFloat)] = []
@@ -303,7 +304,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
   private func drawObjectSelection() {
     var points: [CGPoint] = []
     var box: CGRect?
-    if let draft, tool == "rect" || tool == "ellipse" || (tool == "mosaic" && !mosaicBrush) {
+    if let draft, isResizableBoxKind(drawingKind) {
       points = objectHandles(draft.bounds)
     } else if let index = selectedMark, marks.indices.contains(index) {
       let (kind, path, _, _) = marks[index]
@@ -313,7 +314,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
         _ = path.element(at: 0, associatedPoints: &first)
         _ = path.element(at: 1, associatedPoints: &last)
         points = [first[0], last[0]]
-      } else if kind == "rect" || kind == "ellipse" || kind == "mosaicRect" {
+      } else if isResizableBoxKind(kind) {
         points = objectHandles(path.bounds)
       } else if kind != "mosaic" {
         box = path.bounds.insetBy(dx: -5, dy: -5)
@@ -378,6 +379,39 @@ final class SelectionView: NSView, NSTextFieldDelegate {
       CGPoint(x: rect.maxX, y: rect.maxY), CGPoint(x: rect.midX, y: rect.maxY),
       CGPoint(x: rect.minX, y: rect.maxY), CGPoint(x: rect.minX, y: rect.midY),
     ]
+  }
+
+  private func isResizableBoxKind(_ kind: String) -> Bool {
+    kind == "rect" || kind == "ellipse" || kind == "mosaicRect"
+  }
+
+  private func markResizeEdge(for rect: CGRect, at point: CGPoint) -> ResizeEdge? {
+    let edges: [ResizeEdge] = [
+      ResizeEdge(left: true, right: false, bottom: true, top: false),
+      ResizeEdge(left: false, right: false, bottom: true, top: false),
+      ResizeEdge(left: false, right: true, bottom: true, top: false),
+      ResizeEdge(left: false, right: true, bottom: false, top: false),
+      ResizeEdge(left: false, right: true, bottom: false, top: true),
+      ResizeEdge(left: false, right: false, bottom: false, top: true),
+      ResizeEdge(left: true, right: false, bottom: false, top: true),
+      ResizeEdge(left: true, right: false, bottom: false, top: false),
+    ]
+    for (handle, edge) in zip(objectHandles(rect), edges) {
+      if hypot(point.x - handle.x, point.y - handle.y) < 9 {
+        return edge
+      }
+    }
+    return nil
+  }
+
+  private func isArrowHandleHovered(for path: NSBezierPath, at point: CGPoint) -> Bool {
+    guard path.elementCount >= 2 else { return false }
+    var start = [NSPoint](repeating: .zero, count: 3)
+    var end = start
+    _ = path.element(at: 0, associatedPoints: &start)
+    _ = path.element(at: 1, associatedPoints: &end)
+    return hypot(point.x - start[0].x, point.y - start[0].y) < 9
+      || hypot(point.x - end[0].x, point.y - end[0].y) < 9
   }
 
   private func textRect(text: String, origin: CGPoint, wrapWidth: CGFloat, fontSize: CGFloat)
@@ -755,10 +789,13 @@ final class SelectionView: NSView, NSTextFieldDelegate {
   }
 
   private func layoutTextField(_ field: NSTextField) {
+    guard !selection.isEmpty else { return }
     let font = field.font ?? .systemFont(ofSize: fontSize)
     let text = field.currentEditor()?.string ?? field.stringValue
-    let minWidth = max(60, ceil(fontSize * 3.2))
-    let maxWidth = max(minWidth, selection.maxX - field.frame.minX)
+    let availableWidth = max(1, selection.width)
+    let minWidth = min(availableWidth, max(60, ceil(fontSize * 3.2)))
+    let originX = max(selection.minX, min(field.frame.minX, selection.maxX - minWidth))
+    let maxWidth = max(minWidth, selection.maxX - originX)
     let contentWidth = (text as NSString).size(withAttributes: [.font: font]).width
     let width = min(maxWidth, max(minWidth, ceil(contentWidth) + 16))
     let sample = text.isEmpty ? " " : text
@@ -766,11 +803,12 @@ final class SelectionView: NSView, NSTextFieldDelegate {
       with: CGSize(width: max(1, width - 12), height: .greatestFiniteMagnitude),
       options: [.usesLineFragmentOrigin, .usesFontLeading],
       attributes: [.font: font])
-    let minHeight = ceil(fontSize * 1.4 + 8)
-    let height = max(minHeight, ceil(bounding.height) + 8)
+    let availableHeight = max(1, selection.height)
+    let minHeight = min(availableHeight, ceil(fontSize * 1.4 + 8))
+    let height = min(availableHeight, max(minHeight, ceil(bounding.height) + 8))
     let topY = min(field.frame.maxY, selection.maxY)
     let originY = max(selection.minY, topY - height)
-    field.frame = NSRect(x: field.frame.minX, y: originY, width: width, height: height)
+    field.frame = NSRect(x: originX, y: originY, width: width, height: height)
   }
 
   func controlTextDidChange(_ obj: Notification) {
@@ -842,6 +880,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
     texts.removeAll()
     selectedMark = nil
     selectedText = nil
+    resizingMark = nil
     needsDisplay = true
   }
   override var acceptsFirstResponder: Bool { true }
@@ -957,6 +996,10 @@ final class SelectionView: NSView, NSTextFieldDelegate {
       NSCursor.arrow.set()
       return
     }
+    if let edit = resizingMark {
+      resizeCursor(for: edit.edge).set()
+      return
+    }
     if editingArrow != nil || draggingTextIndex != nil || draggingMarkIndex != nil {
       NSCursor.closedHand.set()
       return
@@ -975,6 +1018,17 @@ final class SelectionView: NSView, NSTextFieldDelegate {
     if selection.isEmpty {
       NSCursor.crosshair.set()
       return
+    }
+    if let index = selectedMark, marks.indices.contains(index) {
+      let (kind, path, _, _) = marks[index]
+      if kind.hasPrefix("arrow"), isArrowHandleHovered(for: path, at: point) {
+        NSCursor.pointingHand.set()
+        return
+      }
+      if isResizableBoxKind(kind), let edge = markResizeEdge(for: path.bounds, at: point) {
+        resizeCursor(for: edge).set()
+        return
+      }
     }
     if let edge = selectionResizeEdge(at: point), tool == "select" || !selection.contains(point) {
       resizeCursor(for: edge).set()
@@ -1022,14 +1076,25 @@ final class SelectionView: NSView, NSTextFieldDelegate {
         if hypot(point.x - start[0].x, point.y - start[0].y) < 9 {
           editingArrow = (index, true, end[0])
           anchor = point
+          updateCursor(at: point)
           return
         }
         if hypot(point.x - end[0].x, point.y - end[0].y) < 9 {
           editingArrow = (index, false, start[0])
           anchor = point
+          updateCursor(at: point)
           return
         }
       }
+    }
+    if let index = selectedMark, marks.indices.contains(index),
+      isResizableBoxKind(marks[index].0),
+      let edge = markResizeEdge(for: marks[index].1.bounds, at: point)
+    {
+      resizingMark = (index, marks[index].1.bounds, edge)
+      anchor = point
+      updateCursor(at: point)
+      return
     }
     anchor = point
     if !selection.isEmpty && !selection.insetBy(dx: -9, dy: -9).contains(point) {
@@ -1085,16 +1150,17 @@ final class SelectionView: NSView, NSTextFieldDelegate {
       field.wantsLayer = true
       field.layer?.cornerRadius = 4
       field.layer?.borderWidth = 2
+      field.layer?.masksToBounds = true
       field.layer?.borderColor = NSColor.systemBlue.cgColor  // devbar:allow-color
       field.target = self
       field.action = #selector(commitText(_:))
-      let minWidth = max(60, ceil(fontSize * 3.2))
-      let startX = min(point.x, max(selection.minX, selection.maxX - minWidth))
-      let minHeight = ceil(fontSize * 1.4 + 8)
+      let availableWidth = max(1, selection.width)
+      let minWidth = min(availableWidth, max(60, ceil(fontSize * 3.2)))
+      let startX = max(selection.minX, min(point.x, selection.maxX - minWidth))
+      let availableHeight = max(1, selection.height)
+      let minHeight = min(availableHeight, ceil(fontSize * 1.4 + 8))
       let startY = max(selection.minY, min(point.y, selection.maxY - minHeight))
-      field.frame = NSRect(
-        x: startX, y: startY, width: min(minWidth, max(1, selection.maxX - startX)),
-        height: minHeight)
+      field.frame = NSRect(x: startX, y: startY, width: minWidth, height: minHeight)
       layoutTextField(field)
       addSubview(field)
       window?.makeFirstResponder(field)
@@ -1162,6 +1228,26 @@ final class SelectionView: NSView, NSTextFieldDelegate {
       return
     }
     guard let anchor else { return }
+    if let edit = resizingMark {
+      let clamped = CGPoint(
+        x: min(max(point.x, selection.minX), selection.maxX),
+        y: min(max(point.y, selection.minY), selection.maxY))
+      var left = edit.origin.minX
+      var right = edit.origin.maxX
+      var bottom = edit.origin.minY
+      var top = edit.origin.maxY
+      if edit.edge.left { left = max(selection.minX, min(clamped.x, right - 4)) }
+      if edit.edge.right { right = min(selection.maxX, max(clamped.x, left + 4)) }
+      if edit.edge.bottom { bottom = max(selection.minY, min(clamped.y, top - 4)) }
+      if edit.edge.top { top = min(selection.maxY, max(clamped.y, bottom + 4)) }
+      let rect = CGRect(x: left, y: bottom, width: right - left, height: top - bottom)
+      let kind = marks[edit.index].0
+      marks[edit.index].1 =
+        kind == "ellipse" ? NSBezierPath(ovalIn: rect) : NSBezierPath(rect: rect)
+      needsDisplay = true
+      updateCursor(at: point)
+      return
+    }
     if let edit = editingArrow {
       let clamped = CGPoint(
         x: min(max(point.x, selection.minX), selection.maxX),
@@ -1256,6 +1342,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
     }
     anchor = nil
     editingArrow = nil
+    resizingMark = nil
     draggingTextIndex = nil
     draggingMarkIndex = nil
     dragStartPoint = nil
