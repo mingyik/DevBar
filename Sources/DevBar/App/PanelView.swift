@@ -13,6 +13,7 @@ struct PanelView: View {
   var webHost: WebHost
   var clipboard: ClipboardController
   @Bindable var storage: StorageSettings
+  @Bindable var documents: DocumentSession
   @State private var draggedPage: PanelModel.Page?
   @State private var pageFrames: [PanelModel.Page: CGRect] = [:]
   @State private var pageDragLocation: CGPoint?
@@ -25,6 +26,39 @@ struct PanelView: View {
   var body: some View {
     let scheme = theme.effective
     let _ = theme.increaseContrast
+    let showsSidebar = model.page == .doc && model.documentSidebarVisible && !model.dropActive
+    HStack(spacing: 0) {
+      HStack(spacing: 0) {
+        if showsSidebar {
+          DocumentSidebarView(
+            theme: theme, session: documents, width: model.documentSidebarWidth,
+            onOpen: { model.onOpenDocument?($0) },
+            onOpenDraft: { model.onOpenDocumentDraft?($0) },
+            onPick: { model.onPickDocument?() }
+          )
+          Rectangle()
+            .fill(DesignTokens.lineDivider(scheme))
+            .frame(width: 0.7)
+            .padding(.vertical, 10)
+        }
+      }
+      .frame(width: showsSidebar ? model.documentSidebarWidth + 0.7 : 0)
+      .clipped()
+      mainColumn(scheme)
+    }
+    .animation(.easeInOut(duration: 0.15), value: model.dropActive)
+    .onDrop(of: [.fileURL], delegate: PanelFileDrop(model: model))
+    .background { PanelChrome(theme: theme, scheme: scheme) }
+    .clipShape(panelShape)
+    .environment(\.colorScheme, scheme)
+    .onAppear(perform: refreshTitleShortcut)
+    .onChange(of: model.page) { _, _ in refreshTitleShortcut() }
+    .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+      refreshTitleShortcut()
+    }
+  }
+
+  private func mainColumn(_ scheme: ColorScheme) -> some View {
     VStack(spacing: 0) {
       if model.dropActive {
         HStack {
@@ -47,19 +81,10 @@ struct PanelView: View {
           .foregroundStyle(DesignTokens.textSecondary(scheme)).lineLimit(1)
       }
     }
-    .animation(.easeInOut(duration: 0.15), value: model.dropActive)
     .padding(.horizontal, 10)
     .padding(.top, 12)
     .padding(.bottom, 10)
-    .onDrop(of: [.fileURL], delegate: PanelFileDrop(model: model))
-    .background { PanelChrome(theme: theme, scheme: scheme) }
-    .clipShape(panelShape)
-    .environment(\.colorScheme, scheme)
-    .onAppear(perform: refreshTitleShortcut)
-    .onChange(of: model.page) { _, _ in refreshTitleShortcut() }
-    .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
-      refreshTitleShortcut()
-    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
   private func refreshTitleShortcut() {

@@ -4,6 +4,7 @@ import SwiftUI
 struct DocumentSidebarView: View {
   let theme: ThemeManager
   @Bindable var session: DocumentSession
+  var width: CGFloat = 240
   let onOpen: (URL) -> Void
   let onOpenDraft: (String) -> Void
   let onPick: () -> Void
@@ -23,7 +24,7 @@ struct DocumentSidebarView: View {
     .padding(.horizontal, 10)
     .padding(.top, 12)
     .padding(.bottom, 10)
-    .frame(width: 260)
+    .frame(width: width)
     .frame(maxHeight: .infinity, alignment: .top)
     .environment(\.colorScheme, scheme)
   }

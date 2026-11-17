@@ -1,3 +1,4 @@
+import DevBarCore
 import SwiftUI
 
 @MainActor @Observable
@@ -73,8 +74,13 @@ final class PanelModel {
   var dropActive = false
   var dropDocument = false
   var documentSidebarVisible = false
+  var documentSplit = false
+  var documentSidebarWidth: CGFloat = PanelLayout.sidebarWidth
   @ObservationIgnored var fileDrop: FileDropCoordinator?
   @ObservationIgnored var onToggleDocumentSidebar: (() -> Void)?
+  @ObservationIgnored var onOpenDocument: ((URL) -> Void)?
+  @ObservationIgnored var onOpenDocumentDraft: ((String) -> Void)?
+  @ObservationIgnored var onPickDocument: (() -> Void)?
   var toast = ""
   #if DEBUG
     var showsWebViewForSelfCheck =

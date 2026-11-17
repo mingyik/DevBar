@@ -2,7 +2,6 @@ import { isolateHistory } from "@codemirror/commands";
 import {
   documentHistory,
   documentMetadata,
-  isCurrentDocumentMessage,
   metadataField,
   sourceText,
 } from "./state";
@@ -54,10 +53,12 @@ export class DocPage {
   private infoTimer: ReturnType<typeof setTimeout> | undefined;
   private renderKey = "";
   private released = false;
+  private scrollSource: "editor" | "preview" | null = null;
   private pending: Promise<void> = Promise.resolve();
   private toggle: HTMLButtonElement;
   private saveButton: HTMLButtonElement;
-  private contextAction: HTMLButtonElement;
+  private clearButton: HTMLButtonElement;
+  private exportButton: HTMLButtonElement;
   readonly shell: PageShell;
   constructor(shell: PageShell) {
     this.shell = shell;
@@ -70,23 +71,22 @@ export class DocPage {
       ),
     );
     this.toggle = iconButton("preview", () => {
-      void this.cycleDisplayMode();
+      this.cycleDisplayMode();
     });
     shell.actions.append(this.toggle);
     this.saveButton = iconButton("save", () => {
       void this.save();
     });
     this.saveButton.classList.add("save-button");
-    this.contextAction = iconButton("clear", () => {
-      if (shell.mode === "preview") {
-        void this.export();
-      } else {
-        shell.replace("", "devbar.clear");
-        this.locked = false;
-        this.setMode("markdown");
-      }
+    this.clearButton = iconButton("clear", () => {
+      shell.replace("", "devbar.clear");
+      this.locked = false;
+      this.setMode("markdown");
     });
-    shell.fixed.append(this.saveButton, this.contextAction);
+    this.exportButton = iconButton("exportImage", () => {
+      void this.export();
+    });
+    shell.fixed.append(this.saveButton, this.clearButton, this.exportButton);
     shell.preview.classList.add("prose");
     if (typeof ResizeObserver !== "undefined") {
       new ResizeObserver(() => {
@@ -111,6 +111,12 @@ export class DocPage {
     }
     bindPreviewLinks(shell.preview, (url) => {
       void post("link.open", { url });
+    });
+    shell.view.scrollDOM.addEventListener("scroll", () => {
+      this.syncSplitScroll("editor");
+    });
+    shell.preview.addEventListener("scroll", () => {
+      this.syncSplitScroll("preview");
     });
     shell.preview.addEventListener("click", (event) => {
       const button = (event.target as Element).closest<HTMLButtonElement>(
@@ -157,6 +163,22 @@ export class DocPage {
     return document.documentElement.dataset.theme === "dark"
       ? ("dark" as const)
       : ("light" as const);
+  }
+  private syncSplitScroll(origin: "editor" | "preview") {
+    if (this.display !== "split") return;
+    if (this.scrollSource && this.scrollSource !== origin) return;
+    const from =
+      origin === "editor" ? this.shell.view.scrollDOM : this.shell.preview;
+    const to =
+      origin === "editor" ? this.shell.preview : this.shell.view.scrollDOM;
+    const fromMax = from.scrollHeight - from.clientHeight;
+    const toMax = to.scrollHeight - to.clientHeight;
+    if (fromMax <= 0 || toMax <= 0) return;
+    this.scrollSource = origin;
+    to.scrollTop = Math.round((from.scrollTop / fromMax) * toMax);
+    requestAnimationFrame(() => {
+      if (this.scrollSource === origin) this.scrollSource = null;
+    });
   }
   private setMode(mode: DocMode) {
     this.mode = mode;
@@ -224,9 +246,7 @@ export class DocPage {
     this.documentID = documentId;
     this.updateControls();
     this.emitMode();
-    this.shell.showPreview(
-      this.display === "preview" || this.display === "split",
-    );
+    this.shell.setDisplay(this.display);
     if (this.display === "preview" || this.display === "split")
       void this.render();
   }
@@ -247,18 +267,11 @@ export class DocPage {
           : strings.modeEdit,
     );
     this.toggle.hidden = !this.previewAllowed;
-    setIcon(
-      this.contextAction,
-      this.display === "preview" || this.display === "split"
-        ? "exportImage"
-        : "clear",
-    );
-    setButtonLabel(
-      this.contextAction,
-      this.display === "preview" || this.display === "split"
-        ? strings.exportImage
-        : strings.clear,
-    );
+    this.clearButton.hidden = this.display === "preview";
+    this.exportButton.hidden =
+      this.display === "source" || !this.previewAllowed;
+    setButtonLabel(this.clearButton, strings.clear);
+    setButtonLabel(this.exportButton, strings.exportImage);
     const dirty = this.dirty();
     this.saveButton.disabled = !dirty || this.saveInProgress;
     setButtonLabel(this.saveButton, strings.saveDocument);
@@ -291,38 +304,21 @@ export class DocPage {
     if (!this.previewAllowed && mode !== "source") return;
     if (mode === this.display) return;
     this.display = mode;
-    this.shell.showPreview(mode === "preview" || mode === "split");
+    this.shell.setDisplay(mode);
     this.updateControls();
     this.shell.onStateChange();
     this.emitMode();
     if (mode === "preview" || mode === "split") void this.render();
-    else this.shell.view.focus();
   }
-  private async cycleDisplayMode() {
+  private cycleDisplayMode() {
     if (!this.previewAllowed) return;
-    if (this.display === "split") {
-      const reply = await post("doc.flushEditor", {
-        documentId: this.documentID,
-      });
-      if (
-        reply.ok !== true ||
-        typeof reply.text !== "string" ||
-        (reply.documentId ?? null) !== this.documentID
-      )
-        return;
-      this.applyEditorText(reply.text, this.documentID);
-    }
     this.display = nextDisplayMode(this.display);
-    this.shell.showPreview(
-      this.display === "preview" || this.display === "split",
-    );
+    this.shell.setDisplay(this.display);
     this.updateControls();
     this.shell.onStateChange();
     this.emitMode();
     if (this.display === "preview" || this.display === "split") {
       void this.render();
-    } else {
-      this.shell.view.focus();
     }
   }
   private emitMode() {
@@ -339,17 +335,6 @@ export class DocPage {
       if (this.display === "preview" || this.display === "split")
         void this.render();
     }, 140);
-  }
-  applyEditorText(text: string, documentId: string | null = null) {
-    if (!isCurrentDocumentMessage(this.documentID, documentId)) return;
-    if (this.text() === text) return;
-    this.shell.view.dispatch({
-      changes: { from: 0, to: this.shell.view.state.doc.length, insert: text },
-      annotations: Transaction.addToHistory.of(false),
-      userEvent: "devbar.sync",
-    });
-    this.renderKey = "";
-    if (this.display === "split") void this.render();
   }
   documentMode() {
     return this.mode;
@@ -378,11 +363,6 @@ export class DocPage {
         if (typeof reply.fileName === "string")
           this.shell.fileName = reply.fileName;
         this.updateMetadata();
-        if (
-          typeof reply.currentText === "string" &&
-          reply.currentText !== this.text()
-        )
-          this.applyEditorText(reply.currentText, this.documentID);
         this.shell.updateInfo();
       } else if (reply.status === "externalChanged") {
         this.showMessage(strings.saveExternalChanged);
@@ -398,8 +378,8 @@ export class DocPage {
       this.updateControls();
     }
   }
-  async togglePreview() {
-    await this.cycleDisplayMode();
+  togglePreview() {
+    this.cycleDisplayMode();
   }
   async render() {
     this.released = false;
@@ -468,13 +448,12 @@ export class DocPage {
   async export() {
     if (!this.previewAllowed) return;
     const restoreSource = this.display === "source";
-    if (restoreSource) this.shell.showPreview(true);
+    if (restoreSource) this.shell.setDisplay("preview");
     await this.render();
     await this.pending;
     await exportPreview(this.shell);
     if (restoreSource) {
-      this.shell.showPreview(false);
-      this.shell.view.focus();
+      this.shell.setDisplay("source");
     }
   }
   documentStatus(textOverride?: string | null) {
@@ -550,10 +529,7 @@ export class DocPage {
           : "";
     this.documentID =
       typeof state.documentId === "string" ? state.documentId : null;
-    this.shell.showPreview(
-      this.previewAllowed &&
-        (this.display === "preview" || this.display === "split"),
-    );
+    this.shell.setDisplay(this.previewAllowed ? this.display : "source");
     this.updateControls();
     this.emitMode();
     if (
