@@ -137,16 +137,30 @@ struct PanelView: View {
       }
       Spacer(minLength: 8)
       if model.page == .doc {
-        actionButton(
-          model.documentDisplay == "source"
-            ? "eye" : model.documentDisplay == "preview" ? "rectangle.split.2x1" : "pencil",
-          label: model.documentDisplay == "source"
-            ? Strings.documentPreview
-            : model.documentDisplay == "preview" ? Strings.documentSplit : Strings.documentEdit,
-          scheme: scheme
-        ) {
+        Button {
           webHost.cycleDocumentMode()
+        } label: {
+          Group {
+            if model.documentDisplay == "split" {
+              Image(nsImage: AppIcons.documentEdit).resizable().frame(width: 16, height: 16)
+            } else {
+              Image(systemName: model.documentDisplay == "source" ? "eye" : "rectangle.split.2x1")
+                .font(.system(size: 13))
+            }
+          }
+          .devbarIconColor(scheme)
+          .frame(width: 24, height: 24)
         }
+        .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
+        .help(
+          model.documentDisplay == "source"
+            ? Strings.documentPreview
+            : model.documentDisplay == "preview" ? Strings.documentSplit : Strings.documentEdit
+        )
+        .accessibilityLabel(
+          model.documentDisplay == "source"
+            ? Strings.documentPreview
+            : model.documentDisplay == "preview" ? Strings.documentSplit : Strings.documentEdit)
       }
       actionButton(model.pinned ? "pin.fill" : "pin.slash", label: Strings.pin, scheme: scheme) {
         model.pinned.toggle()

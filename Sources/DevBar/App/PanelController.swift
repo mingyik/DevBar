@@ -568,14 +568,14 @@ final class PanelController {
     documentMode = resolved
     model.documentDisplay = resolved
     model.documentSplit = resolved == "split"
-    if changed { reposition(animated: true) }
+    if changed { reposition(animated: false) }
   }
 
   private func toggleDocumentSidebar() {
     guard panel.isVisible, model.page == .doc else { return }
     documents.pruneMissingRecent()
     model.documentSidebarVisible.toggle()
-    reposition(animated: true)
+    reposition(animated: false)
   }
 
   func openDocument(_ url: URL) async {

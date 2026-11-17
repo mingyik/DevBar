@@ -17,6 +17,18 @@ import AppKit
     return image
   }
 
+  static var documentEdit: NSImage {
+    let installed = Bundle.main.resourceURL?.appending(path: "DevBar_DevBar.bundle")
+    let resources = installed.flatMap(Bundle.init(url:)) ?? Bundle.module
+    let url = resources.url(
+      forResource: "edit", withExtension: "svg",
+      subdirectory: "Assets.xcassets/DocumentEdit.imageset")
+    let image =
+      url.flatMap { NSImage(contentsOf: $0) } ?? NSImage(size: NSSize(width: 24, height: 24))
+    image.isTemplate = true
+    return image
+  }
+
   static var settings: NSImage {
     let installed = Bundle.main.resourceURL?.appending(path: "DevBar_DevBar.bundle")
     let resources = installed.flatMap(Bundle.init(url:)) ?? Bundle.module
