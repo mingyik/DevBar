@@ -598,6 +598,9 @@ import Testing
       let container = try #require(webView.superview)
       #expect(abs(webView.frame.width - container.bounds.width) < 1)
       #expect(abs(webView.frame.height - container.bounds.height) < 1)
+      let content = try #require(controller.panel.contentView)
+      let rect = container.convert(container.bounds, to: content)
+      #expect(abs(rect.maxX - (content.bounds.maxX - 10)) < 1)
     }
     #expect(controller.webHost.webView === webView)
     #expect(webView.window === controller.panel)

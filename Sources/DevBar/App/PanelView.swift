@@ -26,7 +26,6 @@ struct PanelView: View {
   var body: some View {
     let scheme = theme.effective
     let _ = theme.increaseContrast
-    let showsSidebar = model.page == .doc && model.documentSidebarVisible && !model.dropActive
     HStack(spacing: 0) {
       HStack(spacing: 0) {
         if model.page == .doc {
@@ -42,13 +41,11 @@ struct PanelView: View {
             .padding(.vertical, 10)
         }
       }
-      .frame(width: showsSidebar ? model.documentSidebarWidth + 0.7 : 0, alignment: .leading)
-      .clipped()
-      .animation(
-        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-          ? nil : .easeInOut(duration: 0.22),
-        value: showsSidebar
+      .frame(
+        width: model.page == .doc && !model.dropActive ? model.documentSidebarPresentationWidth : 0,
+        alignment: .leading
       )
+      .clipped()
       mainColumn(scheme)
     }
     .animation(.easeInOut(duration: 0.15), value: model.dropActive)
