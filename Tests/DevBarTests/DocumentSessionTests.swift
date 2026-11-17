@@ -73,3 +73,21 @@ import Testing
   session.adopt(again)
   #expect(session.recent == [urls[1], urls[3], urls[2]])
 }
+
+@MainActor @Test func missingRecentDocumentsAreHiddenAndPruned() throws {
+  let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: root) }
+  let existing = root.appending(path: "keep.md")
+  let missing = root.appending(path: "gone.md")
+  try Data("hello".utf8).write(to: existing)
+  let defaults = UserDefaults(suiteName: UUID().uuidString)!
+  defaults.set([missing.path, existing.path], forKey: "recentDocumentPaths")
+  let session = DocumentSession(defaults: defaults)
+  #expect(session.recent == [existing])
+  try FileManager.default.removeItem(at: existing)
+  #expect(session.recentEntries.isEmpty)
+  session.pruneMissingRecent()
+  #expect(session.recent.isEmpty)
+  #expect(defaults.stringArray(forKey: "recentDocumentPaths") == [])
+}

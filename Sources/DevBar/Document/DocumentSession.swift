@@ -78,7 +78,9 @@ final class DocumentSession {
     var unique: [URL] = []
     for path in paths {
       let url = URL(fileURLWithPath: path).standardizedFileURL
-      guard supportedExtensions.contains(url.pathExtension.lowercased()) else { continue }
+      guard supportedExtensions.contains(url.pathExtension.lowercased()),
+        FileManager.default.fileExists(atPath: url.path)
+      else { continue }
       if !unique.contains(url) { unique.append(url) }
     }
     recent = Array(unique.prefix(RecentDocuments.limit))
@@ -88,9 +90,14 @@ final class DocumentSession {
   }
 
   var recentEntries: [(url: URL, exists: Bool)] {
-    recent.map {
-      ($0, FileManager.default.fileExists(atPath: $0.path))
-    }
+    recent.filter { FileManager.default.fileExists(atPath: $0.path) }.map { ($0, true) }
+  }
+
+  func pruneMissingRecent() {
+    let existing = recent.filter { FileManager.default.fileExists(atPath: $0.path) }
+    guard existing != recent else { return }
+    recent = existing
+    defaults.set(recent.map(\.path), forKey: Self.recentKey)
   }
 
   func read(_ file: URL) async -> Result<OpenedDocument, DocumentOpenError> {

@@ -571,6 +571,7 @@ final class PanelController {
 
   private func toggleDocumentSidebar() {
     guard panel.isVisible, model.page == .doc else { return }
+    documents.pruneMissingRecent()
     model.documentSidebarVisible.toggle()
     reposition(animated: false)
   }
@@ -586,10 +587,12 @@ final class PanelController {
     logger.notice("documentOpen read done")
     switch result {
     case .failure(let error):
+      documents.pruneMissingRecent()
       model.toast = Strings.fileDropError(Self.dropReason(error))
     case .success(let opened):
       guard await stashCurrentDocumentDraft() else { return }
       documents.adopt(opened)
+      model.toast = ""
       model.page = .doc
       webHost.importDocument(opened)
       if opened.mode == nil {
@@ -611,6 +614,7 @@ final class PanelController {
     else { return }
 
     model.page = .doc
+    model.toast = ""
     documentMode = draft.display
     model.documentSplit = draft.display == "split"
     reposition(animated: false)
