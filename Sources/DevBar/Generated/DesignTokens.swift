@@ -426,22 +426,22 @@ enum DesignTokens {
   static func markdownTextHeading(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 254.0 / 255, green: 150.0 / 255, blue: 0, opacity: 1)
+      return Color(red: 0, green: 143.0 / 255, blue: 147.0 / 255, opacity: 1)
     case .dark:
-      return Color(red: 242.0 / 255, green: 162.0 / 255, blue: 107.0 / 255, opacity: 1)
+      return Color(red: 100.0 / 255, green: 203.0 / 255, blue: 205.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 254.0 / 255, green: 150.0 / 255, blue: 0, opacity: 1)
+      return Color(red: 0, green: 143.0 / 255, blue: 147.0 / 255, opacity: 1)
     }
   }
 
   static func markdownTextLink(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 71.0 / 255, green: 132.0 / 255, blue: 190.0 / 255, opacity: 1)
+      return Color(red: 168.0 / 255, green: 92.0 / 255, blue: 0, opacity: 1)
     case .dark:
-      return Color(red: 140.0 / 255, green: 178.0 / 255, blue: 204.0 / 255, opacity: 1)
+      return Color(red: 242.0 / 255, green: 162.0 / 255, blue: 107.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 71.0 / 255, green: 132.0 / 255, blue: 190.0 / 255, opacity: 1)
+      return Color(red: 168.0 / 255, green: 92.0 / 255, blue: 0, opacity: 1)
     }
   }
 
@@ -459,11 +459,11 @@ enum DesignTokens {
   static func markdownTextStrong(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 0, green: 173.0 / 255, blue: 178.0 / 255, opacity: 1)
+      return Color(red: 168.0 / 255, green: 92.0 / 255, blue: 0, opacity: 1)
     case .dark:
-      return Color(red: 140.0 / 255, green: 205.0 / 255, blue: 198.0 / 255, opacity: 1)
+      return Color(red: 242.0 / 255, green: 162.0 / 255, blue: 107.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 0, green: 173.0 / 255, blue: 178.0 / 255, opacity: 1)
+      return Color(red: 168.0 / 255, green: 92.0 / 255, blue: 0, opacity: 1)
     }
   }
 

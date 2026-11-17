@@ -46,10 +46,10 @@
   --capture-toolbarBorder: rgba(0, 0, 0, 0.22);
   --capture-toolbarIcon: rgba(0, 0, 0, 1);
   --markdown-text-body: rgba(96, 97, 94, 1);
-  --markdown-text-heading: rgba(254, 150, 0, 1);
-  --markdown-text-link: rgba(71, 132, 190, 1);
+  --markdown-text-heading: rgba(0, 143, 147, 1);
+  --markdown-text-link: rgba(168, 92, 0, 1);
   --markdown-text-quote: rgba(231, 33, 24, 1);
-  --markdown-text-strong: rgba(0, 173, 178, 1);
+  --markdown-text-strong: rgba(168, 92, 0, 1);
   --markdown-text-emphasis: rgba(120, 163, 0, 1);
   --markdown-text-inline-code: rgba(96, 97, 94, 1);
   --markdown-surface-code: rgba(235, 235, 235, 1);
@@ -105,10 +105,10 @@
   --capture-toolbarBorder: rgba(255, 255, 255, 0.24);
   --capture-toolbarIcon: rgba(255, 255, 255, 1);
   --markdown-text-body: rgba(215, 219, 217, 1);
-  --markdown-text-heading: rgba(242, 162, 107, 1);
-  --markdown-text-link: rgba(140, 178, 204, 1);
+  --markdown-text-heading: rgba(100, 203, 205, 1);
+  --markdown-text-link: rgba(242, 162, 107, 1);
   --markdown-text-quote: rgba(231, 115, 115, 1);
-  --markdown-text-strong: rgba(140, 205, 198, 1);
+  --markdown-text-strong: rgba(242, 162, 107, 1);
   --markdown-text-emphasis: rgba(190, 205, 121, 1);
   --markdown-text-inline-code: rgba(215, 219, 217, 1);
   --markdown-surface-code: rgba(52, 56, 60, 1);
