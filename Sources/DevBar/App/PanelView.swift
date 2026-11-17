@@ -136,6 +136,18 @@ struct PanelView: View {
         }.buttonStyle(.plain).onHover { titleHovered = $0 }
       }
       Spacer(minLength: 8)
+      if model.page == .doc {
+        actionButton(
+          model.documentDisplay == "source"
+            ? "eye" : model.documentDisplay == "preview" ? "rectangle.split.2x1" : "pencil",
+          label: model.documentDisplay == "source"
+            ? Strings.documentPreview
+            : model.documentDisplay == "preview" ? Strings.documentSplit : Strings.documentEdit,
+          scheme: scheme
+        ) {
+          webHost.cycleDocumentMode()
+        }
+      }
       actionButton(model.pinned ? "pin.fill" : "pin.slash", label: Strings.pin, scheme: scheme) {
         model.pinned.toggle()
       }

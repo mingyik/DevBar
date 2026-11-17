@@ -266,7 +266,7 @@ export class DocPage {
           ? strings.modeSplit
           : strings.modeEdit,
     );
-    this.toggle.hidden = !this.previewAllowed;
+    this.toggle.hidden = true; // Mode control lives in the native title bar.
     if (this.display === "split") {
       this.exportButton.classList.add("split-preview-export");
       this.shell.content.append(this.exportButton);

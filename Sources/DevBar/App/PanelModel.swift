@@ -75,6 +75,7 @@ final class PanelModel {
   var dropDocument = false
   var documentSidebarVisible = false
   var documentSplit = false
+  var documentDisplay = "source"
   var documentSidebarWidth: CGFloat = PanelLayout.sidebarWidth
   @ObservationIgnored var fileDrop: FileDropCoordinator?
   @ObservationIgnored var onToggleDocumentSidebar: (() -> Void)?

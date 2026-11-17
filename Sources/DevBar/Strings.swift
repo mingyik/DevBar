@@ -1,6 +1,9 @@
 import DevBarCore
 
 enum Strings {
+  static let documentPreview = "预览"
+  static let documentSplit = "编辑并预览"
+  static let documentEdit = "编辑"
   static let historyLimitTitle = "历史记录上限"
   static let historyLimitPlaceholder = "3-30"
   static let systemSettingsButton = "系统设置"

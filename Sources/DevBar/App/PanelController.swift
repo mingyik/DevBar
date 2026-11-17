@@ -565,6 +565,7 @@ final class PanelController {
     guard documentID == documents.documentID else { return }
     let changed = documentMode != resolved
     documentMode = resolved
+    model.documentDisplay = resolved
     model.documentSplit = resolved == "split"
     if changed { reposition(animated: false) }
   }
@@ -598,6 +599,7 @@ final class PanelController {
       if opened.mode == nil {
         documentMode = "source"
       }
+      model.documentDisplay = documentMode
       model.documentSplit = documentMode == "split"
       reposition(animated: false)
     }
@@ -616,6 +618,7 @@ final class PanelController {
     model.page = .doc
     model.toast = ""
     documentMode = draft.display
+    model.documentDisplay = draft.display
     model.documentSplit = draft.display == "split"
     reposition(animated: false)
   }

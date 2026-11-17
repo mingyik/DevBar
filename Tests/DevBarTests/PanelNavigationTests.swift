@@ -576,6 +576,7 @@ import Testing
     try await Task.sleep(for: .milliseconds(50))
   }
   #expect(controller.model.documentSplit)
+  #expect(controller.model.documentDisplay == "split")
   for _ in 0..<2 {
     controller.model.onToggleDocumentSidebar?()
     try await Task.sleep(for: .milliseconds(100))
