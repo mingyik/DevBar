@@ -30,6 +30,37 @@ import os
     CGFloat(pixels) / (scale > 0 ? scale : 2)
   }
 
+  func chooseExportWidth(
+    page: String, initialWidth: Double, html: String, css: String,
+    theme: String, background: String, screen: NSScreen?
+  ) async -> String {
+    guard page == "doc", initialWidth.isFinite, initialWidth > 0, !html.isEmpty,
+      let screen = screen ?? NSScreen.main
+    else { return #"{"status":"failed"}"# }
+
+    let visible = screen.visibleFrame
+    let maximumWidth = min(1200, visible.width - 40)
+    guard maximumWidth > 0 else { return #"{"status":"failed"}"# }
+    let width = min(CGFloat(initialWidth), maximumWidth)
+    let height = min(820, max(240, visible.height - 80))
+    let panel = PreviewExportPanel(
+      document: Self.snapshotDocument(
+        html: html, css: css, theme: theme, background: background),
+      width: width, maximumWidth: maximumWidth, height: height,
+      visibleFrame: visible, theme: theme)
+
+    switch await panel.chooseWidth() {
+    case .cancelled:
+      return #"{"status":"cancelled"}"#
+    case .failed:
+      return #"{"status":"failed"}"#
+    case .confirmed(let selectedWidth):
+      return BridgeJSON.object([
+        "status": .string("selected"), "width": .number(Double(selectedWidth)),
+      ]).canonical()
+    }
+  }
+
   func releaseMemory() {
     guard !busy else {
       releaseWhenIdle = true

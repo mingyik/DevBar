@@ -47,7 +47,7 @@ export async function exportPreview(
       document.documentElement.dataset.size === "large",
     );
   }
-  // A4 width at 96 CSS dpi; PNG is still rendered at 2x.
+  // Markdown starts at A4 width at 96 CSS dpi; PNG is rendered at 2×.
   root.style.width = `${shell.kind === "doc" ? 794 : shell.content.clientWidth}px`;
   root.append(
     ...(content
@@ -59,8 +59,36 @@ export async function exportPreview(
   document.body.append(root);
   try {
     await document.fonts.ready;
-    const width = root.getBoundingClientRect().width,
-      height = root.scrollHeight;
+    let width = root.getBoundingClientRect().width;
+    const theme =
+        document.documentElement.dataset.theme === "dark" ? "dark" : "light",
+      background = getComputedStyle(document.documentElement)
+        .getPropertyValue("--snapshot-background")
+        .trim(),
+      css = collectCSS();
+
+    if (shell.kind === "doc") {
+      const previewRoot = root.cloneNode(true) as HTMLElement;
+      previewRoot.classList.remove("snapshot-measure");
+      previewRoot.style.width = "100%";
+      const choice = await post("preview.chooseExportWidth", {
+        page: shell.kind,
+        width,
+        html: previewRoot.outerHTML,
+        css,
+        theme,
+        background,
+      });
+      if (choice.status === "cancelled") return;
+      if (choice.status !== "selected" || typeof choice.width !== "number") {
+        shell.updateInfo(strings.imageFailed);
+        return;
+      }
+      width = choice.width;
+      root.style.width = `${width}px`;
+    }
+
+    const height = root.scrollHeight;
     if (!imageDimensions(width, height)) {
       shell.updateInfo(strings.imageTooLarge);
       return;
@@ -71,12 +99,9 @@ export async function exportPreview(
       width,
       height,
       html: root.outerHTML,
-      css: collectCSS(),
-      theme:
-        document.documentElement.dataset.theme === "dark" ? "dark" : "light",
-      background: getComputedStyle(document.documentElement)
-        .getPropertyValue("--snapshot-background")
-        .trim(),
+      css,
+      theme,
+      background,
     });
     if (result.status === "saved" && typeof result.path === "string") {
       shell.updateInfo();
