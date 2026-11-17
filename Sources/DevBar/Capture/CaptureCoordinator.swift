@@ -95,6 +95,12 @@ private final class CaptureHUDState {
             onPreview: { [weak self] image in
               self?.state.preview = NSImage(
                 cgImage: image, size: NSSize(width: image.width, height: image.height))
+            },
+            onLimitReached: { [weak self] in
+              guard let self else { return }
+              self.state.message = Strings.captureLimitPaused
+              self.state.unmatched = false
+              self.resizeHUDForProgress()
             }
           ) {
             [weak self] height, unmatched in

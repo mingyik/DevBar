@@ -7,8 +7,13 @@ import Testing
 private actor Frames {
   let images: [CGImage]
   var index = 0
-  init(_ images: [CGImage]) { self.images = images }
-  func next() -> CGImage {
+  let repeatingLast: Bool
+  init(_ images: [CGImage], repeatingLast: Bool = false) {
+    self.images = images
+    self.repeatingLast = repeatingLast
+  }
+  func next() -> CGImage? {
+    guard index < images.count || repeatingLast else { return nil }
     let image = images[min(index, images.count - 1)]
     index += 1
     return image
@@ -206,10 +211,10 @@ private func testRegion() throws -> CaptureRegion {
     func capture(_ offsets: [Int]) async throws -> CGImage {
       let frames = Frames(offsets.map { frame(offset: $0, footer: footer) })
       let result = await ScreenshotScrollingCapture.captureFrames(
-        region: try testRegion(), finishSignal: .init(), frameLimit: offsets.count + 2,
+        region: try testRegion(), finishSignal: .init(),
         onProgress: { _, _ in }, nextFrame: { await frames.next() })
-      guard case .limited(let image) = result else {
-        Issue.record("expected complete retained pixels at frame limit")
+      guard case .partial(let image) = result else {
+        Issue.record("expected complete retained pixels when the source ends")
         throw CaptureError.noImage
       }
       return image
@@ -234,10 +239,10 @@ private func testRegion() throws -> CaptureRegion {
   let frames = Frames([0, 42, 84, 126].map { frame(offset: $0) })
   var previews: [CGImage] = []
   let result = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: .init(), frameLimit: 6,
+    region: try testRegion(), finishSignal: .init(),
     onPreview: { previews.append($0) },
     onProgress: { _, _ in }, nextFrame: { await frames.next() })
-  guard case .limited(let image) = result else {
+  guard case .partial(let image) = result else {
     Issue.record("expected a retained image")
     return
   }
@@ -248,7 +253,7 @@ private func testRegion() throws -> CaptureRegion {
 
 @MainActor @Test func scrollingPreviewCatchesUpBeforeFinishWhileStillRunning() async throws {
   let clock = PreviewClock()
-  let frames = Frames([0, 42, 84, 126].map { frame(offset: $0) })
+  let frames = Frames([0, 42, 84, 126].map { frame(offset: $0) }, repeatingLast: true)
   let finish = ScreenshotScrollingCapture.FinishSignal()
   let region = try testRegion()
   final class State {
@@ -261,7 +266,7 @@ private func testRegion() throws -> CaptureRegion {
   let state = State()
   let capture = Task { @MainActor in
     state.result = await ScreenshotScrollingCapture.captureFrames(
-      region: region, finishSignal: finish, frameLimit: 40,
+      region: region, finishSignal: finish,
       onPreview: { preview in
         state.previews.append(preview.height)
         if preview.height >= 246, state.progressAtFullPreview == nil {
@@ -334,7 +339,7 @@ private func testRegion() throws -> CaptureRegion {
   let frames = Frames([frame(offset: 0, footer: 18), frame(offset: 42, footer: 18)])
   let finish = ScreenshotScrollingCapture.FinishSignal()
   let result = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: finish, frameLimit: 12,
+    region: try testRegion(), finishSignal: finish,
     onProgress: { height, _ in if height > 120 { finish.request() } },
     nextFrame: { await frames.next() })
   guard case .success(let image) = result else {
@@ -349,7 +354,7 @@ private func testRegion() throws -> CaptureRegion {
   let frames = Frames([frame(offset: 0), frame(offset: 0, salt: 111)])
   let finish = ScreenshotScrollingCapture.FinishSignal()
   let result = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: finish, frameLimit: 12,
+    region: try testRegion(), finishSignal: finish,
     onProgress: { _, unmatched in if unmatched { finish.request() } },
     nextFrame: { await frames.next() })
   guard case .partial(let image) = result else {
@@ -375,7 +380,7 @@ private func testRegion() throws -> CaptureRegion {
   var sawUnmatched = false
   var recovered = false
   let result = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: finish, frameLimit: 18,
+    region: try testRegion(), finishSignal: finish,
     onProgress: { height, unmatched in
       if unmatched { sawUnmatched = true }
       if sawUnmatched && height > 120 && !unmatched {
@@ -397,11 +402,11 @@ private func testRegion() throws -> CaptureRegion {
     [frame(offset: 0), frame(offset: 0, salt: 111), frame(offset: 42)])
   var grew = false
   let result = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: .init(), frameLimit: 6,
+    region: try testRegion(), finishSignal: .init(),
     onProgress: { height, _ in if height > 120 { grew = true } },
     nextFrame: { await frames.next() })
   #expect(!grew)
-  guard case .limited(let image) = result else {
+  guard case .partial(let image) = result else {
     Issue.record("expected the initial frame to be retained")
     return
   }
@@ -415,11 +420,11 @@ private func testRegion() throws -> CaptureRegion {
     [frame(offset: 168), frame(offset: 168, salt: 111), frame(offset: 0)])
   var grew = false
   let result = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: .init(), frameLimit: 6,
+    region: try testRegion(), finishSignal: .init(),
     onProgress: { height, _ in if height > 120 { grew = true } },
     nextFrame: { await frames.next() })
   #expect(!grew)
-  guard case .limited(let image) = result else {
+  guard case .partial(let image) = result else {
     Issue.record("expected the alias to be held")
     return
   }
@@ -440,7 +445,7 @@ private func testRegion() throws -> CaptureRegion {
   defer { timeout.cancel() }
   var sawUnmatched = false
   let result = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: finish, frameLimit: 30,
+    region: try testRegion(), finishSignal: finish,
     onProgress: { height, unmatched in
       if unmatched { sawUnmatched = true }
       if height == 246 && !unmatched { finish.request() }
@@ -453,9 +458,9 @@ private func testRegion() throws -> CaptureRegion {
   #expect(image.height == 246)
   let baseline = Frames([0, 42, 84, 126].map { frame(offset: $0) })
   let expected = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: .init(), frameLimit: 6,
+    region: try testRegion(), finishSignal: .init(),
     onProgress: { _, _ in }, nextFrame: { await baseline.next() })
-  guard case .limited(let reference) = expected else {
+  guard case .partial(let reference) = expected else {
     Issue.record("expected baseline image")
     return
   }
@@ -466,18 +471,18 @@ private func testRegion() throws -> CaptureRegion {
   let offsets = [0, 42, 84, 126, 168, 0, 0, 42, 84, 126, 168, 210]
   let frames = Frames(offsets.map { frame(offset: $0) })
   let result = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: .init(), frameLimit: offsets.count + 2,
+    region: try testRegion(), finishSignal: .init(),
     onProgress: { _, _ in }, nextFrame: { await frames.next() })
-  guard case .limited(let image) = result else {
-    Issue.record("expected retained result at frame limit")
+  guard case .partial(let image) = result else {
+    Issue.record("expected retained result when the source ends")
     return
   }
   #expect(image.height == 330)
   let baseline = Frames([0, 42, 84, 126, 168, 210].map { frame(offset: $0) })
   let expected = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: .init(), frameLimit: 8,
+    region: try testRegion(), finishSignal: .init(),
     onProgress: { _, _ in }, nextFrame: { await baseline.next() })
-  guard case .limited(let reference) = expected else {
+  guard case .partial(let reference) = expected else {
     Issue.record("expected baseline image")
     return
   }
@@ -488,9 +493,9 @@ private func testRegion() throws -> CaptureRegion {
   func capture(_ offsets: [Int]) async throws -> CGImage {
     let frames = Frames(offsets.map { frame(offset: $0, footer: 16, header: 14) })
     let result = await ScreenshotScrollingCapture.captureFrames(
-      region: try testRegion(), finishSignal: .init(), frameLimit: offsets.count + 2,
+      region: try testRegion(), finishSignal: .init(),
       onProgress: { _, _ in }, nextFrame: { await frames.next() })
-    guard case .limited(let image) = result else { throw CaptureError.noImage }
+    guard case .partial(let image) = result else { throw CaptureError.noImage }
     return image
   }
   let forward = try await capture([0, 35, 70, 105])
@@ -593,9 +598,9 @@ private func testRegion() throws -> CaptureRegion {
   }
   let frames = Frames(stride(from: 0, through: 560, by: 40).map(repeated))
   let result = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: .init(), frameLimit: 17,
+    region: try testRegion(), finishSignal: .init(),
     onProgress: { _, _ in }, nextFrame: { await frames.next() })
-  guard case .limited(let image) = result else { throw CaptureError.noImage }
+  guard case .partial(let image) = result else { throw CaptureError.noImage }
   #expect(image.height == 680)
 }
 
@@ -643,14 +648,14 @@ private func testRegion() throws -> CaptureRegion {
     var pausedAt: Int?
     var grewAfterPause = false
     let result = await ScreenshotScrollingCapture.captureFrames(
-      region: try testRegion(), finishSignal: .init(), frameLimit: 10,
+      region: try testRegion(), finishSignal: .init(),
       onProgress: { height, unmatched in
         if let pausedAt, height > pausedAt { grewAfterPause = true }
         if unmatched && pausedAt == nil { pausedAt = height }
       }, nextFrame: { await frames.next() })
     #expect(pausedAt != nil)
     #expect(!grewAfterPause)
-    guard case .limited(let image) = result else { throw CaptureError.noImage }
+    guard case .partial(let image) = result else { throw CaptureError.noImage }
     #expect(image.height == pausedAt)
     #expect(image.height == 155)
   }
@@ -664,28 +669,29 @@ private func testRegion() throws -> CaptureRegion {
   var paused = false
   var resumed = false
   let result = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: .init(), frameLimit: 14,
+    region: try testRegion(), finishSignal: .init(),
     onProgress: { height, unmatched in
       if unmatched { paused = true }
       if paused && !unmatched && height > 155 { resumed = true }
     }, nextFrame: { await frames.next() })
   #expect(paused)
   #expect(resumed)
-  guard case .limited(let image) = result else { throw CaptureError.noImage }
+  guard case .partial(let image) = result else { throw CaptureError.noImage }
   #expect(image.height == 295)
   let baseline = Frames([0, 35, 70, 105, 140, 175].map { frame(offset: $0) })
   let expected = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: .init(), frameLimit: 8,
+    region: try testRegion(), finishSignal: .init(),
     onProgress: { _, _ in }, nextFrame: { await baseline.next() })
-  guard case .limited(let reference) = expected else { throw CaptureError.noImage }
+  guard case .partial(let reference) = expected else { throw CaptureError.noImage }
   #expect(image.dataProvider?.data as Data? == reference.dataProvider?.data as Data?)
 }
 
-@Test func scrollingFrameLimitAndCancellation() async throws {
+@MainActor @Test func scrollingHeightLimitAndCancellation() async throws {
   let frames = Frames([frame(offset: 0)])
   let finish = ScreenshotScrollingCapture.FinishSignal()
   let limited = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: finish, frameLimit: 2,
+    region: try testRegion(), finishSignal: finish, heightLimit: 120,
+    onLimitReached: { finish.request() },
     onProgress: { _, _ in }, nextFrame: { await frames.next() })
   guard case .limited = limited else {
     Issue.record("expected limit")
@@ -702,6 +708,94 @@ private func testRegion() throws -> CaptureRegion {
   task.cancel()
   guard await task.value else {
     Issue.record("expected cancellation")
+    return
+  }
+}
+
+@MainActor @Test func scrollingIdleFramesDoNotConsumeHeightBudget() async throws {
+  let clock = PreviewClock()
+  let still = frame(offset: 0)
+  let frames = Frames(Array(repeating: still, count: 600) + [frame(offset: 42), frame(offset: 84)])
+  let finish = ScreenshotScrollingCapture.FinishSignal()
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: finish,
+    onProgress: { height, _ in if height == 204 { finish.request() } },
+    nextFrame: { await frames.next() }, currentTime: { clock.now() },
+    sleep: { seconds in clock.advance(by: max(1, seconds)) })
+  guard case .success(let image) = result else {
+    Issue.record("idle frames must not end capture before later scrolling")
+    return
+  }
+  #expect(image.height == 204)
+  #expect(await frames.index >= 602)
+  #expect(clock.now() > 120)
+}
+
+@MainActor @Test func scrollingHeightLimitWaitsForUserWithoutReadingMoreFrames() async throws {
+  for offsets in [[0, 42, 84], [84, 42, 0]] {
+    let clock = PreviewClock()
+    let frames = Frames(offsets.map { frame(offset: $0, footer: 16, header: 14) })
+    let finish = ScreenshotScrollingCapture.FinishSignal()
+    let region = try testRegion()
+    final class State {
+      var paused = false
+      var height = 0
+      var result: ScreenshotScrollingCapture.Result?
+    }
+    let state = State()
+    let task = Task { @MainActor in
+      state.result = await ScreenshotScrollingCapture.captureFrames(
+        region: region, finishSignal: finish, heightLimit: 162,
+        onLimitReached: { state.paused = true },
+        onProgress: { height, _ in state.height = height },
+        nextFrame: { await frames.next() }, currentTime: { clock.now() },
+        sleep: { try await clock.sleep($0) })
+    }
+    defer { task.cancel() }
+    for _ in 0..<20 {
+      if state.paused { break }
+      #expect(await clock.waitUntilSleeping())
+      clock.advance(by: 0.05)
+      await Task.yield()
+    }
+    #expect(await waitUntil { state.paused })
+    #expect(state.result == nil)
+    #expect(state.height == 162)
+    let consumedAtPause = await frames.index
+    #expect(await clock.waitUntilSleeping())
+    clock.advance(by: 300)
+    #expect(await clock.waitUntilSleeping())
+    #expect(await frames.index == consumedAtPause)
+    #expect(state.result == nil)
+    finish.request()
+    clock.advance(by: 0.05)
+    await task.value
+    guard case .limited(let image) = state.result else {
+      Issue.record("only the user's finish action may return the limited image")
+      continue
+    }
+    #expect(image.height == 162)
+  }
+}
+
+@MainActor @Test func scrollingPausedHeightLimitCanBeCancelled() async throws {
+  let clock = PreviewClock()
+  let frames = Frames([frame(offset: 0)])
+  let region = try testRegion()
+  var paused = false
+  let task = Task { @MainActor in
+    let result = await ScreenshotScrollingCapture.captureFrames(
+      region: region, finishSignal: .init(), heightLimit: 120,
+      onLimitReached: { paused = true }, onProgress: { _, _ in },
+      nextFrame: { await frames.next() }, currentTime: { clock.now() },
+      sleep: { try await clock.sleep($0) })
+    if case .cancelled = result { return true }
+    return false
+  }
+  #expect(await waitUntil { paused })
+  task.cancel()
+  guard await task.value else {
+    Issue.record("cancelling the paused capture must not return an image")
     return
   }
 }
@@ -806,17 +900,17 @@ private func uniqueFrame(offset: Int) -> CGImage {
   // duplicate or reorder captured rows.
   let frames = Frames([0, 40, 80, 400, 0, 40, 80].map(uniqueFrame))
   let result = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: .init(), frameLimit: 12,
+    region: try testRegion(), finishSignal: .init(),
     onProgress: { _, _ in }, nextFrame: { await frames.next() })
-  guard case .limited(let image) = result else {
-    Issue.record("expected retained result at the frame limit")
+  guard case .partial(let image) = result else {
+    Issue.record("expected retained result when the source ends")
     return
   }
   let referenceFrames = Frames([0, 40, 80].map(uniqueFrame))
   let referenceResult = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: .init(), frameLimit: 6,
+    region: try testRegion(), finishSignal: .init(),
     onProgress: { _, _ in }, nextFrame: { await referenceFrames.next() })
-  guard case .limited(let reference) = referenceResult else {
+  guard case .partial(let reference) = referenceResult else {
     Issue.record("expected baseline image")
     return
   }
@@ -829,17 +923,17 @@ private func uniqueFrame(offset: Int) -> CGImage {
   // confirmed frame and scrolling forward continues from that position.
   let frames = Frames([0, 40, 200, 240, 40, 80, 120].map(uniqueFrame))
   let result = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: .init(), frameLimit: 12,
+    region: try testRegion(), finishSignal: .init(),
     onProgress: { _, _ in }, nextFrame: { await frames.next() })
-  guard case .limited(let image) = result else {
-    Issue.record("expected retained result at the frame limit")
+  guard case .partial(let image) = result else {
+    Issue.record("expected retained result when the source ends")
     return
   }
   let referenceFrames = Frames([0, 40, 80, 120].map(uniqueFrame))
   let referenceResult = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: .init(), frameLimit: 8,
+    region: try testRegion(), finishSignal: .init(),
     onProgress: { _, _ in }, nextFrame: { await referenceFrames.next() })
-  guard case .limited(let reference) = referenceResult else {
+  guard case .partial(let reference) = referenceResult else {
     Issue.record("expected baseline image")
     return
   }
@@ -881,14 +975,14 @@ private func registrationSample(_ offset: Int) -> ScreenshotSupport.ScrollingSam
       + [70, 105].map { frame(offset: $0, header: 14) }
       + [35, 0, 35, 70].map { frame(offset: $0) })
   let result = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: .init(), frameLimit: 14,
+    region: try testRegion(), finishSignal: .init(),
     onProgress: { _, _ in }, nextFrame: { await frames.next() })
-  guard case .limited(let image) = result else { throw CaptureError.noImage }
+  guard case .partial(let image) = result else { throw CaptureError.noImage }
   let baseline = Frames([0, 35, 70].map { frame(offset: $0) })
   let expected = await ScreenshotScrollingCapture.captureFrames(
-    region: try testRegion(), finishSignal: .init(), frameLimit: 6,
+    region: try testRegion(), finishSignal: .init(),
     onProgress: { _, _ in }, nextFrame: { await baseline.next() })
-  guard case .limited(let reference) = expected else { throw CaptureError.noImage }
+  guard case .partial(let reference) = expected else { throw CaptureError.noImage }
   #expect(image.height == 190)
   #expect(image.dataProvider?.data as Data? == reference.dataProvider?.data as Data?)
 }

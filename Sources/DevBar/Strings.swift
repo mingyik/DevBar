@@ -101,6 +101,7 @@ enum Strings {
   static let captureRealigning = "有未接上的区域，回到已拼内容处继续滑动"
   static let capturePartial = "还有未接上的区域，只保留已拼部分"
   static let captureLimit = "已达到长度上限"
+  static let captureLimitPaused = "已达上限，采集已暂停；点 ✓ 或保存"
   static let captureFailed = "截图失败，请重试"
   static let captureCopyFailed = "已保存，复制失败"
   static let capturePermission = "屏幕采集"

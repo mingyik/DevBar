@@ -9,10 +9,10 @@ import Foundation
 enum ScreenshotSupport {
   // MARK: - Scrolling capture
 
-  /// A failed scroll target must never keep the capture alive forever or
-  /// exhaust memory. Reaching a guard keeps the valid portion and explains
-  /// why the capture stopped.
-  static let scrollingCaptureMaximumFrames = 512
+  /// Limits bound output dimensions and retained image memory, not the time
+  /// spent scrolling or revisiting content. At a limit the valid image is kept
+  /// while the user chooses completion, saving, or cancellation.
+  static let scrollingCaptureMaximumHeight = 200_000
   static let scrollingCaptureMaximumRetainedPixels = 60_000_000
   static let scrollingCaptureMaximumPixels = 60_000_000
 

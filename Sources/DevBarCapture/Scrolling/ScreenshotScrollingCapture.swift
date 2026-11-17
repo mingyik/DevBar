@@ -60,6 +60,7 @@ public enum ScreenshotScrollingCapture {
     region: CaptureRegion,
     finishSignal: FinishSignal,
     onPreview: @escaping @MainActor (CGImage) -> Void = { _ in },
+    onLimitReached: @escaping @MainActor () -> Void = {},
     onProgress: @escaping @MainActor (Int, Bool) -> Void
   ) async -> Result {
     guard
@@ -71,6 +72,10 @@ public enum ScreenshotScrollingCapture {
     defer { source.stop() }
     return await captureFrames(
       region: region, finishSignal: finishSignal, onPreview: onPreview,
+      onLimitReached: {
+        source.stop()
+        onLimitReached()
+      },
       onProgress: onProgress,
       pendingFrames: { source.queuedFrameCount },
       nextFrame: { await source.nextFrame(wait: !finishSignal.isRequested) })
@@ -79,8 +84,9 @@ public enum ScreenshotScrollingCapture {
   static func captureFrames(
     region: CaptureRegion,
     finishSignal: FinishSignal,
-    frameLimit: Int = ScreenshotSupport.scrollingCaptureMaximumFrames,
+    heightLimit: Int = ScreenshotSupport.scrollingCaptureMaximumHeight,
     onPreview: @escaping @MainActor (CGImage) -> Void = { _ in },
+    onLimitReached: @escaping @MainActor () -> Void = {},
     onProgress: @escaping @MainActor (Int, Bool) -> Void,
     pendingFrames: @escaping @Sendable () -> Int = { 0 },
     nextFrame: @escaping @Sendable () async -> CGImage?,
@@ -95,7 +101,9 @@ public enum ScreenshotScrollingCapture {
       guard let firstFrame = await nextFrame(), let first = contentFrame(firstFrame) else {
         return Task.isCancelled ? .cancelled : .failed
       }
-      guard first.width <= ScreenshotSupport.scrollingCaptureMaximumPixels / first.height else {
+      guard heightLimit > 0, first.height <= heightLimit,
+        first.width <= ScreenshotSupport.scrollingCaptureMaximumPixels / first.height
+      else {
         return .failed
       }
       try Task.checkCancellation()
@@ -154,6 +162,18 @@ public enum ScreenshotScrollingCapture {
         guard previewStale, force || now - lastPreviewAt >= 0.25 else { return }
         await publishPreview(force: true)
       }
+      func waitAtLimit() async throws -> Result {
+        await publishPreview(force: true)
+        await onLimitReached()
+        while !finishSignal.isRequested {
+          try Task.checkCancellation()
+          try await sleep(0.05)
+        }
+        try Task.checkCancellation()
+        return completed(
+          slices: contentWithHeader(), footerSlice: footerSlice,
+          region: region, result: .limited)
+      }
       await publishPreview(force: true)
       await onProgress(totalHeight, false)
 
@@ -177,13 +197,8 @@ public enum ScreenshotScrollingCapture {
             region: region,
             hasUnmatchedContent: hasUnmatchedContent)
         }
-        if capturedFrames >= frameLimit {
-          await flushStalePreview(now: now, force: true)
-          return completed(
-            slices: contentWithHeader(),
-            footerSlice: footerSlice,
-            region: region,
-            result: .limited)
+        if totalHeight + fixedTopPixels + fixedBottomPixels >= heightLimit {
+          return try await waitAtLimit()
         }
 
         // Observe pixels throughout the session. Wheel monitors miss
@@ -419,15 +434,13 @@ public enum ScreenshotScrollingCapture {
         let extraRows = prepend + append
         if extraRows > 0 {
           guard
+            totalHeight + extraRows + fixedTopPixels + fixedBottomPixels <= heightLimit,
             totalHeight + extraRows + fixedTopPixels + fixedBottomPixels
               <= ScreenshotSupport.scrollingCaptureMaximumPixels / columns.count,
             retainedPixels + extraRows * columns.count
               <= ScreenshotSupport.scrollingCaptureMaximumRetainedPixels
           else {
-            await flushStalePreview(now: now, force: true)
-            return completed(
-              slices: contentWithHeader(), footerSlice: footerSlice,
-              region: region, result: .limited)
+            return try await waitAtLimit()
           }
           rollback = AppendRollback(
             slices: slices, height: totalHeight, top: capturedTop, bottom: capturedBottom,
