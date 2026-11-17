@@ -588,15 +588,19 @@ import Testing
     """
     (() => {
       const content = document.querySelector('#doc .page-content');
-      const exportButton = content.querySelector('.split-preview-export');
+      const previewActions = content.querySelector('.doc-preview-actions');
+      const editorActions = content.querySelector('.doc-editing-actions');
       const toolbar = content.querySelector('.page-toolbar');
-      return content.classList.contains('split') && exportButton.parentElement === content
-        && !toolbar.contains(exportButton)
-        && toolbar.contains(content.querySelector('.icon-save'))
-        && toolbar.contains(content.querySelector('.icon-clear'))
-        && getComputedStyle(toolbar, '::before').display === 'none'
-        && content.querySelector('.preview').getBoundingClientRect().bottom
-          <= exportButton.getBoundingClientRect().top;
+      const save = content.querySelector('.icon-save');
+      const clear = content.querySelector('.icon-clear');
+      const image = content.querySelector('.icon-exportImage');
+      return content.classList.contains('split') && previewActions.contains(save)
+        && previewActions.contains(image) && editorActions.contains(clear)
+        && getComputedStyle(toolbar).display === 'none'
+        && getComputedStyle(content.querySelector('.file-label')).display === 'none'
+        && getComputedStyle(image).display === 'flex'
+        && getComputedStyle(image).justifyContent === 'center'
+        && getComputedStyle(content.querySelector('.preview')).bottom === '0px';
     })()
     """)
   #expect(controls as? Bool == true)

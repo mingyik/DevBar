@@ -29,8 +29,7 @@ export async function renderDocument(
       preview = createMarkdownPreview(root.ownerDocument);
       previews.set(root.ownerDocument, preview);
     }
-    // Publish sanitized text before loading syntax/diagram chunks.
-    root.innerHTML = preview.render(text);
+    // Keep the current preview until highlighting and diagrams are ready.
     staged.innerHTML = await preview.renderAsync(text, options.theme);
   }
   if (revisions.get(root) !== revision) return;

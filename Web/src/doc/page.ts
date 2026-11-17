@@ -10,6 +10,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { documentLanguages } from "./languages";
 import {
   PageShell,
+  element,
   iconButton,
   setButtonLabel,
   setIcon,
@@ -59,6 +60,14 @@ export class DocPage {
   private saveButton: HTMLButtonElement;
   private clearButton: HTMLButtonElement;
   private exportButton: HTMLButtonElement;
+  private editingActions = element(
+    "div",
+    "doc-floating-actions doc-editing-actions",
+  );
+  private previewActions = element(
+    "div",
+    "doc-floating-actions doc-preview-actions",
+  );
   readonly shell: PageShell;
   constructor(shell: PageShell) {
     this.shell = shell;
@@ -86,7 +95,7 @@ export class DocPage {
     this.exportButton = iconButton("exportImage", () => {
       void this.export();
     });
-    shell.fixed.append(this.saveButton, this.clearButton, this.exportButton);
+    shell.content.append(this.editingActions, this.previewActions);
     shell.preview.classList.add("prose");
     if (typeof ResizeObserver !== "undefined") {
       new ResizeObserver(() => {
@@ -267,13 +276,14 @@ export class DocPage {
           : strings.modeEdit,
     );
     this.toggle.hidden = true; // Mode control lives in the native title bar.
-    if (this.display === "split") {
-      this.exportButton.classList.add("split-preview-export");
-      this.shell.content.append(this.exportButton);
+    if (this.display === "source") {
+      this.editingActions.append(this.saveButton, this.clearButton);
     } else {
-      this.exportButton.classList.remove("split-preview-export");
-      this.shell.fixed.append(this.exportButton);
+      this.previewActions.append(this.saveButton, this.exportButton);
+      this.editingActions.append(this.clearButton);
     }
+    this.editingActions.hidden = this.display === "preview";
+    this.previewActions.hidden = this.display === "source";
     this.clearButton.hidden = this.display === "preview";
     this.exportButton.hidden =
       this.display === "source" || !this.previewAllowed;

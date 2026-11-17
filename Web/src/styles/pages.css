@@ -363,7 +363,7 @@ button:disabled {
   mask-size: contain;
   mask-repeat: no-repeat;
 }
-.page-toolbar .icon-button {
+:is(.page-toolbar, .doc-floating-actions) .icon-button {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -372,33 +372,33 @@ button:disabled {
   padding: 3px;
   color: var(--icon-primary);
 }
-.page-toolbar .icon-button svg {
+:is(.page-toolbar, .doc-floating-actions) .icon-button svg {
   width: 18px;
   height: 18px;
 }
-.page-toolbar .icon-button[data-icon="edit"] svg {
+:is(.page-toolbar, .doc-floating-actions) .icon-button[data-icon="edit"] svg {
   width: 16px;
   height: 16px;
 }
-.page-toolbar .icon-button[data-icon="edit"] {
+:is(.page-toolbar, .doc-floating-actions) .icon-button[data-icon="edit"] {
   padding: calc(4px - var(--stroke-hairline));
 }
-.page-toolbar .icon-button:disabled {
+:is(.page-toolbar, .doc-floating-actions) .icon-button:disabled {
   color: var(--icon-disabled);
   opacity: 1;
 }
-.page-toolbar .icon-button .system-icon {
+:is(.page-toolbar, .doc-floating-actions) .icon-button .system-icon {
   width: 18px;
   height: 18px;
   flex: 0 0 18px;
 }
-.page-toolbar .icon-button.icon-clear,
+:is(.page-toolbar, .doc-floating-actions) .icon-button.icon-clear,
 .doc-editor-clear {
   width: 24px;
   height: 24px;
   padding: 2px;
 }
-.page-toolbar .icon-button.icon-clear .system-icon,
+:is(.page-toolbar, .doc-floating-actions) .icon-button.icon-clear .system-icon,
 .doc-editor-clear .system-icon {
   width: 20px;
   height: 20px;
@@ -422,26 +422,46 @@ button:disabled {
   opacity: 0.45;
 }
 
-/* Split Markdown keeps editing actions on the left and only export on the right. */
-#doc .page-content.split .page-toolbar {
-  right: calc(50% + 12px);
-}
-#doc .page-content.split .page-toolbar::before {
+/* Markdown actions float over the full-height panes. */
+#doc .page-toolbar,
+#doc .file-label {
   display: none;
 }
-#doc .page-content.split .preview {
-  bottom: 52px;
+#doc .source,
+#doc .preview {
+  bottom: 0;
+}
+#doc .source .cm-content,
+#doc .preview {
+  padding-bottom: 52px;
 }
 #doc .page-content.split::after {
   bottom: 0;
 }
-#doc .page-content.split .file-label,
-#doc .page-content.split .page-info {
-  right: calc(50% + 12px);
-}
-#doc .split-preview-export {
+#doc .doc-floating-actions {
   position: absolute;
   right: 12px;
   bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   z-index: 3;
+}
+#doc .page-content.split .doc-editing-actions {
+  right: calc(50% + 12px);
+}
+
+@keyframes doc-pane-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  #doc .source,
+  #doc .preview {
+    animation: doc-pane-appear 180ms ease-out;
+  }
 }

@@ -528,7 +528,8 @@ final class PanelController {
     let frame = PanelLayout.frame(
       iconCenterX: placed.centerX, menuBarBottomY: placed.menuBottom,
       size: size, visibleFrame: placed.visible)
-    guard animated, panel.isVisible else {
+    guard animated, panel.isVisible, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    else {
       panel.setFrame(frame, display: true)
       return
     }
@@ -567,14 +568,14 @@ final class PanelController {
     documentMode = resolved
     model.documentDisplay = resolved
     model.documentSplit = resolved == "split"
-    if changed { reposition(animated: false) }
+    if changed { reposition(animated: true) }
   }
 
   private func toggleDocumentSidebar() {
     guard panel.isVisible, model.page == .doc else { return }
     documents.pruneMissingRecent()
     model.documentSidebarVisible.toggle()
-    reposition(animated: false)
+    reposition(animated: true)
   }
 
   func openDocument(_ url: URL) async {
