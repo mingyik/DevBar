@@ -1252,12 +1252,13 @@ private func registrationSample(_ offset: Int) -> ScreenshotSupport.ScrollingSam
       return await base.next()
     }
   }
-  let queue = StepFrames([
-    uniqueFrame(offset: 0),
-    uniqueFrame(offset: 30),
-    uniqueFrame(offset: 60),
-    uniqueFrame(offset: 90),
-  ], insets: insets)
+  let queue = StepFrames(
+    [
+      uniqueFrame(offset: 0),
+      uniqueFrame(offset: 30),
+      uniqueFrame(offset: 60),
+      uniqueFrame(offset: 90),
+    ], insets: insets)
   let result = await ScreenshotScrollingCapture.captureFrames(
     region: try testRegion(), finishSignal: .init(), insets: insets,
     onProgress: { _, _ in },
@@ -1333,7 +1334,9 @@ private func registrationSample(_ offset: Int) -> ScreenshotSupport.ScrollingSam
     for row in 0..<height {
       for col in 0..<width {
         if col >= width - 10 {
-          if let thumbRow, row >= thumbRow && row < thumbRow + 24 && col >= width - 8 && col < width - 2 {
+          if let thumbRow,
+            row >= thumbRow && row < thumbRow + 24 && col >= width - 8 && col < width - 2
+          {
             pixels[row * width + col] = 90
           } else {
             pixels[row * width + col] = 245
@@ -1414,7 +1417,8 @@ private func registrationSample(_ offset: Int) -> ScreenshotSupport.ScrollingSam
     return
   }
   let actualCrop = try #require(image.cropping(to: CGRect(x: 0, y: 0, width: 64, height: 194)))
-  let expectedCrop = try #require(reference.cropping(to: CGRect(x: 0, y: 0, width: 64, height: 194)))
+  let expectedCrop = try #require(
+    reference.cropping(to: CGRect(x: 0, y: 0, width: 64, height: 194)))
   func gray(_ img: CGImage) -> Data {
     var out = [UInt8](repeating: 0, count: img.width * img.height)
     let ctx = CGContext(

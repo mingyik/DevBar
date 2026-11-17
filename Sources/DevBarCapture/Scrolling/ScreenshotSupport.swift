@@ -188,10 +188,12 @@ enum ScreenshotSupport {
     guard maxDepth > minDepth else { return 0 }
 
     let bandHeight = maxDepth - minDepth + 1
-    let prevStartY = fromBottom
+    let prevStartY =
+      fromBottom
       ? height - bottomInset - 1 - maxDepth
       : topInset + minDepth
-    let currStartY = fromBottom
+    let currStartY =
+      fromBottom
       ? topInset + sharedRows - 1 - maxDepth
       : height - bottomInset - sharedRows + minDepth
     let currExtendedY = max(0, currStartY - 1)
@@ -629,9 +631,12 @@ enum ScreenshotSupport {
     let cornerSpan = min(width / 4, max(6, Int((28 * scale).rounded())))
     let bandY = fromTop ? 0 : height - maxScan
     guard
-      let prevBand = grayscalePixels(previous, rect: CGRect(x: 0, y: bandY, width: width, height: maxScan)),
-      let currBand = grayscalePixels(current, rect: CGRect(x: 0, y: bandY, width: width, height: maxScan)),
-      let midRow = grayscalePixels(previous, rect: CGRect(x: 0, y: height / 2, width: width, height: 1))
+      let prevBand = grayscalePixels(
+        previous, rect: CGRect(x: 0, y: bandY, width: width, height: maxScan)),
+      let currBand = grayscalePixels(
+        current, rect: CGRect(x: 0, y: bandY, width: width, height: maxScan)),
+      let midRow = grayscalePixels(
+        previous, rect: CGRect(x: 0, y: height / 2, width: width, height: 1))
     else { return 0 }
 
     let differenceThreshold = touchesWindowEdge ? 4 : 8

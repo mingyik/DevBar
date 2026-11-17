@@ -105,7 +105,8 @@ public enum ScreenshotScrollingCapture {
     region: CaptureRegion,
     finishSignal: FinishSignal,
     insets: ScrollingInsetControl? = nil,
-    onInsets: @escaping @MainActor (_ top: Int, _ bottom: Int, _ right: Int) -> Void = { _, _, _ in },
+    onInsets: @escaping @MainActor (_ top: Int, _ bottom: Int, _ right: Int) -> Void = { _, _, _ in
+    },
     onPreview: @escaping @MainActor (CGImage) -> Void = { _ in },
     onLimitReached: @escaping @MainActor () -> Void = {},
     onProgress: @escaping @MainActor (Int, Bool) -> Void
@@ -167,12 +168,13 @@ public enum ScreenshotScrollingCapture {
       }
       try Task.checkCancellation()
       var insetVersion = -1
-      var wantedInsets = insetControl?.changes(since: &insetVersion) ?? .init()
+      let wantedInsets = insetControl?.changes(since: &insetVersion) ?? .init()
       var autoRightPixels = 0
       var rightCrop = min(
         max(0, wantedInsets.right ?? autoRightPixels),
         first.width - minimumContentWidth(frameWidth: first.width))
-      func masked(_ sample: ScreenshotSupport.ScrollingSample) -> ScreenshotSupport.ScrollingSample {
+      func masked(_ sample: ScreenshotSupport.ScrollingSample) -> ScreenshotSupport.ScrollingSample
+      {
         ScreenshotSupport.scrollingMaskedSample(
           sample, sourceWidth: first.width, rightPixels: rightCrop)
       }
@@ -436,8 +438,9 @@ public enum ScreenshotScrollingCapture {
             {
               return
             }
-            if case .advanced(let overlap, let direction, _) = ScreenshotSupport.scrollingTransition(
-              previous: entryContent, current: heldContent, contentColumns: contentSampleColumns),
+            if case .advanced(let overlap, let direction, _) =
+              ScreenshotSupport.scrollingTransition(
+                previous: entryContent, current: heldContent, contentColumns: contentSampleColumns),
               overlap >= minimumOverlap
             {
               let delta = heldContent.height - overlap
@@ -768,7 +771,8 @@ public enum ScreenshotScrollingCapture {
           autoTopPixels = autoTop
           autoBottomPixels = autoBottom
           let top = userTopSet ? min(fixedTopPixels, maxTotal) : autoTop
-          let bottom = userBottomSet
+          let bottom =
+            userBottomSet
             ? min(fixedBottomPixels, max(0, maxTotal - top))
             : min(autoBottom, max(0, maxTotal - top))
           let detectedRight = ScreenshotSupport.scrollingRightScrollerColumns(
@@ -1182,12 +1186,14 @@ public enum ScreenshotScrollingCapture {
       let bottomAlpha = alphaRows(y: height - edgeCheck, rows: edgeCheck)
     {
       var top = 0
-      while top < edgeCheck && topAlpha[(top * width)..<((top + 1) * width)].allSatisfy({ $0 == 0 }) {
+      while top < edgeCheck && topAlpha[(top * width)..<((top + 1) * width)].allSatisfy({ $0 == 0 })
+      {
         top += 1
       }
       var bottomOffset = edgeCheck
       while bottomOffset > 0
-        && bottomAlpha[((bottomOffset - 1) * width)..<(bottomOffset * width)].allSatisfy({ $0 == 0 })
+        && bottomAlpha[((bottomOffset - 1) * width)..<(bottomOffset * width)].allSatisfy({ $0 == 0 }
+        )
       {
         bottomOffset -= 1
       }

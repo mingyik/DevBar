@@ -164,7 +164,8 @@ public final class SelectionOverlay {
   }
 
   public func setScrollingInsets(top: Int, bottom: Int, right: Int) {
-    guard !isDraggingInset, let view = activeScrollingView, let region = activeScrollingRegion else {
+    guard !isDraggingInset, let view = activeScrollingView, let region = activeScrollingRegion
+    else {
       return
     }
     view.topInsetPixels = top
@@ -238,7 +239,9 @@ public final class SelectionOverlay {
         backing: .buffered, defer: false)
       panel.isReleasedWhenClosed = false
       panel.level = level
-      panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle, .stationary]
+      panel.collectionBehavior = [
+        .canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle, .stationary,
+      ]
       panel.isOpaque = false
       panel.backgroundColor = .clear
       panel.hasShadow = false
@@ -273,7 +276,8 @@ public final class SelectionOverlay {
         frame = CGRect(x: x, y: y, width: horizontalSpan, height: thickness)
       case .right:
         let x = global.maxX - rightPts - thickness / 2
-        let y = global.minY + bottomPts + max(0, (global.height - topPts - bottomPts - verticalSpan) / 2)
+        let y =
+          global.minY + bottomPts + max(0, (global.height - topPts - bottomPts - verticalSpan) / 2)
         frame = CGRect(x: x, y: y, width: thickness, height: verticalSpan)
       }
       panel.setFrame(frame, display: false)
@@ -1101,7 +1105,8 @@ final class SelectionView: NSView, NSTextFieldDelegate {
         drawScrollingInsets()
       } else {
         for point in handles {
-          let dot = NSBezierPath(ovalIn: NSRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8))
+          let dot = NSBezierPath(
+            ovalIn: NSRect(x: point.x - 4, y: point.y - 4, width: 8, height: 8))
           NSColor.systemBlue.setFill()  // devbar:allow-color
           dot.fill()
           NSColor.white.setStroke()  // devbar:allow-color
@@ -1109,7 +1114,8 @@ final class SelectionView: NSView, NSTextFieldDelegate {
           dot.stroke()
         }
       }
-      let effectiveWidth = max(1, Int(selection.width * scale) - (captureInProgress ? rightInsetPixels : 0))
+      let effectiveWidth = max(
+        1, Int(selection.width * scale) - (captureInProgress ? rightInsetPixels : 0))
       let label = "\(effectiveWidth) × \(Int(selection.height * scale))"
       let attributes: [NSAttributedString.Key: Any] = [
         .foregroundColor: NSColor.white,
