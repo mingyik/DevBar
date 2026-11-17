@@ -200,6 +200,29 @@ private func frame(offset: Int, footer: Int = 0, salt: Int = 0, header: Int = 0)
     provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
 }
 
+/// Deterministic but non-periodic rows, so a large offset cannot alias onto
+/// another offset the way the simple pattern above can.
+private func uniqueFrame(offset: Int, footer: Int = 0) -> CGImage {
+  let width = 64
+  let height = 120
+  var pixels = [UInt8](repeating: 0, count: width * height)
+  for row in 0..<height {
+    for col in 0..<width {
+      let y = row >= height - footer ? 1000 + row : row + offset
+      var value =
+        UInt32(truncatingIfNeeded: y) &* 747_796_405 &+ UInt32(col * 19 + 2_891_336_453)
+      value = ((value >> ((value >> 28) + 4)) ^ value) &* 277_803_737
+      pixels[row * width + col] = UInt8(truncatingIfNeeded: (value >> 22) ^ value)
+    }
+  }
+  let provider = CGDataProvider(data: Data(pixels) as CFData)!
+  return CGImage(
+    width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 8,
+    bytesPerRow: width, space: CGColorSpaceCreateDeviceGray(),
+    bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue),
+    provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)!
+}
+
 private func testRegion() throws -> CaptureRegion {
   try CaptureRegion(
     displayID: 1, globalRect: CGRect(x: 0, y: 0, width: 64, height: 120),
@@ -919,8 +942,9 @@ private func uniqueFrame(offset: Int) -> CGImage {
 }
 
 @MainActor @Test func scrollingResumesAfterAJumpThatSkippedOverlap() async throws {
-  // The jump frames are unverified and must not be appended. Returning to the
-  // confirmed frame and scrolling forward continues from that position.
+  // The jump frames are unverified and stay held. Returning to the confirmed
+  // frame and scrolling forward lets the first jump frame be placed by its
+  // overlap with 120; the second jump frame is still not corroborated.
   let frames = Frames([0, 40, 200, 240, 40, 80, 120].map(uniqueFrame))
   let result = await ScreenshotScrollingCapture.captureFrames(
     region: try testRegion(), finishSignal: .init(),
@@ -929,7 +953,7 @@ private func uniqueFrame(offset: Int) -> CGImage {
     Issue.record("expected retained result when the source ends")
     return
   }
-  let referenceFrames = Frames([0, 40, 80, 120].map(uniqueFrame))
+  let referenceFrames = Frames([0, 40, 80, 120, 160, 200].map(uniqueFrame))
   let referenceResult = await ScreenshotScrollingCapture.captureFrames(
     region: try testRegion(), finishSignal: .init(),
     onProgress: { _, _ in }, nextFrame: { await referenceFrames.next() })
@@ -937,7 +961,7 @@ private func uniqueFrame(offset: Int) -> CGImage {
     Issue.record("expected baseline image")
     return
   }
-  #expect(image.height == 240)
+  #expect(image.height == 320)
   #expect(image.dataProvider?.data as Data? == reference.dataProvider?.data as Data?)
 }
 
@@ -985,4 +1009,58 @@ private func registrationSample(_ offset: Int) -> ScreenshotSupport.ScrollingSam
   guard case .partial(let reference) = expected else { throw CaptureError.noImage }
   #expect(image.height == 190)
   #expect(image.dataProvider?.data as Data? == reference.dataProvider?.data as Data?)
+}
+
+@MainActor @Test func scrollingFillsGapWithHeldFrameWhenBridgeAppears() async throws {
+  for footer in [0, 18] {
+    let contentHeight = 120 - footer
+    let step = contentHeight / 3
+    let bridge = step * 2
+    let held = contentHeight + step + 1
+    let frames = Frames(
+      [0, step, held, bridge].map { uniqueFrame(offset: $0, footer: footer) })
+    let result = await ScreenshotScrollingCapture.captureFrames(
+      region: try testRegion(), finishSignal: .init(),
+      onProgress: { _, _ in }, nextFrame: { await frames.next() })
+    guard case .partial(let image) = result else { throw CaptureError.noImage }
+    let baseline = Frames(
+      [0, step, bridge, step * 3, held].map { uniqueFrame(offset: $0, footer: footer) })
+    let expected = await ScreenshotScrollingCapture.captureFrames(
+      region: try testRegion(), finishSignal: .init(),
+      onProgress: { _, _ in }, nextFrame: { await baseline.next() })
+    guard case .partial(let reference) = expected else { throw CaptureError.noImage }
+    #expect(image.height == held + contentHeight + footer)
+    #expect(image.dataProvider?.data as Data? == reference.dataProvider?.data as Data?)
+  }
+}
+
+@MainActor @Test func scrollingDoesNotAppendAStillDisjointHeldFrame() async throws {
+  let frames = Frames([frame(offset: 0), frame(offset: 500)])
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(),
+    onProgress: { _, _ in }, nextFrame: { await frames.next() })
+  guard case .partial(let image) = result else { throw CaptureError.noImage }
+  #expect(image.height == 120)
+}
+
+@MainActor @Test func scrollingFinishesAfterGraceWhileFramesKeepArriving() async throws {
+  let region = try testRegion()
+  let frames = Frames([frame(offset: 0)], repeatingLast: true)
+  let finish = ScreenshotScrollingCapture.FinishSignal()
+  finish.request()
+  let capture = Task { @MainActor in
+    let result = await ScreenshotScrollingCapture.captureFrames(
+      region: region, finishSignal: finish,
+      onProgress: { _, _ in }, pendingFrames: { 1 },
+      nextFrame: { await frames.next() })
+    if case .success = result { return true }
+    return false
+  }
+  let timeout = Task {
+    try? await Task.sleep(for: .seconds(3))
+    capture.cancel()
+  }
+  let finished = await capture.value
+  timeout.cancel()
+  #expect(finished, "finish must complete once the grace interval passes")
 }

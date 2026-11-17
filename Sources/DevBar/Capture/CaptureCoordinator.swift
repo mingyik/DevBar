@@ -263,6 +263,7 @@ private final class CaptureHUDState {
         contentRect: frame,
         styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
     window.isReleasedWhenClosed = false
+    window.sharingType = .none
     window.level = Self.overlayLevel
     window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
     window.isOpaque = false
@@ -328,6 +329,7 @@ private final class CaptureHUDState {
         contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered,
         defer: false)
     window.isReleasedWhenClosed = false
+    window.sharingType = .none
     window.level = Self.overlayLevel
     window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
     window.isOpaque = false
@@ -386,6 +388,7 @@ private final class CaptureHUDState {
         contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered,
         defer: false)
     window.isReleasedWhenClosed = false
+    window.sharingType = .none
     window.level = Self.overlayLevel
     window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
     window.isOpaque = false

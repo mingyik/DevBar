@@ -85,6 +85,7 @@ public final class SelectionOverlay {
             contentRect: screen.frame, styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered, defer: false)
           panel.isReleasedWhenClosed = false
+          panel.sharingType = .none
           if let appearanceName { panel.appearance = NSAppearance(named: appearanceName) }
           panel.level = .screenSaver
           panel.isOpaque = false

@@ -10,6 +10,17 @@ import CoreGraphics
 /// that overlaps none is held as its own piece. A later frame that overlaps two
 /// pieces joins them, so a skipped gap can be filled by scrolling back over it.
 public enum ScreenshotScrollingCapture {
+  /// A frame that could not be located yet. Kept briefly so a later bridge
+  /// frame can reveal where it belongs and fill the skipped rows.
+  private struct HeldFrame {
+    let content: CGImage
+    let sample: ScreenshotSupport.ScrollingSample
+    var imageBytes: Int { content.bytesPerRow * content.height }
+  }
+
+  private static let maximumHeldFrames = 4
+  private static let maximumHeldImageBytes = 48 * 1024 * 1024
+
   public final class FinishSignal: @unchecked Sendable {
     private let lock = NSLock()
     private var requested = false
@@ -131,6 +142,7 @@ public enum ScreenshotScrollingCapture {
       var lastDirection: ScreenshotSupport.ScrollingDirection?
       var fixedBottomPixels = 0
       var footerSlice: CGImage?
+      var heldFrames: [HeldFrame] = []
       func contentWithHeader() -> [CGImage] { headerSlice.map { [$0] + slices } ?? slices }
       var rollback: AppendRollback?
       var fixedLayoutChanged = false
@@ -174,6 +186,93 @@ public enum ScreenshotScrollingCapture {
           slices: contentWithHeader(), footerSlice: footerSlice,
           region: region, result: .limited)
       }
+      func hold(_ content: CGImage, sample: ScreenshotSupport.ScrollingSample) {
+        guard sample.pixels.count <= Self.maximumHeldImageBytes else { return }
+        heldFrames.append(HeldFrame(content: content, sample: sample))
+        while heldFrames.count > Self.maximumHeldFrames
+          || heldFrames.reduce(0, { $0 + $1.imageBytes }) > Self.maximumHeldImageBytes
+        {
+          heldFrames.removeFirst()
+        }
+      }
+      /// A held frame has no position until a later frame overlaps both it and
+      /// the confirmed viewport. Then its missing rows can be inserted.
+      func mergeHeldFrames(
+        anchor: ScreenshotSupport.ScrollingSample, at anchorTop: Int,
+        columns: Range<Int>, sampleColumns: Range<Int>?, minimumOverlap: Int
+      ) async throws -> (limit: Result?, merged: Bool, failed: Bool) {
+        var merged = false
+        var index = 0
+        while index < heldFrames.count {
+          let held = heldFrames[index]
+          guard
+            let heldContent = ScreenshotSupport.scrollingContentSample(
+              held.sample, top: fixedTopPixels, bottom: fixedBottomPixels),
+            case .advanced(let overlap, let direction, _) = ScreenshotSupport.scrollingTransition(
+              previous: anchor, current: heldContent, contentColumns: sampleColumns),
+            overlap >= minimumOverlap
+          else {
+            index += 1
+            continue
+          }
+          let delta = heldContent.height - overlap
+          let heldTop = anchorTop + (direction == .forward ? delta : -delta)
+          let heldBottom = heldTop + heldContent.height
+          guard heldTop <= capturedBottom, heldBottom >= capturedTop else {
+            index += 1
+            continue
+          }
+          let prepend = max(0, capturedTop - heldTop)
+          let append = max(0, heldBottom - capturedBottom)
+          if prepend == 0 && append == 0 {
+            heldFrames.remove(at: index)
+            continue
+          }
+          let extra = prepend + append
+          guard
+            totalHeight + extra + fixedTopPixels + fixedBottomPixels <= heightLimit,
+            totalHeight + extra + fixedTopPixels + fixedBottomPixels
+              <= ScreenshotSupport.scrollingCaptureMaximumPixels / columns.count,
+            retainedPixels + extra * columns.count
+              <= ScreenshotSupport.scrollingCaptureMaximumRetainedPixels
+          else {
+            return (try await waitAtLimit(), merged, false)
+          }
+          if append > 0, fixedBottomPixels > 0 {
+            footerSlice = copiedStrip(
+              from: held.content, columns: columns,
+              topCrop: held.content.height - fixedBottomPixels, bottomCrop: 0)
+            guard footerSlice != nil else { return (nil, merged, true) }
+          }
+          if prepend > 0 {
+            guard
+              let strip = copiedStrip(
+                from: held.content, columns: columns,
+                topCrop: fixedTopPixels,
+                bottomCrop: held.content.height - fixedTopPixels - prepend)
+            else { return (nil, merged, true) }
+            slices.insert(strip, at: 0)
+            capturedTop = heldTop
+            retainedPixels += strip.width * strip.height
+          }
+          if append > 0 {
+            guard
+              let strip = copiedStrip(
+                from: held.content, columns: columns,
+                topCrop: fixedTopPixels + (capturedBottom - heldTop),
+                bottomCrop: fixedBottomPixels)
+            else { return (nil, merged, true) }
+            slices.append(strip)
+            capturedBottom = heldBottom
+            retainedPixels += strip.width * strip.height
+          }
+          totalHeight = capturedBottom - capturedTop
+          anchors.remember(heldContent, at: heldTop)
+          heldFrames.remove(at: index)
+          merged = true
+        }
+        return (nil, merged, false)
+      }
       await publishPreview(force: true)
       await onProgress(totalHeight, false)
 
@@ -187,8 +286,9 @@ public enum ScreenshotScrollingCapture {
           // Take one final frame even if no wheel event was delivered.
           scrollPending = true
         }
-        if let finishRequestedAt, pendingFrames() == 0,
-          !scrollPending || now - finishRequestedAt >= finishGraceInterval
+        if let finishRequestedAt,
+          (pendingFrames() == 0 && !scrollPending)
+            || now - finishRequestedAt >= finishGraceInterval
         {
           await flushStalePreview(now: now, force: true)
           return completedByUser(
@@ -378,6 +478,7 @@ public enum ScreenshotScrollingCapture {
             rollback = nil
             await publishPreview(force: true)
           }
+          heldFrames.removeAll()
           hasUnmatchedContent = true
           // Stay locked until a later moving frame shows the original bands.
           scrollPending = false
@@ -397,8 +498,9 @@ public enum ScreenshotScrollingCapture {
             needsCorroboration: hasUnmatchedContent)
         else {
           // A jump with no reliable overlap is not new content and must never
-          // move the stitch. Keep the confirmed anchor so a later frame can
-          // still return to captured content.
+          // move the stitch. Keep the frame so a later bridge frame can place
+          // it and fill the skipped rows.
+          hold(current, sample: currentSample)
           hasUnmatchedContent = true
           scrollPending = false
           await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, true)
@@ -475,6 +577,13 @@ public enum ScreenshotScrollingCapture {
           }
           totalHeight = capturedBottom - capturedTop
         }
+
+        let merge = try await mergeHeldFrames(
+          anchor: currentContent, at: position, columns: columns,
+          sampleColumns: contentSampleColumns, minimumOverlap: minimumOverlap)
+        if let limit = merge.limit { return limit }
+        if merge.failed { return .failed }
+        if merge.merged { await publishPreview() }
 
         viewportTop = position
         originSample = currentSample
