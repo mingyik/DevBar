@@ -601,6 +601,14 @@ import Testing
       let content = try #require(controller.panel.contentView)
       let rect = container.convert(container.bounds, to: content)
       #expect(abs(rect.maxX - (content.bounds.maxX - 10)) < 1)
+      let fixedWidths = try await webView.evaluateJavaScript(
+        """
+        (() => {
+          const pane = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--doc-pane-width') || '460');
+          return ['.source','.preview'].every(s => Math.abs(document.querySelector('#doc '+s).getBoundingClientRect().width - pane) < 1);
+        })()
+        """)
+      #expect(fixedWidths as? Bool == true)
     }
     #expect(controller.webHost.webView === webView)
     #expect(webView.window === controller.panel)

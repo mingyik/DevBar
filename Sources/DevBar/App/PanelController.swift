@@ -516,6 +516,9 @@ final class PanelController {
       anchor: lastAnchor, screens: screens, fallbackVisible: mouseScreen.visibleFrame)
     var size = model.panelSize
     if model.page == .doc, !model.dropActive {
+      webHost.setDocumentPaneWidth(
+        PanelLayout.documentPaneWidth(
+          enlarged: model.enlarged, visibleFrame: placed.visible))
       let layout = PanelLayout.documentPanelSize(
         enlarged: model.enlarged, split: model.documentSplit,
         sidebar: model.documentSidebarVisible, visibleFrame: placed.visible)

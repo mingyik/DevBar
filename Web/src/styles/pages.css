@@ -463,3 +463,29 @@ body {
 #doc .preview {
   z-index: 2;
 }
+
+/* Fixed-size cards slide within a changing viewport, rather than reflowing per frame. */
+#doc .source,
+#doc .preview {
+  box-sizing: border-box;
+}
+#doc .source {
+  left: 0;
+  right: auto;
+  width: var(--doc-pane-width, 460px);
+}
+#doc .preview {
+  left: auto;
+  right: 0;
+  width: var(--doc-pane-width, 460px);
+}
+#doc .page-content.split::after {
+  left: calc(var(--doc-pane-width, 460px) + 1px);
+}
+#doc .doc-editing-actions,
+#doc .page-content.split .doc-editing-actions {
+  left: calc(var(--doc-pane-width, 460px) - 12px);
+  right: auto;
+  width: max-content;
+  transform: translateX(-100%);
+}

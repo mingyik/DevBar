@@ -16,33 +16,32 @@ public enum PanelLayout: Sendable {
   public static let minSidebarWidth: CGFloat = 180
   public static let menuGap: CGFloat = 6
 
-  /// Computes the single-window Markdown panel size and sidebar width for 1, 2, or 3 panes,
-  /// expanding when space permits and shrinking proportionally on narrow screens.
+  /// Determine fixed card widths from the screen before choosing a 1, 2, or 3 pane layout.
+  /// All modes use the same card widths; transitions only change their visible positions.
   public static func documentPanelSize(
     enlarged: Bool,
     split: Bool,
     sidebar: Bool,
     visibleFrame: CGRect
   ) -> (panelSize: CGSize, sidebarWidth: CGFloat) {
-    let paneWidth = enlarged ? large.width : normal.width
-    let desiredContentWidth = split ? paneWidth * 2 : paneWidth
-    let desiredSidebarWidth: CGFloat = sidebar ? sidebarWidth : 0
-    let desiredHeight = enlarged ? floor(visibleFrame.height * 4 / 5) : normal.height
-    let clampedHeight = min(desiredHeight, max(0, visibleFrame.height))
-    let totalDesiredWidth = desiredSidebarWidth + desiredContentWidth
-    let clampedWidth = min(totalDesiredWidth, max(0, visibleFrame.width))
-    guard sidebar else {
-      return (CGSize(width: clampedWidth, height: clampedHeight), 0)
-    }
-    let minContentForPreferredSidebar: CGFloat = split ? 420 : 320
-    let actualSidebarWidth: CGFloat
-    if clampedWidth - sidebarWidth >= minContentForPreferredSidebar {
-      actualSidebarWidth = sidebarWidth
-    } else {
-      let scaled = floor(clampedWidth * 0.28)
-      actualSidebarWidth = min(clampedWidth, max(min(minSidebarWidth, clampedWidth), scaled))
-    }
-    return (CGSize(width: clampedWidth, height: clampedHeight), actualSidebarWidth)
+    let fullWidth = max(0, visibleFrame.width)
+    let fixedSidebar = min(sidebarWidth, fullWidth / 4)
+    let pane = min(
+      (enlarged ? large.width : normal.width) - 20,
+      max(0, (fullWidth - fixedSidebar - 0.7 - 22) / 2))
+    let content = split ? pane * 2 + 22 : pane + 20
+    let total = content + (sidebar ? fixedSidebar + 0.7 : 0)
+    let height = min(
+      enlarged ? floor(visibleFrame.height * 4 / 5) : normal.height,
+      max(0, visibleFrame.height))
+    return (CGSize(width: min(fullWidth, total), height: height), sidebar ? fixedSidebar : 0)
+  }
+
+  public static func documentPaneWidth(enlarged: Bool, visibleFrame: CGRect) -> CGFloat {
+    documentPanelSize(
+      enlarged: enlarged, split: false, sidebar: false,
+      visibleFrame: visibleFrame
+    ).panelSize.width - 20
   }
 
   /// Usable only when the anchor center is on a connected display and its bottom
