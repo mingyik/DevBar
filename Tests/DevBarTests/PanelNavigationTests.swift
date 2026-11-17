@@ -414,6 +414,54 @@ import Testing
   }
   #expect(await host.documentText() == "# Edited")
 
+  // Scroll sync in split mode before memory release.
+  let longDoc = (1...80).map { "Line \($0)\n\nParagraph \($0) content." }.joined(separator: "\n\n")
+  host.importFile(text: longDoc, name: "long.md", document: true)
+  host.setDocumentDisplay("split")
+  for _ in 0..<100 {
+    if (try? await host.webView.evaluateJavaScript(
+      """
+      (() => {
+        const s = document.querySelector('#doc .cm-scroller');
+        const p = document.querySelector('#doc .preview');
+        return !!s && !!p && s.scrollHeight > s.clientHeight && p.scrollHeight > p.clientHeight;
+      })()
+      """
+    )) as? Bool == true {
+      break
+    }
+    try? await Task.sleep(for: .milliseconds(50))
+  }
+  _ = try await host.webView.evaluateJavaScript(
+    """
+    (() => {
+      const s = document.querySelector('#doc .cm-scroller');
+      s.scrollTop = Math.round((s.scrollHeight - s.clientHeight) * 0.5);
+      s.dispatchEvent(new Event('scroll'));
+      return true;
+    })()
+    """)
+  try? await Task.sleep(for: .milliseconds(100))
+  let syncedPreview =
+    try await host.webView.evaluateJavaScript(
+      """
+      (() => {
+        const s = document.querySelector('#doc .cm-scroller');
+        const p = document.querySelector('#doc .preview');
+        return [s.scrollTop, s.scrollHeight, s.clientHeight, p.scrollTop, p.scrollHeight, p.clientHeight];
+      })()
+      """) as? [Double]
+  let metrics = try #require(syncedPreview)
+  let ratio = metrics[3] / max(1, metrics[4] - metrics[5])
+  #expect(ratio > 0.4 && ratio < 0.6, "metrics=\(metrics)")
+
+  // Restore original short doc for subsequent save/restore checks.
+  host.importFile(text: "# Edited", name: "note.md", document: true)
+  for _ in 0..<100 {
+    if await host.documentText() == "# Edited" { break }
+    try? await Task.sleep(for: .milliseconds(50))
+  }
+
   // 3 & 4. Rapid typing + typing during in-flight save does not overwrite newer text.
   host.setDocumentDisplay("split")
   for _ in 0..<100 {
@@ -468,10 +516,10 @@ import Testing
   #expect((await host.documentStatus())?["dirty"] as? Bool == true)
 
   // 5. Resize, release memory, and restore keeps split mode and preview content.
-  host.webView.frame = NSRect(x: 0, y: 0, width: 720, height: 600)
   host.setPanelVisible(false)
   await host.flushHiddenMemory()
   host.setPanelVisible(true)
+  host.webView.frame = NSRect(x: 0, y: 0, width: 720, height: 600)
   var restoredSplit = false
   for _ in 0..<200 {
     if (try? await host.webView.evaluateJavaScript(
@@ -499,46 +547,6 @@ import Testing
     (try? await host.webView.evaluateJavaScript(
       "document.querySelector('#doc .page-content')?.classList.contains('split') === true"
     )) as? Bool == true)
-
-  // 7. Split editor and preview synchronize scroll proportionally.
-  let longDoc = (1...80).map { "Line \($0)\n\nParagraph \($0) content." }.joined(separator: "\n\n")
-  host.importFile(text: longDoc, name: "long.md", document: true)
-  host.setDocumentDisplay("split")
-  for _ in 0..<100 {
-    if (try? await host.webView.evaluateJavaScript(
-      """
-      (() => {
-        const s = document.querySelector('#doc .cm-scroller');
-        const p = document.querySelector('#doc .preview');
-        return !!s && !!p && s.scrollHeight > s.clientHeight && p.scrollHeight > p.clientHeight;
-      })()
-      """
-    )) as? Bool == true {
-      break
-    }
-    try? await Task.sleep(for: .milliseconds(50))
-  }
-  _ = try await host.webView.evaluateJavaScript(
-    """
-    (() => {
-      const s = document.querySelector('#doc .cm-scroller');
-      s.scrollTop = Math.round((s.scrollHeight - s.clientHeight) * 0.5);
-      s.dispatchEvent(new Event('scroll'));
-      return true;
-    })()
-    """)
-  try? await Task.sleep(for: .milliseconds(50))
-  let syncedPreview =
-    (try? await host.webView.evaluateJavaScript(
-      """
-      (() => {
-        const p = document.querySelector('#doc .preview');
-        const ratio = p.scrollTop / (p.scrollHeight - p.clientHeight);
-        return ratio > 0.4 && ratio < 0.6;
-      })()
-      """
-    )) as? Bool
-  #expect(syncedPreview == true)
 }
 
 @MainActor @Test func singleWindowHostsSidebarSplitAndNeverSpawnsAuxiliaryPanels() {
