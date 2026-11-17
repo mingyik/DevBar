@@ -12,6 +12,9 @@ public struct CaptureRegion: Equatable, Sendable {
   public let scale: CGFloat
   /// Normal window owning this long-capture region; nil for area screenshots.
   public let windowID: CGWindowID?
+  public let touchesWindowTop: Bool
+  public let touchesWindowBottom: Bool
+  public let touchesWindowRight: Bool
 
   public var pixelRect: CGRect {
     CGRect(
@@ -21,7 +24,10 @@ public struct CaptureRegion: Equatable, Sendable {
 
   public init(
     displayID: CGDirectDisplayID, globalRect: CGRect, screenFrame: CGRect, scale: CGFloat,
-    windowID: CGWindowID? = nil
+    windowID: CGWindowID? = nil,
+    touchesWindowTop: Bool = false,
+    touchesWindowBottom: Bool = false,
+    touchesWindowRight: Bool = false
   ) throws {
     guard scale.isFinite, scale > 0,
       [
@@ -45,6 +51,9 @@ public struct CaptureRegion: Equatable, Sendable {
     self.displayID = displayID
     self.scale = scale
     self.windowID = windowID
+    self.touchesWindowTop = touchesWindowTop
+    self.touchesWindowBottom = touchesWindowBottom
+    self.touchesWindowRight = touchesWindowRight
     rectInPoints = CGRect(
       x: floor(raw.minX) / scale, y: floor(raw.minY) / scale,
       width: width / scale, height: height / scale)

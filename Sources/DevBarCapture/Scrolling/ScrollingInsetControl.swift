@@ -8,9 +8,9 @@ public final class ScrollingInsetControl: @unchecked Sendable {
   public struct Values: Equatable, Sendable {
     public var top: Int?
     public var bottom: Int?
-    public var right: Int
+    public var right: Int?
 
-    public init(top: Int? = nil, bottom: Int? = nil, right: Int = 0) {
+    public init(top: Int? = nil, bottom: Int? = nil, right: Int? = nil) {
       self.top = top
       self.bottom = bottom
       self.right = right

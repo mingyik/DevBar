@@ -1650,15 +1650,24 @@ final class SelectionView: NSView, NSTextFieldDelegate {
     guard selection.width > 0, selection.height > 0 else { return }
     var global = selection.offsetBy(dx: screenFrame.minX, dy: screenFrame.minY)
     var windowID: CGWindowID?
+    var touchesTop = false
+    var touchesBottom = false
+    var touchesRight = false
     if scrollingRequested, let target = Self.targetWindow(for: global) {
       global = global.intersection(target.frame)
       windowID = target.id
+      touchesTop = abs(global.maxY - target.frame.maxY) <= 2
+      touchesBottom = abs(global.minY - target.frame.minY) <= 2
+      touchesRight = abs(global.maxX - target.frame.maxX) <= 2
     }
     complete?(
       Result {
         try CaptureRegion(
           displayID: displayID, globalRect: global, screenFrame: screenFrame, scale: scale,
-          windowID: windowID)
+          windowID: windowID,
+          touchesWindowTop: touchesTop,
+          touchesWindowBottom: touchesBottom,
+          touchesWindowRight: touchesRight)
       })
   }
 

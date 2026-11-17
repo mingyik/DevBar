@@ -523,6 +523,161 @@ enum ScreenshotSupport {
     return scrollingBandHasDetail(previous, rows: band, columns: contentColumns) ? rows : 0
   }
 
+  /// Detects stationary rounded-corner / window-border rows at the top or
+  /// bottom of a window capture, where the center scrolls while the outer
+  /// corners stay stationary and differ from the straight side edge.
+  static func scrollingRoundedCornerRows(
+    previous: CGImage,
+    current: CGImage,
+    scale: CGFloat,
+    fromTop: Bool,
+    touchesWindowEdge: Bool
+  ) -> Int {
+    let width = previous.width
+    let height = previous.height
+    guard width >= 32, height >= 48,
+      current.width == width, current.height == height
+    else { return 0 }
+    let maxScan = min(height / 4, max(8, Int((28 * scale).rounded())))
+    let cornerSpan = min(width / 4, max(6, Int((28 * scale).rounded())))
+    let bandY = fromTop ? 0 : height - maxScan
+    guard
+      let prevBand = grayscalePixels(previous, rect: CGRect(x: 0, y: bandY, width: width, height: maxScan)),
+      let currBand = grayscalePixels(current, rect: CGRect(x: 0, y: bandY, width: width, height: maxScan)),
+      let midRow = grayscalePixels(previous, rect: CGRect(x: 0, y: height / 2, width: width, height: 1))
+    else { return 0 }
+
+    let differenceThreshold = touchesWindowEdge ? 4 : 8
+    var rows = 0
+    func edgeCornerMatches(_ indices: some Sequence<Int>, offset: Int) -> Bool {
+      var sawDiffering = false
+      var stationaryLength = 0
+      for column in indices {
+        let p = Int(prevBand[offset + column])
+        let c = Int(currBand[offset + column])
+        guard abs(p - c) <= 3 else { break }
+        stationaryLength += 1
+        if abs(p - Int(midRow[column])) >= differenceThreshold {
+          sawDiffering = true
+        }
+      }
+      return sawDiffering && stationaryLength >= 1
+    }
+    for index in 0..<maxScan {
+      let row = fromTop ? index : maxScan - 1 - index
+      let offset = row * width
+      let leftCorner = edgeCornerMatches(0..<cornerSpan, offset: offset)
+      let rightCorner = edgeCornerMatches(
+        stride(from: width - 1, through: width - cornerSpan, by: -1), offset: offset)
+      let matched = touchesWindowEdge ? (leftCorner || rightCorner) : (leftCorner && rightCorner)
+      guard matched else { break }
+      rows += 1
+    }
+    return rows >= 2 ? rows : 0
+  }
+
+  /// Detects an overlay/legacy scrollbar or stationary right edge that fails
+  /// to shift with the scrolling content. Returns the pixel width to crop from
+  /// the right edge, or 0 when no right-edge scroller is present.
+  static func scrollingRightScrollerColumns(
+    previous: CGImage,
+    current: CGImage,
+    advance: Int,
+    direction: ScrollingDirection,
+    topInset: Int,
+    bottomInset: Int,
+    scale: CGFloat
+  ) -> Int {
+    let width = previous.width
+    let height = previous.height
+    guard width >= 32, height >= 48,
+      current.width == width, current.height == height,
+      advance > 0
+    else { return 0 }
+    let contentTop = max(0, topInset)
+    let contentBottom = min(height, height - max(0, bottomInset))
+    let contentHeight = contentBottom - contentTop
+    let overlapRows = contentHeight - advance
+    guard contentHeight >= 24, overlapRows >= 16 else { return 0 }
+
+    let maxScan = min(width / 5, max(8, Int((28 * scale).rounded())))
+    let stripRect = CGRect(x: width - maxScan, y: contentTop, width: maxScan, height: contentHeight)
+    guard
+      let prevStrip = grayscalePixels(previous, rect: stripRect),
+      let currStrip = grayscalePixels(current, rect: stripRect)
+    else { return 0 }
+
+    let minimumMismatchRows = max(3, overlapRows / 30)
+    var scrollerFlags = [Bool](repeating: false, count: maxScan)
+    var contentFlags = [Bool](repeating: false, count: maxScan)
+
+    for column in 0..<maxScan {
+      var unshiftedSum = 0
+      for row in 0..<contentHeight {
+        let index = row * maxScan + column
+        unshiftedSum += abs(Int(prevStrip[index]) - Int(currStrip[index]))
+      }
+      var shiftedSum = 0
+      var mismatchRows = 0
+      for row in 0..<overlapRows {
+        let prevRow = direction == .forward ? row + advance : row
+        let currRow = direction == .forward ? row : row + advance
+        let diff = abs(
+          Int(prevStrip[prevRow * maxScan + column]) - Int(currStrip[currRow * maxScan + column]))
+        shiftedSum += diff
+        if diff > 10 { mismatchRows += 1 }
+      }
+      let unshiftedMean = Double(unshiftedSum) / Double(contentHeight)
+      let shiftedMean = Double(shiftedSum) / Double(overlapRows)
+      if mismatchRows >= minimumMismatchRows && shiftedMean > 3.5
+        && shiftedMean >= unshiftedMean * 0.75
+      {
+        scrollerFlags[column] = true
+      } else if shiftedMean <= 2.5 && unshiftedMean > 5.0 {
+        contentFlags[column] = true
+      }
+    }
+
+    let contentStopRun = max(4, Int((8 * scale).rounded()))
+    var verifiedContentRun = 0
+    var scrollerStart: Int?
+    var scrollerCount = 0
+    for column in stride(from: maxScan - 1, through: 0, by: -1) {
+      if contentFlags[column] {
+        verifiedContentRun += 1
+        if verifiedContentRun >= contentStopRun { break }
+      } else {
+        verifiedContentRun = 0
+      }
+      if scrollerFlags[column] {
+        scrollerCount += 1
+        scrollerStart = column
+      }
+    }
+    guard scrollerCount >= 2, let start = scrollerStart else { return 0 }
+    return maxScan - start
+  }
+
+  private static func grayscalePixels(_ image: CGImage, rect: CGRect) -> [UInt8]? {
+    let width = Int(rect.width)
+    let height = Int(rect.height)
+    guard width > 0, height > 0, let cropped = image.cropping(to: rect) else { return nil }
+    var pixels = [UInt8](repeating: 0, count: width * height)
+    let drawn = pixels.withUnsafeMutableBytes { bytes -> Bool in
+      guard
+        let context = CGContext(
+          data: bytes.baseAddress, width: width, height: height,
+          bitsPerComponent: 8, bytesPerRow: width,
+          space: CGColorSpaceCreateDeviceGray(),
+          bitmapInfo: CGImageAlphaInfo.none.rawValue)
+      else { return false }
+      context.interpolationQuality = .none
+      context.draw(cropped, in: CGRect(x: 0, y: 0, width: width, height: height))
+      return true
+    }
+    return drawn ? pixels : nil
+  }
+
   private static func scrollingBandHasDetail(
     _ sample: ScrollingSample, rows: Range<Int>, columns: Range<Int>
   ) -> Bool {

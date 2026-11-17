@@ -1269,3 +1269,109 @@ private func registrationSample(_ offset: Int) -> ScreenshotSupport.ScrollingSam
   #expect(image.width == 64)
   #expect(image.height == 210)
 }
+
+@MainActor @Test func scrollingDetectsAndPreservesBottomRoundedCornersOnce() async throws {
+  func roundedCornerFrame(offset: Int) -> CGImage {
+    let width = 80
+    let height = 120
+    var pixels = [UInt8](repeating: 255, count: width * height)
+    for row in 0..<height {
+      for col in 0..<width {
+        let y = row + offset
+        var value =
+          UInt32(truncatingIfNeeded: y) &* 747_796_405 &+ UInt32(col * 19 + 2_891_336_453)
+        value = ((value >> ((value >> 28) + 4)) ^ value) &* 277_803_737
+        var pixel = UInt8(truncatingIfNeeded: (value >> 22) ^ value)
+        // Side edges outside corners match interior side value 240.
+        if col == 0 || col == width - 1 { pixel = 240 }
+        // Bottom 12 rows have curved outer corners (background 30) while center scrolls.
+        if row >= height - 12 {
+          let cornerDepth = row - (height - 12) + 1
+          if col < cornerDepth || col >= width - cornerDepth {
+            pixel = 30
+          }
+        }
+        pixels[row * width + col] = pixel
+      }
+    }
+    return CGImage(
+      width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 8, bytesPerRow: width,
+      space: CGColorSpaceCreateDeviceGray(), bitmapInfo: .init(rawValue: 0),
+      provider: CGDataProvider(data: Data(pixels) as CFData)!, decode: nil,
+      shouldInterpolate: false, intent: .defaultIntent)!
+  }
+  let region = try CaptureRegion(
+    displayID: 1, globalRect: CGRect(x: 0, y: 0, width: 80, height: 120),
+    screenFrame: CGRect(x: 0, y: 0, width: 80, height: 120), scale: 1,
+    windowID: 9, touchesWindowBottom: true)
+  var reportedBottom = 0
+  let frames = Frames([0, 30, 60].map(roundedCornerFrame))
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: region, finishSignal: .init(),
+    onInsets: { _, bottom, _ in reportedBottom = bottom },
+    onProgress: { _, _ in }, nextFrame: { await frames.next() })
+  #expect(reportedBottom == 12)
+  guard case .partial(let image) = result else {
+    Issue.record("expected stitched result with rounded corner footer")
+    return
+  }
+  #expect(image.height == 180)
+  // Verify the middle stitched region has no corner artifacts (no pixel == 30 in outer cols at row 115).
+  let data = (image.dataProvider?.data as Data?) ?? Data()
+  let bytes = [UInt8](data)
+  let bytesPerPixel = image.bitsPerPixel / 8
+  let checkOffset = 115 * image.bytesPerRow
+  #expect(bytes[checkOffset] != 30)
+  #expect(bytes[checkOffset + (image.width - 1) * bytesPerPixel] != 30)
+}
+
+@MainActor @Test func scrollingAutoDetectsRightOverlayScrollerAndExcludesIt() async throws {
+  func scrollerFrame(offset: Int, thumbRow: Int?) -> CGImage {
+    let width = 80
+    let height = 120
+    var pixels = [UInt8](repeating: 0, count: width * height)
+    for row in 0..<height {
+      for col in 0..<width {
+        if col >= width - 10 {
+          if let thumbRow, row >= thumbRow && row < thumbRow + 24 && col >= width - 8 && col < width - 2 {
+            pixels[row * width + col] = 90
+          } else {
+            pixels[row * width + col] = 245
+          }
+        } else {
+          let y = row + offset
+          var value =
+            UInt32(truncatingIfNeeded: y) &* 747_796_405 &+ UInt32(col * 19 + 2_891_336_453)
+          value = ((value >> ((value >> 28) + 4)) ^ value) &* 277_803_737
+          pixels[row * width + col] = UInt8(truncatingIfNeeded: (value >> 22) ^ value)
+        }
+      }
+    }
+    return CGImage(
+      width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 8, bytesPerRow: width,
+      space: CGColorSpaceCreateDeviceGray(), bitmapInfo: .init(rawValue: 0),
+      provider: CGDataProvider(data: Data(pixels) as CFData)!, decode: nil,
+      shouldInterpolate: false, intent: .defaultIntent)!
+  }
+  let region = try CaptureRegion(
+    displayID: 1, globalRect: CGRect(x: 0, y: 0, width: 80, height: 120),
+    screenFrame: CGRect(x: 0, y: 0, width: 80, height: 120), scale: 1)
+  // Frame 1 has no overlay scroller; frames 2 and 3 show the scroller thumb moving down.
+  let frames = Frames([
+    scrollerFrame(offset: 0, thumbRow: nil),
+    scrollerFrame(offset: 30, thumbRow: 20),
+    scrollerFrame(offset: 60, thumbRow: 40),
+  ])
+  var reportedRight = 0
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: region, finishSignal: .init(),
+    onInsets: { _, _, right in reportedRight = right },
+    onProgress: { _, _ in }, nextFrame: { await frames.next() })
+  #expect(reportedRight >= 8 && reportedRight <= 10)
+  guard case .partial(let image) = result else {
+    Issue.record("expected stitched result with scroller cropped")
+    return
+  }
+  #expect(image.width == 80 - reportedRight)
+  #expect(image.height == 180)
+}
