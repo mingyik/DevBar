@@ -286,3 +286,125 @@ import Testing
   let outside = CGRect(x: 50, y: 0, width: 400, height: 80)
   #expect(SelectionView.windowChoice(frames: [left, right], selection: outside) == 1)
 }
+
+@MainActor @Test func markHandlesResizeRectAndEllipseAndUpdateCursor() throws {
+  _ = NSApplication.shared
+  let window = NSWindow(
+    contentRect: CGRect(x: 0, y: 0, width: 800, height: 600), styleMask: .borderless,
+    backing: .buffered, defer: false)
+  let view = SelectionView(frame: CGRect(x: 0, y: 0, width: 800, height: 600))
+  window.contentView = view
+  let bitmap = try #require(
+    NSBitmapImageRep(
+      bitmapDataPlanes: nil, pixelsWide: 800, pixelsHigh: 600,
+      bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+      colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+  view.frozenFrame = bitmap.cgImage
+  view.screenFrame = view.bounds
+  view.scale = 1
+  func event(_ type: NSEvent.EventType, _ point: CGPoint) throws -> NSEvent {
+    try #require(
+      NSEvent.mouseEvent(
+        with: type, location: point, modifierFlags: [], timestamp: 0,
+        windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)
+    )
+  }
+  func button(_ name: String) throws -> NSButton {
+    try #require(
+      view.subviews.flatMap(\.subviews).compactMap { $0 as? NSButton }.first {
+        $0.identifier?.rawValue == name
+      })
+  }
+  view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 100, y: 150)))
+  view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 600, y: 450)))
+
+  // Draw an arrow and verify endpoint hover cursor differs from select-mode openHand.
+  try button("arrow").performClick(nil)
+  view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 180, y: 200)))
+  view.mouseDragged(with: try event(.leftMouseDragged, CGPoint(x: 280, y: 300)))
+  view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 280, y: 300)))
+  try button("select").performClick(nil)
+  view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 230, y: 250)))
+  view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 230, y: 250)))
+  view.mouseMoved(with: try event(.mouseMoved, CGPoint(x: 180, y: 200)))
+  #expect(NSCursor.current == NSCursor.pointingHand)
+  view.mouseMoved(with: try event(.mouseMoved, CGPoint(x: 230, y: 250)))
+  #expect(NSCursor.current == NSCursor.openHand)
+
+  // Draw a rectangle and resize it from its right-middle handle.
+  try button("rect").performClick(nil)
+  view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 200, y: 200)))
+  view.mouseDragged(with: try event(.leftMouseDragged, CGPoint(x: 300, y: 280)))
+  view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 300, y: 280)))
+  let beforeResize = try CaptureFileWriter.encode(#require(view.exportFrame()))
+  view.mouseMoved(with: try event(.mouseMoved, CGPoint(x: 300, y: 240)))
+  #expect(NSCursor.current == NSCursor.resizeLeftRight)
+  view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 300, y: 240)))
+  view.mouseDragged(with: try event(.leftMouseDragged, CGPoint(x: 400, y: 240)))
+  view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 400, y: 240)))
+  let afterResize = try CaptureFileWriter.encode(#require(view.exportFrame()))
+  #expect(afterResize != beforeResize)
+
+  // Draw an ellipse, hover top-middle handle, and resize it.
+  try button("ellipse").performClick(nil)
+  view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 320, y: 200)))
+  view.mouseDragged(with: try event(.leftMouseDragged, CGPoint(x: 420, y: 280)))
+  view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 420, y: 280)))
+  let beforeEllipseResize = try CaptureFileWriter.encode(#require(view.exportFrame()))
+  view.mouseMoved(with: try event(.mouseMoved, CGPoint(x: 370, y: 280)))
+  #expect(NSCursor.current == NSCursor.resizeUpDown)
+  view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 370, y: 280)))
+  view.mouseDragged(with: try event(.leftMouseDragged, CGPoint(x: 370, y: 360)))
+  view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 370, y: 360)))
+  let afterEllipseResize = try CaptureFileWriter.encode(#require(view.exportFrame()))
+  #expect(afterEllipseResize != beforeEllipseResize)
+}
+
+@MainActor @Test func textFieldAlwaysStaysWithinSelectionBounds() throws {
+  _ = NSApplication.shared
+  let window = NSWindow(
+    contentRect: CGRect(x: 0, y: 0, width: 800, height: 600), styleMask: .borderless,
+    backing: .buffered, defer: false)
+  let view = SelectionView(frame: CGRect(x: 0, y: 0, width: 800, height: 600))
+  window.contentView = view
+  let bitmap = try #require(
+    NSBitmapImageRep(
+      bitmapDataPlanes: nil, pixelsWide: 800, pixelsHigh: 600,
+      bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+      colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0))
+  view.frozenFrame = bitmap.cgImage
+  view.screenFrame = view.bounds
+  view.scale = 1
+  func event(_ type: NSEvent.EventType, _ point: CGPoint) throws -> NSEvent {
+    try #require(
+      NSEvent.mouseEvent(
+        with: type, location: point, modifierFlags: [], timestamp: 0,
+        windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)
+    )
+  }
+  func button(_ name: String) throws -> NSButton {
+    try #require(
+      view.subviews.flatMap(\.subviews).compactMap { $0 as? NSButton }.first {
+        $0.identifier?.rawValue == name
+      })
+  }
+
+  // Narrow selection (< minWidth) still constrains the text field inside selection.
+  view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 100, y: 150)))
+  view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 140, y: 230)))
+  try button("text").performClick(nil)
+  view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 120, y: 190)))
+  view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 120, y: 190)))
+  let narrowField = try #require(view.subviews.compactMap { $0 as? NSTextField }.first)
+  #expect(view.selection.contains(narrowField.frame))
+
+  // Multi-line overflow and font-size increase stay inside selection.
+  narrowField.stringValue = "line1\nline2\nline3\nline4\nline5\nline6\nline7"
+  NotificationCenter.default.post(name: NSControl.textDidChangeNotification, object: narrowField)
+  #expect(view.selection.contains(narrowField.frame))
+
+  let slider = try #require(view.subviews.flatMap(\.subviews).compactMap { $0 as? NSSlider }.first)
+  slider.doubleValue = 36
+  NSApp.sendAction(try #require(slider.action), to: slider.target, from: slider)
+  #expect(view.selection.contains(narrowField.frame))
+}
