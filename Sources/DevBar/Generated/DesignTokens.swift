@@ -415,77 +415,77 @@ enum DesignTokens {
   static func markdownTextBody(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 96.0 / 255, green: 97.0 / 255, blue: 94.0 / 255, opacity: 1)
+      return Color(red: 35.0 / 255, green: 35.0 / 255, blue: 35.0 / 255, opacity: 1)
     case .dark:
       return Color(red: 215.0 / 255, green: 219.0 / 255, blue: 217.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 96.0 / 255, green: 97.0 / 255, blue: 94.0 / 255, opacity: 1)
+      return Color(red: 35.0 / 255, green: 35.0 / 255, blue: 35.0 / 255, opacity: 1)
     }
   }
 
   static func markdownTextHeading(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 0, green: 143.0 / 255, blue: 147.0 / 255, opacity: 1)
+      return Color(red: 0, green: 155.0 / 255, blue: 201.0 / 255, opacity: 1)
     case .dark:
       return Color(red: 100.0 / 255, green: 203.0 / 255, blue: 205.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 0, green: 143.0 / 255, blue: 147.0 / 255, opacity: 1)
+      return Color(red: 0, green: 155.0 / 255, blue: 201.0 / 255, opacity: 1)
     }
   }
 
   static func markdownTextLink(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 57.0 / 255, green: 122.0 / 255, blue: 64.0 / 255, opacity: 1)
+      return Color(red: 0, green: 145.0 / 255, blue: 85.0 / 255, opacity: 1)
     case .dark:
       return Color(red: 142.0 / 255, green: 196.0 / 255, blue: 145.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 57.0 / 255, green: 122.0 / 255, blue: 64.0 / 255, opacity: 1)
+      return Color(red: 0, green: 145.0 / 255, blue: 85.0 / 255, opacity: 1)
     }
   }
 
   static func markdownTextQuote(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 231.0 / 255, green: 33.0 / 255, blue: 24.0 / 255, opacity: 1)
+      return Color(red: 0, green: 115.0 / 255, blue: 168.0 / 255, opacity: 1)
     case .dark:
       return Color(red: 231.0 / 255, green: 115.0 / 255, blue: 115.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 231.0 / 255, green: 33.0 / 255, blue: 24.0 / 255, opacity: 1)
+      return Color(red: 0, green: 115.0 / 255, blue: 168.0 / 255, opacity: 1)
     }
   }
 
   static func markdownTextStrong(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 168.0 / 255, green: 92.0 / 255, blue: 0, opacity: 1)
+      return Color(red: 204.0 / 255, green: 128.0 / 255, blue: 56.0 / 255, opacity: 1)
     case .dark:
       return Color(red: 242.0 / 255, green: 162.0 / 255, blue: 107.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 168.0 / 255, green: 92.0 / 255, blue: 0, opacity: 1)
+      return Color(red: 204.0 / 255, green: 128.0 / 255, blue: 56.0 / 255, opacity: 1)
     }
   }
 
   static func markdownTextEmphasis(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 120.0 / 255, green: 163.0 / 255, blue: 0, opacity: 1)
+      return Color(red: 194.0 / 255, green: 49.0 / 255, blue: 132.0 / 255, opacity: 1)
     case .dark:
       return Color(red: 190.0 / 255, green: 205.0 / 255, blue: 121.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 120.0 / 255, green: 163.0 / 255, blue: 0, opacity: 1)
+      return Color(red: 194.0 / 255, green: 49.0 / 255, blue: 132.0 / 255, opacity: 1)
     }
   }
 
   static func markdownTextInlineCode(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 96.0 / 255, green: 97.0 / 255, blue: 94.0 / 255, opacity: 1)
+      return Color(red: 0, green: 145.0 / 255, blue: 85.0 / 255, opacity: 1)
     case .dark:
       return Color(red: 215.0 / 255, green: 219.0 / 255, blue: 217.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 96.0 / 255, green: 97.0 / 255, blue: 94.0 / 255, opacity: 1)
+      return Color(red: 0, green: 145.0 / 255, blue: 85.0 / 255, opacity: 1)
     }
   }
 
@@ -624,77 +624,77 @@ enum DesignTokens {
   static func markdownQuoteBorder(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 231.0 / 255, green: 33.0 / 255, blue: 24.0 / 255, opacity: 1)
+      return Color(red: 0, green: 155.0 / 255, blue: 201.0 / 255, opacity: 1)
     case .dark:
       return Color(red: 231.0 / 255, green: 115.0 / 255, blue: 115.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 231.0 / 255, green: 33.0 / 255, blue: 24.0 / 255, opacity: 1)
+      return Color(red: 0, green: 155.0 / 255, blue: 201.0 / 255, opacity: 1)
     }
   }
 
   static func markdownSyntaxKey(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 71.0 / 255, green: 132.0 / 255, blue: 190.0 / 255, opacity: 1)
+      return Color(red: 0, green: 115.0 / 255, blue: 168.0 / 255, opacity: 1)
     case .dark:
       return Color(red: 140.0 / 255, green: 178.0 / 255, blue: 204.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 71.0 / 255, green: 132.0 / 255, blue: 190.0 / 255, opacity: 1)
+      return Color(red: 0, green: 115.0 / 255, blue: 168.0 / 255, opacity: 1)
     }
   }
 
   static func markdownSyntaxKeyword(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 168.0 / 255, green: 101.0 / 255, blue: 184.0 / 255, opacity: 1)
+      return Color(red: 194.0 / 255, green: 49.0 / 255, blue: 132.0 / 255, opacity: 1)
     case .dark:
       return Color(red: 200.0 / 255, green: 163.0 / 255, blue: 200.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 168.0 / 255, green: 101.0 / 255, blue: 184.0 / 255, opacity: 1)
+      return Color(red: 194.0 / 255, green: 49.0 / 255, blue: 132.0 / 255, opacity: 1)
     }
   }
 
   static func markdownSyntaxString(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 120.0 / 255, green: 163.0 / 255, blue: 0, opacity: 1)
+      return Color(red: 0, green: 145.0 / 255, blue: 85.0 / 255, opacity: 1)
     case .dark:
       return Color(red: 190.0 / 255, green: 205.0 / 255, blue: 121.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 120.0 / 255, green: 163.0 / 255, blue: 0, opacity: 1)
+      return Color(red: 0, green: 145.0 / 255, blue: 85.0 / 255, opacity: 1)
     }
   }
 
   static func markdownSyntaxNumber(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 254.0 / 255, green: 150.0 / 255, blue: 0, opacity: 1)
+      return Color(red: 204.0 / 255, green: 128.0 / 255, blue: 56.0 / 255, opacity: 1)
     case .dark:
       return Color(red: 242.0 / 255, green: 162.0 / 255, blue: 107.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 254.0 / 255, green: 150.0 / 255, blue: 0, opacity: 1)
+      return Color(red: 204.0 / 255, green: 128.0 / 255, blue: 56.0 / 255, opacity: 1)
     }
   }
 
   static func markdownSyntaxConstant(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 231.0 / 255, green: 33.0 / 255, blue: 24.0 / 255, opacity: 1)
+      return Color(red: 196.0 / 255, green: 56.0 / 255, blue: 54.0 / 255, opacity: 1)
     case .dark:
       return Color(red: 231.0 / 255, green: 115.0 / 255, blue: 115.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 231.0 / 255, green: 33.0 / 255, blue: 24.0 / 255, opacity: 1)
+      return Color(red: 196.0 / 255, green: 56.0 / 255, blue: 54.0 / 255, opacity: 1)
     }
   }
 
   static func markdownSyntaxComment(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 159.0 / 255, green: 162.0 / 255, blue: 159.0 / 255, opacity: 1)
+      return Color(red: 159.0 / 255, green: 142.0 / 255, blue: 67.0 / 255, opacity: 1)
     case .dark:
       return Color(red: 166.0 / 255, green: 169.0 / 255, blue: 168.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 159.0 / 255, green: 162.0 / 255, blue: 159.0 / 255, opacity: 1)
+      return Color(red: 159.0 / 255, green: 142.0 / 255, blue: 67.0 / 255, opacity: 1)
     }
   }
 
@@ -712,22 +712,22 @@ enum DesignTokens {
   static func markdownSyntaxFunction(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 0, green: 173.0 / 255, blue: 178.0 / 255, opacity: 1)
+      return Color(red: 0, green: 155.0 / 255, blue: 201.0 / 255, opacity: 1)
     case .dark:
       return Color(red: 140.0 / 255, green: 205.0 / 255, blue: 198.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 0, green: 173.0 / 255, blue: 178.0 / 255, opacity: 1)
+      return Color(red: 0, green: 155.0 / 255, blue: 201.0 / 255, opacity: 1)
     }
   }
 
   static func markdownSyntaxType(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:
-      return Color(red: 168.0 / 255, green: 101.0 / 255, blue: 184.0 / 255, opacity: 1)
+      return Color(red: 0, green: 115.0 / 255, blue: 168.0 / 255, opacity: 1)
     case .dark:
       return Color(red: 200.0 / 255, green: 163.0 / 255, blue: 200.0 / 255, opacity: 1)
     @unknown default:
-      return Color(red: 168.0 / 255, green: 101.0 / 255, blue: 184.0 / 255, opacity: 1)
+      return Color(red: 0, green: 115.0 / 255, blue: 168.0 / 255, opacity: 1)
     }
   }
 

@@ -32,6 +32,10 @@ export const languages = [
   "diff",
   "markdown",
 ];
+const themeNames: Record<Theme, string> = {
+  light: "devbar-yosemite-light",
+  dark: "devbar-tomorrow-dark",
+};
 let highlighter: ReturnType<typeof createHighlighterCore> | undefined;
 let warned = false;
 export function getHighlighter() {
@@ -82,7 +86,7 @@ export async function highlightCode(
     const renderer = await getHighlighter();
     return renderer.codeToHtml(text, {
       lang,
-      theme: `devbar-tomorrow-${theme}`,
+      theme: themeNames[theme],
     });
   } catch {
     if (!warned) {

@@ -45,13 +45,13 @@
   --capture-toolbarTint: rgba(255, 255, 255, 0.72);
   --capture-toolbarBorder: rgba(0, 0, 0, 0.22);
   --capture-toolbarIcon: rgba(0, 0, 0, 1);
-  --markdown-text-body: rgba(96, 97, 94, 1);
-  --markdown-text-heading: rgba(0, 143, 147, 1);
-  --markdown-text-link: rgba(57, 122, 64, 1);
-  --markdown-text-quote: rgba(231, 33, 24, 1);
-  --markdown-text-strong: rgba(168, 92, 0, 1);
-  --markdown-text-emphasis: rgba(120, 163, 0, 1);
-  --markdown-text-inline-code: rgba(96, 97, 94, 1);
+  --markdown-text-body: rgba(35, 35, 35, 1);
+  --markdown-text-heading: rgba(0, 155, 201, 1);
+  --markdown-text-link: rgba(0, 145, 85, 1);
+  --markdown-text-quote: rgba(0, 115, 168, 1);
+  --markdown-text-strong: rgba(204, 128, 56, 1);
+  --markdown-text-emphasis: rgba(194, 49, 132, 1);
+  --markdown-text-inline-code: rgba(0, 145, 85, 1);
   --markdown-editor-body: rgba(35, 35, 35, 1);
   --markdown-editor-heading: rgba(0, 155, 201, 1);
   --markdown-editor-link: rgba(0, 145, 85, 1);
@@ -64,16 +64,16 @@
   --markdown-surface-table-header: rgba(235, 235, 235, 1);
   --markdown-table-line: rgba(176, 176, 176, 1);
   --markdown-line: rgba(159, 162, 159, 1);
-  --markdown-quote-border: rgba(231, 33, 24, 1);
-  --markdown-syntax-key: rgba(71, 132, 190, 1);
-  --markdown-syntax-keyword: rgba(168, 101, 184, 1);
-  --markdown-syntax-string: rgba(120, 163, 0, 1);
-  --markdown-syntax-number: rgba(254, 150, 0, 1);
-  --markdown-syntax-constant: rgba(231, 33, 24, 1);
-  --markdown-syntax-comment: rgba(159, 162, 159, 1);
+  --markdown-quote-border: rgba(0, 155, 201, 1);
+  --markdown-syntax-key: rgba(0, 115, 168, 1);
+  --markdown-syntax-keyword: rgba(194, 49, 132, 1);
+  --markdown-syntax-string: rgba(0, 145, 85, 1);
+  --markdown-syntax-number: rgba(204, 128, 56, 1);
+  --markdown-syntax-constant: rgba(196, 56, 54, 1);
+  --markdown-syntax-comment: rgba(159, 142, 67, 1);
   --markdown-syntax-punct: rgba(96, 97, 94, 1);
-  --markdown-syntax-function: rgba(0, 173, 178, 1);
-  --markdown-syntax-type: rgba(168, 101, 184, 1);
+  --markdown-syntax-function: rgba(0, 155, 201, 1);
+  --markdown-syntax-type: rgba(0, 115, 168, 1);
   --snapshot-background: #fbfbfb;
 }
 

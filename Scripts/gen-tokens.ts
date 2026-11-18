@@ -448,8 +448,8 @@ function renderShiki(tokens: Tokens, scheme: Scheme): string {
   ];
   const theme = {
     comment: header,
-    name: `devbar-tomorrow-${scheme}`,
-    displayName: scheme === "light" ? "DevBar Tomorrow Light" : "DevBar Tomorrow Dark",
+    name: scheme === "light" ? "devbar-yosemite-light" : "devbar-tomorrow-dark",
+    displayName: scheme === "light" ? "DevBar Modified Yosemite Light" : "DevBar Tomorrow Dark",
     type: scheme,
     colors: {
       "editor.background": hexWithAlpha(background),

@@ -1,11 +1,11 @@
 {
   "comment": "自动生成，勿手改。来源：design/tokens.json",
-  "name": "devbar-tomorrow-light",
-  "displayName": "DevBar Tomorrow Light",
+  "name": "devbar-yosemite-light",
+  "displayName": "DevBar Modified Yosemite Light",
   "type": "light",
   "colors": {
     "editor.background": "#EBEBEB",
-    "editor.foreground": "#60615E"
+    "editor.foreground": "#232323"
   },
   "tokenColors": [
     {
@@ -16,25 +16,25 @@
         "variable.other.property"
       ],
       "settings": {
-        "foreground": "#4784BE"
+        "foreground": "#0073A8"
       }
     },
     {
       "scope": ["keyword", "storage.type", "storage.modifier"],
       "settings": {
-        "foreground": "#A865B8"
+        "foreground": "#C23184"
       }
     },
     {
       "scope": ["string"],
       "settings": {
-        "foreground": "#78A300"
+        "foreground": "#009155"
       }
     },
     {
       "scope": ["constant.numeric"],
       "settings": {
-        "foreground": "#FE9600"
+        "foreground": "#CC8038"
       }
     },
     {
@@ -44,13 +44,13 @@
         "constant.language.null"
       ],
       "settings": {
-        "foreground": "#E72118"
+        "foreground": "#C43836"
       }
     },
     {
       "scope": ["comment"],
       "settings": {
-        "foreground": "#9FA29F"
+        "foreground": "#9F8E43"
       }
     },
     {
@@ -66,13 +66,13 @@
         "meta.function-call.generic"
       ],
       "settings": {
-        "foreground": "#00ADB2"
+        "foreground": "#009BC9"
       }
     },
     {
       "scope": ["entity.name.type", "entity.name.class", "support.type"],
       "settings": {
-        "foreground": "#A865B8"
+        "foreground": "#0073A8"
       }
     }
   ]
