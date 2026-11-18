@@ -315,16 +315,6 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       PasteboardBridge.writePNGBase64(payload["pngBase64"]?.stringValue ?? "")
       onClipboardWrite?(NSPasteboard.general.changeCount)
       return #"{"ok":true}"#
-    case "preview.chooseExportWidth":
-      guard case .number(let width) = payload["width"] else { return #"{"status":"failed"}"# }
-      return await previewImage.chooseExportWidth(
-        page: payload["page"]?.stringValue ?? "",
-        initialWidth: width,
-        html: payload["html"]?.stringValue ?? "",
-        css: payload["css"]?.stringValue ?? "",
-        theme: payload["theme"]?.stringValue ?? "light",
-        background: payload["background"]?.stringValue ?? "",
-        screen: webView.window?.screen)
     case "preview.exportImage":
       guard case .number(let width) = payload["width"], case .number(let height) = payload["height"]
       else { return "{}" }
