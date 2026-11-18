@@ -238,6 +238,7 @@ public final class SelectionOverlay {
         contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel],
         backing: .buffered, defer: false)
       panel.isReleasedWhenClosed = false
+      panel.sharingType = .none
       panel.level = level
       panel.collectionBehavior = [
         .canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle, .stationary,
