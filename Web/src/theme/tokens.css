@@ -52,6 +52,13 @@
   --markdown-text-strong: rgba(168, 92, 0, 1);
   --markdown-text-emphasis: rgba(120, 163, 0, 1);
   --markdown-text-inline-code: rgba(96, 97, 94, 1);
+  --markdown-editor-body: rgba(35, 35, 35, 1);
+  --markdown-editor-heading: rgba(0, 155, 201, 1);
+  --markdown-editor-link: rgba(0, 145, 85, 1);
+  --markdown-editor-strong: rgba(204, 128, 56, 1);
+  --markdown-editor-emphasis: rgba(194, 49, 132, 1);
+  --markdown-editor-inline-code: rgba(0, 145, 85, 1);
+  --markdown-editor-marker: rgba(196, 56, 54, 1);
   --markdown-surface-code: rgba(235, 235, 235, 1);
   --markdown-surface-inline-code: rgba(223, 223, 223, 1);
   --markdown-surface-table-header: rgba(235, 235, 235, 1);
@@ -111,6 +118,13 @@
   --markdown-text-strong: rgba(242, 162, 107, 1);
   --markdown-text-emphasis: rgba(190, 205, 121, 1);
   --markdown-text-inline-code: rgba(215, 219, 217, 1);
+  --markdown-editor-body: rgba(215, 219, 217, 1);
+  --markdown-editor-heading: rgba(100, 203, 205, 1);
+  --markdown-editor-link: rgba(142, 196, 145, 1);
+  --markdown-editor-strong: rgba(242, 162, 107, 1);
+  --markdown-editor-emphasis: rgba(190, 205, 121, 1);
+  --markdown-editor-inline-code: rgba(215, 219, 217, 1);
+  --markdown-editor-marker: rgba(166, 169, 168, 1);
   --markdown-surface-code: rgba(52, 56, 60, 1);
   --markdown-surface-inline-code: rgba(71, 76, 83, 1);
   --markdown-surface-table-header: rgba(52, 56, 60, 1);

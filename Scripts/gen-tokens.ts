@@ -387,6 +387,12 @@ function renderCodeMirror(tokens: Tokens): string {
   const constantProps = ["color: \"var(--syntax-constant)\"", ...cmStyleProps(tokens, "syntax.constant")].join(", ");
   const commentProps = ["color: \"var(--syntax-comment)\"", ...cmStyleProps(tokens, "syntax.comment")].join(", ");
   const punctProps = ["color: \"var(--syntax-punct)\"", ...cmStyleProps(tokens, "syntax.punct")].join(", ");
+  const headingProps = ["color: \"var(--markdown-editor-heading)\"", ...cmStyleProps(tokens, "markdown.editor.heading")].join(", ");
+  const linkProps = ["color: \"var(--markdown-editor-link)\"", ...cmStyleProps(tokens, "markdown.editor.link")].join(", ");
+  const strongProps = ["color: \"var(--markdown-editor-strong)\"", ...cmStyleProps(tokens, "markdown.editor.strong")].join(", ");
+  const emphasisProps = ["color: \"var(--markdown-editor-emphasis)\"", ...cmStyleProps(tokens, "markdown.editor.emphasis")].join(", ");
+  const inlineCodeProps = ["color: \"var(--markdown-editor-inline-code)\"", ...cmStyleProps(tokens, "markdown.editor.inline.code")].join(", ");
+  const markerProps = ["color: \"var(--markdown-editor-marker)\"", ...cmStyleProps(tokens, "markdown.editor.marker")].join(", ");
   return [
     "// " + header,
     'import { HighlightStyle } from "@codemirror/language";',
@@ -399,6 +405,15 @@ function renderCodeMirror(tokens: Tokens): string {
     `  { tag: [tags.bool, tags.null, tags.atom], ${constantProps} },`,
     `  { tag: tags.comment, ${commentProps} },`,
     `  { tag: tags.punctuation, ${punctProps} },`,
+    "]);",
+    "",
+    "export const devbarMarkdownHighlightStyle = HighlightStyle.define([",
+    `  { tag: [tags.heading, tags.heading1, tags.heading2, tags.heading3, tags.heading4, tags.heading5, tags.heading6], ${headingProps} },`,
+    `  { tag: [tags.link, tags.url], ${linkProps} },`,
+    `  { tag: tags.strong, ${strongProps} },`,
+    `  { tag: tags.emphasis, ${emphasisProps} },`,
+    `  { tag: tags.monospace, ${inlineCodeProps} },`,
+    `  { tag: tags.processingInstruction, ${markerProps} },`,
     "]);",
     "",
   ].join("\n");

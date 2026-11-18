@@ -435,6 +435,9 @@ button:disabled {
 #doc .preview {
   padding-bottom: 52px;
 }
+#doc .source .cm-content {
+  color: var(--markdown-editor-body);
+}
 #doc .page-content.split::after {
   bottom: 0;
 }

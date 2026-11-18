@@ -489,6 +489,83 @@ enum DesignTokens {
     }
   }
 
+  static func markdownEditorBody(_ scheme: ColorScheme) -> Color {
+    switch scheme {
+    case .light:
+      return Color(red: 35.0 / 255, green: 35.0 / 255, blue: 35.0 / 255, opacity: 1)
+    case .dark:
+      return Color(red: 215.0 / 255, green: 219.0 / 255, blue: 217.0 / 255, opacity: 1)
+    @unknown default:
+      return Color(red: 35.0 / 255, green: 35.0 / 255, blue: 35.0 / 255, opacity: 1)
+    }
+  }
+
+  static func markdownEditorHeading(_ scheme: ColorScheme) -> Color {
+    switch scheme {
+    case .light:
+      return Color(red: 0, green: 155.0 / 255, blue: 201.0 / 255, opacity: 1)
+    case .dark:
+      return Color(red: 100.0 / 255, green: 203.0 / 255, blue: 205.0 / 255, opacity: 1)
+    @unknown default:
+      return Color(red: 0, green: 155.0 / 255, blue: 201.0 / 255, opacity: 1)
+    }
+  }
+
+  static func markdownEditorLink(_ scheme: ColorScheme) -> Color {
+    switch scheme {
+    case .light:
+      return Color(red: 0, green: 145.0 / 255, blue: 85.0 / 255, opacity: 1)
+    case .dark:
+      return Color(red: 142.0 / 255, green: 196.0 / 255, blue: 145.0 / 255, opacity: 1)
+    @unknown default:
+      return Color(red: 0, green: 145.0 / 255, blue: 85.0 / 255, opacity: 1)
+    }
+  }
+
+  static func markdownEditorStrong(_ scheme: ColorScheme) -> Color {
+    switch scheme {
+    case .light:
+      return Color(red: 204.0 / 255, green: 128.0 / 255, blue: 56.0 / 255, opacity: 1)
+    case .dark:
+      return Color(red: 242.0 / 255, green: 162.0 / 255, blue: 107.0 / 255, opacity: 1)
+    @unknown default:
+      return Color(red: 204.0 / 255, green: 128.0 / 255, blue: 56.0 / 255, opacity: 1)
+    }
+  }
+
+  static func markdownEditorEmphasis(_ scheme: ColorScheme) -> Color {
+    switch scheme {
+    case .light:
+      return Color(red: 194.0 / 255, green: 49.0 / 255, blue: 132.0 / 255, opacity: 1)
+    case .dark:
+      return Color(red: 190.0 / 255, green: 205.0 / 255, blue: 121.0 / 255, opacity: 1)
+    @unknown default:
+      return Color(red: 194.0 / 255, green: 49.0 / 255, blue: 132.0 / 255, opacity: 1)
+    }
+  }
+
+  static func markdownEditorInlineCode(_ scheme: ColorScheme) -> Color {
+    switch scheme {
+    case .light:
+      return Color(red: 0, green: 145.0 / 255, blue: 85.0 / 255, opacity: 1)
+    case .dark:
+      return Color(red: 215.0 / 255, green: 219.0 / 255, blue: 217.0 / 255, opacity: 1)
+    @unknown default:
+      return Color(red: 0, green: 145.0 / 255, blue: 85.0 / 255, opacity: 1)
+    }
+  }
+
+  static func markdownEditorMarker(_ scheme: ColorScheme) -> Color {
+    switch scheme {
+    case .light:
+      return Color(red: 196.0 / 255, green: 56.0 / 255, blue: 54.0 / 255, opacity: 1)
+    case .dark:
+      return Color(red: 166.0 / 255, green: 169.0 / 255, blue: 168.0 / 255, opacity: 1)
+    @unknown default:
+      return Color(red: 196.0 / 255, green: 56.0 / 255, blue: 54.0 / 255, opacity: 1)
+    }
+  }
+
   static func markdownSurfaceCode(_ scheme: ColorScheme) -> Color {
     switch scheme {
     case .light:

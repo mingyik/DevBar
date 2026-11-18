@@ -6,8 +6,10 @@ import {
   sourceText,
 } from "./state";
 import { Compartment, Transaction } from "@codemirror/state";
+import { syntaxHighlighting } from "@codemirror/language";
 import { markdown } from "@codemirror/lang-markdown";
 import { documentLanguages } from "./languages";
+import { devbarMarkdownHighlightStyle } from "../theme/cm-highlight";
 import {
   PageShell,
   element,
@@ -73,6 +75,7 @@ export class DocPage {
   constructor(shell: PageShell) {
     this.shell = shell;
     shell.addExtensions(documentHistory);
+    shell.addExtensions(syntaxHighlighting(devbarMarkdownHighlightStyle));
     shell.addExtensions(
       this.language.of(
         markdown({

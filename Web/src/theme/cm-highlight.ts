@@ -22,3 +22,23 @@ export const devbarHighlightStyle = HighlightStyle.define([
   { tag: tags.comment, color: "var(--syntax-comment)", fontStyle: "italic" },
   { tag: tags.punctuation, color: "var(--syntax-punct)" },
 ]);
+
+export const devbarMarkdownHighlightStyle = HighlightStyle.define([
+  {
+    tag: [
+      tags.heading,
+      tags.heading1,
+      tags.heading2,
+      tags.heading3,
+      tags.heading4,
+      tags.heading5,
+      tags.heading6,
+    ],
+    color: "var(--markdown-editor-heading)",
+  },
+  { tag: [tags.link, tags.url], color: "var(--markdown-editor-link)" },
+  { tag: tags.strong, color: "var(--markdown-editor-strong)" },
+  { tag: tags.emphasis, color: "var(--markdown-editor-emphasis)" },
+  { tag: tags.monospace, color: "var(--markdown-editor-inline-code)" },
+  { tag: tags.processingInstruction, color: "var(--markdown-editor-marker)" },
+]);
