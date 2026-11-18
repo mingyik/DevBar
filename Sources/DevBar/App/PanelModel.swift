@@ -60,7 +60,7 @@ final class PanelModel {
     }
   }
   var panelSize: CGSize {
-    if dropActive { return CGSize(width: 400, height: 144) }
+    if dropActive { return CGSize(width: 360, height: 96) }
     return switch page {
     case .clipboard: CGSize(width: 380, height: 520)
     case .json:

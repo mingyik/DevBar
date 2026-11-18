@@ -72,24 +72,17 @@ struct PanelView: View {
   private func mainColumn(_ scheme: ColorScheme) -> some View {
     VStack(spacing: 0) {
       if model.dropActive {
-        HStack {
-          Text(Strings.appName).font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(DesignTokens.textPrimary(scheme))
-          Spacer()
-        }.frame(height: 24).padding(.bottom, 8)
+        FileDropOverlay(scheme: scheme)
       } else {
         titleRow(scheme).frame(height: 32).padding(.bottom, 8)
-      }
-      ZStack {
-        content(scheme)
-          .opacity(model.dropActive ? 0 : 1)
-          .allowsHitTesting(!model.dropActive)
-        if model.dropActive { FileDropOverlay(document: model.dropDocument, scheme: scheme) }
-      }
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-      if !model.dropActive && !model.toast.isEmpty {
-        Text(model.toast).font(.system(size: 11))
-          .foregroundStyle(DesignTokens.textSecondary(scheme)).lineLimit(1)
+        ZStack {
+          content(scheme)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        if !model.toast.isEmpty {
+          Text(model.toast).font(.system(size: 11))
+            .foregroundStyle(DesignTokens.textSecondary(scheme)).lineLimit(1)
+        }
       }
     }
     .padding(.horizontal, 10)

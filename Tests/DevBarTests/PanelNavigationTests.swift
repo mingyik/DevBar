@@ -104,7 +104,7 @@ import Testing
   model.enlarged = true
   let before = model.panelSize
   model.dropActive = true
-  #expect(model.panelSize == CGSize(width: 400, height: 144))
+  #expect(model.panelSize == CGSize(width: 360, height: 96))
   #expect(model.page == .json && model.enlarged)
   model.dropActive = false
   #expect(model.panelSize == before)

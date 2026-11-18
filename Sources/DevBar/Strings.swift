@@ -17,8 +17,8 @@ enum Strings {
   static let stateSaveFailed = "保存失败，内容已保留，请检查存储位置"
   static let insufficientMemory = "内存不足，清理后再试。"
   static let appName = "DevBar"
-  static let fileDropJSON = "{ } JSON\n在工具中打开"
-  static let fileDropDoc = "# Markdown / Mermaid\n在文稿中打开"
+  static let fileDropDocTitle = "拖放 Markdown / Mermaid 文件"
+  static let fileDropDocTypes = "支持 .md、.markdown、.mmd、.mermaid"
   static let fileDropFirst = "已打开第一个文件"
   static func fileDropError(_ reason: FileDropReason) -> String {
     switch reason {

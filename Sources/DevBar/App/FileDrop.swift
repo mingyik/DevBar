@@ -16,24 +16,21 @@ import UniformTypeIdentifiers
   }
   func enteredIcon(_ urls: [URL]) -> NSDragOperation {
     cancellation?.cancel()
-    guard let first = urls.first else { return [] }
+    guard let first = urls.first,
+      case .doc = FileRoute.route(
+        fileName: first.lastPathComponent, sniff: FileDropReader.sniff(first))
+    else { return [] }
     if !panel.model.dropActive {
       openedForDrag = !panel.panel.isVisible
       origin = panel.model.page
-      let route = FileRoute.route(
-        fileName: first.lastPathComponent, sniff: FileDropReader.sniff(first))
-      panel.model.dropDocument = {
-        if case .doc = route { return true }
-        return false
-      }()
+      panel.model.dropDocument = true
       panel.model.dropActive = true
       panel.show(anchor: status.anchor)
     }
     return .copy
   }
-  func enteredPanel(x: CGFloat, width: CGFloat) {
+  func enteredPanel() {
     cancellation?.cancel()
-    if panel.model.dropActive { panel.model.dropDocument = x >= width / 2 }
   }
   func exited() {
     cancellation?.cancel()
@@ -138,10 +135,10 @@ import UniformTypeIdentifiers
   let model: PanelModel
   func validateDrop(info: DropInfo) -> Bool { info.hasItemsConforming(to: [.fileURL]) }
   func dropEntered(info: DropInfo) {
-    model.fileDrop?.enteredPanel(x: info.location.x, width: model.panelSize.width)
+    model.fileDrop?.enteredPanel()
   }
   func dropUpdated(info: DropInfo) -> DropProposal? {
-    model.fileDrop?.enteredPanel(x: info.location.x, width: model.panelSize.width)
+    model.fileDrop?.enteredPanel()
     return DropProposal(operation: .copy)
   }
   func dropExited(info: DropInfo) { model.fileDrop?.exited() }
@@ -168,33 +165,34 @@ import UniformTypeIdentifiers
 }
 
 struct FileDropOverlay: View {
-  let document: Bool
   let scheme: ColorScheme
   var body: some View {
-    HStack(spacing: 8) {
-      zone(Strings.fileDropJSON, selected: !document)
-      zone(Strings.fileDropDoc, selected: document)
+    HStack(spacing: 12) {
+      Image(systemName: "arrow.down.doc")
+        .devbarIconColor(scheme)
+        .font(.system(size: 18, weight: .regular))
+        .frame(width: 24)
+      VStack(alignment: .leading, spacing: 4) {
+        Text(Strings.fileDropDocTitle)
+          .font(.system(size: 14, weight: .semibold))
+          .foregroundStyle(DesignTokens.textPrimary(scheme))
+          .lineLimit(1)
+        Text(Strings.fileDropDocTypes)
+          .font(.system(size: 10))
+          .foregroundStyle(DesignTokens.textSecondary(scheme))
+          .lineLimit(1)
+      }
     }
-  }
-  private func zone(_ title: String, selected: Bool) -> some View {
-    Text(title).font(.system(size: 13, weight: .medium)).multilineTextAlignment(.center)
-      .frame(maxWidth: .infinity, maxHeight: .infinity)
-      .foregroundStyle(DesignTokens.textPrimary(scheme))
-      .background(DesignTokens.panelControl(scheme))
-      .overlay {
-        RoundedRectangle(cornerRadius: 12)
-          .fill(DesignTokens.panelControl(scheme).opacity(selected ? 0.6 : 0))
-          .allowsHitTesting(false)
-      }
-      .clipShape(RoundedRectangle(cornerRadius: 12))
-      .overlay {
-        RoundedRectangle(cornerRadius: 12)
-          .strokeBorder(
-            selected
-              ? DesignTokens.selectionBorder(scheme).opacity(0.45)
-              : DesignTokens.lineBorder(scheme),
-            lineWidth: DesignTokens.strokeHairline
-          ).allowsHitTesting(false)
-      }
+    .padding(.horizontal, 12)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(DesignTokens.panelControl(scheme))
+    .clipShape(RoundedRectangle(cornerRadius: 12))
+    .overlay {
+      RoundedRectangle(cornerRadius: 12)
+        .strokeBorder(
+          DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline
+        ).allowsHitTesting(false)
+    }
+    .accessibilityElement(children: .combine)
   }
 }
