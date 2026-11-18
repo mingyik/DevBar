@@ -1135,7 +1135,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
     let topPts = min(selection.height, CGFloat(max(0, topInsetPixels)) / scale)
     let bottomPts = min(selection.height - topPts, CGFloat(max(0, bottomInsetPixels)) / scale)
     let rightPts = min(selection.width, CGFloat(max(0, rightInsetPixels)) / scale)
-    let excludedFill = NSColor.black.withAlphaComponent(0.28)  // devbar:allow-color
+    let excludedFill = NSColor.black.withAlphaComponent(0.22)  // devbar:allow-color
     excludedFill.setFill()
     if topPts > 0 {
       CGRect(x: selection.minX, y: selection.maxY - topPts, width: selection.width, height: topPts)
@@ -1154,33 +1154,37 @@ final class SelectionView: NSView, NSTextFieldDelegate {
     let contentMaxX = selection.maxX - rightPts
     let topY = selection.maxY - topPts
     let bottomY = selection.minY + bottomPts
-    NSColor.systemBlue.setStroke()  // devbar:allow-color
+    NSColor.white.withAlphaComponent(0.75).setStroke()  // devbar:allow-color
+    let dash: [CGFloat] = [4, 4]
     if topPts > 0 {
       let line = NSBezierPath()
-      line.lineWidth = 1.5
+      line.lineWidth = 1
+      line.setLineDash(dash, count: dash.count, phase: 0)
       line.move(to: CGPoint(x: selection.minX, y: topY))
       line.line(to: CGPoint(x: contentMaxX, y: topY))
       line.stroke()
     }
     if bottomPts > 0 {
       let line = NSBezierPath()
-      line.lineWidth = 1.5
+      line.lineWidth = 1
+      line.setLineDash(dash, count: dash.count, phase: 0)
       line.move(to: CGPoint(x: selection.minX, y: bottomY))
       line.line(to: CGPoint(x: contentMaxX, y: bottomY))
       line.stroke()
     }
     if rightPts > 0 {
       let line = NSBezierPath()
-      line.lineWidth = 1.5
+      line.lineWidth = 1
+      line.setLineDash(dash, count: dash.count, phase: 0)
       line.move(to: CGPoint(x: contentMaxX, y: bottomY))
       line.line(to: CGPoint(x: contentMaxX, y: topY))
       line.stroke()
     }
     func drawPill(_ rect: CGRect) {
       let pill = NSBezierPath(roundedRect: rect, xRadius: 2.5, yRadius: 2.5)
-      NSColor.systemBlue.setFill()  // devbar:allow-color
+      NSColor.white.withAlphaComponent(0.92).setFill()  // devbar:allow-color
       pill.fill()
-      NSColor.white.setStroke()  // devbar:allow-color
+      NSColor.black.withAlphaComponent(0.45).setStroke()  // devbar:allow-color
       pill.lineWidth = 1
       pill.stroke()
     }

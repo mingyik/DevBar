@@ -199,7 +199,6 @@ public enum ScreenshotScrollingCapture {
       var contentPixelColumns: Range<Int>?
       var fixedTopPixels = 0
       var autoTopPixels = 0
-      var autoFixedTopPixels = 0
       var headerSlice: CGImage?
       var anchors = ScreenshotSupport.ScrollingAnchors()
       anchors.remember(firstSample, at: 0)
@@ -212,7 +211,6 @@ public enum ScreenshotScrollingCapture {
       var lastDirection: ScreenshotSupport.ScrollingDirection?
       var fixedBottomPixels = 0
       var autoBottomPixels = 0
-      var autoFixedBottomPixels = 0
       var footerSlice: CGImage?
       var heldFragments: [HeldFragment] = []
       /// Frames whose content edges are the captured top and bottom. Edge
@@ -763,11 +761,11 @@ public enum ScreenshotScrollingCapture {
             previous: previousFrame, current: current,
             scale: region.scale, fromTop: false, touchesWindowEdge: region.touchesWindowBottom)
           let maxTotal = max(0, frameHeight - minimumContent)
-          autoFixedTopPixels = fixedTopPixels + detectedTop
-          let autoTop = min(max(autoFixedTopPixels, cornerTop), maxTotal)
-          autoFixedBottomPixels = fixedBottomPixels + detectedBottom
+          let autoFixedTop = fixedTopPixels + detectedTop
+          let autoTop = min(max(autoFixedTop, cornerTop), maxTotal)
+          let autoFixedBottom = fixedBottomPixels + detectedBottom
           let autoBottom = min(
-            max(autoFixedBottomPixels, cornerBottom), max(0, maxTotal - autoTop))
+            max(autoFixedBottom, cornerBottom), max(0, maxTotal - autoTop))
           autoTopPixels = autoTop
           autoBottomPixels = autoBottom
           let top = userTopSet ? min(fixedTopPixels, maxTotal) : autoTop
@@ -889,10 +887,8 @@ public enum ScreenshotScrollingCapture {
               previous: observedBefore, current: currentSample,
               overlap: observedOverlap, contentColumns: columns)
             fixedLayoutChanged =
-              (!userTopSet
-                && (top > fixedTopPixels + 2 || top < autoFixedTopPixels - 2))
-              || (!userBottomSet
-                && (bottom > fixedBottomPixels + 2 || bottom < autoFixedBottomPixels - 2))
+              (!userTopSet && top > fixedTopPixels + 2)
+              || (!userBottomSet && bottom > fixedBottomPixels + 2)
             if !fixedLayoutChanged, !userRightSet, autoRightPixels == 0 {
               let detectedRight = ScreenshotSupport.scrollingRightScrollerColumns(
                 previous: observedFrameBefore, current: current,

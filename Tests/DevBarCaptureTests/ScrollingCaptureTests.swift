@@ -1452,3 +1452,50 @@ private func registrationSample(_ offset: Int) -> ScreenshotSupport.ScrollingSam
   #expect(image.height == 400)
   #expect(image.dataProvider?.data as Data? == reference.dataProvider?.data as Data?)
 }
+
+@MainActor @Test func scrollingContinuesWhenExcludedTranslucentHeaderVariesBetweenFrames()
+  async throws
+{
+  func frameWithTint(offset: Int, headerTint: UInt8) -> CGImage {
+    let width = 64
+    let height = 120
+    var pixels = [UInt8](repeating: 255, count: width * height)
+    for row in 0..<height {
+      for col in 0..<width {
+        if row < 20 {
+          pixels[row * width + col] = headerTint
+        } else {
+          let y = row + offset
+          var value =
+            UInt32(truncatingIfNeeded: y) &* 747_796_405 &+ UInt32(col * 19 + 2_891_336_453)
+          value = ((value >> ((value >> 28) + 4)) ^ value) &* 277_803_737
+          pixels[row * width + col] = UInt8(truncatingIfNeeded: (value >> 22) ^ value)
+        }
+      }
+    }
+    return CGImage(
+      width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 8, bytesPerRow: width,
+      space: CGColorSpaceCreateDeviceGray(), bitmapInfo: .init(rawValue: 0),
+      provider: CGDataProvider(data: Data(pixels) as CFData)!, decode: nil,
+      shouldInterpolate: false, intent: .defaultIntent)!
+  }
+  let frames = Frames([
+    frameWithTint(offset: 0, headerTint: 240),
+    frameWithTint(offset: 35, headerTint: 240),
+    frameWithTint(offset: 70, headerTint: 120),
+    frameWithTint(offset: 105, headerTint: 200),
+    frameWithTint(offset: 140, headerTint: 80),
+  ])
+  var sawUnmatched = false
+  let result = await ScreenshotScrollingCapture.captureFrames(
+    region: try testRegion(), finishSignal: .init(),
+    onProgress: { _, unmatched in
+      if unmatched { sawUnmatched = true }
+    }, nextFrame: { await frames.next() })
+  #expect(!sawUnmatched)
+  guard case .partial(let image) = result else {
+    Issue.record("expected full stitched image despite varying excluded translucent header")
+    return
+  }
+  #expect(image.height == 260)
+}
