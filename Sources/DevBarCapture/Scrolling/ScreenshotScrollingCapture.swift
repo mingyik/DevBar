@@ -724,7 +724,8 @@ public enum ScreenshotScrollingCapture {
           contentColumns: contentSampleColumns)
         let observedFrameBefore = lastObservedFrame
         lastObservedFrame = current
-        let observedBefore = lastObservedSample
+        let rawObservedBefore = rawLastObservedSample
+        var observedBefore = lastObservedSample
         rawLastObservedSample = rawCurrentSample
         lastObservedSample = currentSample
         if !frameIsStable { lastChangedAt = lastCaptureAt }
@@ -784,6 +785,7 @@ public enum ScreenshotScrollingCapture {
             firstSample = masked(rawFirstSample)
             previousSample = masked(rawPreviousSample)
             currentSample = masked(rawCurrentSample)
+            observedBefore = masked(rawObservedBefore)
             lastObservedSample = currentSample
           }
           // Only the frame immediately after the first one has a known offset
@@ -889,17 +891,19 @@ public enum ScreenshotScrollingCapture {
             fixedLayoutChanged =
               (!userTopSet && top > fixedTopPixels + 2)
               || (!userBottomSet && bottom > fixedBottomPixels + 2)
-            if !fixedLayoutChanged, !userRightSet, autoRightPixels == 0 {
+            if !fixedLayoutChanged, !userRightSet {
               let detectedRight = ScreenshotSupport.scrollingRightScrollerColumns(
                 previous: observedFrameBefore, current: current,
                 advance: observedCurrent.height - observedOverlap, direction: observedDirection,
                 topInset: fixedTopPixels, bottomInset: fixedBottomPixels, scale: region.scale)
-              if detectedRight > 0 {
+              if detectedRight > autoRightPixels + 2 {
                 let maxRight = max(0, first.width - minimumContentWidth(frameWidth: first.width))
-                autoRightPixels = min(detectedRight, maxRight)
-                if autoRightPixels > 0 {
+                let nextAutoRight = min(detectedRight, maxRight)
+                if nextAutoRight > autoRightPixels {
+                  autoRightPixels = nextAutoRight
                   guard await applyInsets(insetControl?.current ?? .init()) else { return .failed }
                   currentSample = masked(rawCurrentSample)
+                  observedBefore = masked(rawObservedBefore)
                   lastObservedSample = currentSample
                   if let updated = ScreenshotSupport.scrollingContentSample(
                     currentSample, top: fixedTopPixels, bottom: fixedBottomPixels)

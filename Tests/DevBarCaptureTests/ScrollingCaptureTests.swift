@@ -1377,6 +1377,38 @@ private func registrationSample(_ offset: Int) -> ScreenshotSupport.ScrollingSam
   }
   #expect(image.width == 80 - reportedRight)
   #expect(image.height == 180)
+
+  // Also verify small-advance smooth scrolling on a tall window where thumb
+  // only shifts by 1px while content advances by 6px (2*advance < overlap/30).
+  func tallFrame(offset: Int, thumbRow: Int) -> CGImage {
+    let width = 80
+    let height = 360
+    var pixels = [UInt8](repeating: 35, count: width * height)
+    for row in 0..<height {
+      for col in 0..<(width - 10) {
+        let y = row + offset
+        var value =
+          UInt32(truncatingIfNeeded: y) &* 747_796_405 &+ UInt32(col * 19 + 2_891_336_453)
+        value = ((value >> ((value >> 28) + 4)) ^ value) &* 277_803_737
+        pixels[row * width + col] = UInt8(truncatingIfNeeded: (value >> 22) ^ value)
+      }
+      if row >= thumbRow && row < thumbRow + 36 {
+        for col in (width - 8)..<(width - 2) {
+          pixels[row * width + col] = 142
+        }
+      }
+    }
+    return CGImage(
+      width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 8, bytesPerRow: width,
+      space: CGColorSpaceCreateDeviceGray(), bitmapInfo: .init(rawValue: 0),
+      provider: CGDataProvider(data: Data(pixels) as CFData)!, decode: nil,
+      shouldInterpolate: false, intent: .defaultIntent)!
+  }
+  let tallDetected = ScreenshotSupport.scrollingRightScrollerColumns(
+    previous: tallFrame(offset: 0, thumbRow: 40),
+    current: tallFrame(offset: 6, thumbRow: 41),
+    advance: 6, direction: .forward, topInset: 0, bottomInset: 0, scale: 1)
+  #expect(tallDetected >= 8 && tallDetected <= 10)
 }
 
 @MainActor @Test func scrollingOverlapSeamReplacesBottomFadeArtifact() async throws {

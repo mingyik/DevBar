@@ -699,15 +699,18 @@ enum ScreenshotSupport {
       let currStrip = grayscalePixels(current, rect: stripRect)
     else { return 0 }
 
-    let minimumMismatchRows = max(3, overlapRows / 30)
+    let minimumMismatchRows = max(3, min(advance, overlapRows / 30))
     var scrollerFlags = [Bool](repeating: false, count: maxScan)
     var contentFlags = [Bool](repeating: false, count: maxScan)
 
     for column in 0..<maxScan {
       var unshiftedSum = 0
+      var unshiftedMismatchRows = 0
       for row in 0..<contentHeight {
         let index = row * maxScan + column
-        unshiftedSum += abs(Int(prevStrip[index]) - Int(currStrip[index]))
+        let diff = abs(Int(prevStrip[index]) - Int(currStrip[index]))
+        unshiftedSum += diff
+        if diff > 10 { unshiftedMismatchRows += 1 }
       }
       var shiftedSum = 0
       var mismatchRows = 0
@@ -721,11 +724,18 @@ enum ScreenshotSupport {
       }
       let unshiftedMean = Double(unshiftedSum) / Double(contentHeight)
       let shiftedMean = Double(shiftedSum) / Double(overlapRows)
-      if mismatchRows >= minimumMismatchRows && shiftedMean > 3.5
-        && shiftedMean >= unshiftedMean * 0.75
+      let shiftedMismatchMean = Double(shiftedSum) / Double(max(1, mismatchRows))
+      if mismatchRows >= minimumMismatchRows
+        && ((shiftedMean > 3.5 && shiftedMean >= unshiftedMean * 0.75)
+          || (shiftedMismatchMean >= 12.0 && Double(shiftedSum) >= Double(unshiftedSum) * 1.25))
       {
         scrollerFlags[column] = true
-      } else if shiftedMean <= 2.5 && unshiftedMean > 5.0 {
+      } else if shiftedMean <= 2.5
+        && (unshiftedMean > 5.0
+          || (unshiftedMismatchRows >= minimumMismatchRows
+            && Double(unshiftedSum) >= Double(max(1, shiftedSum)) * 2.0
+            && Double(unshiftedSum) / Double(max(1, unshiftedMismatchRows)) >= 12.0))
+      {
         contentFlags[column] = true
       }
     }
