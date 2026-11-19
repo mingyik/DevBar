@@ -77,20 +77,9 @@ macOS 菜单栏里的本地小工具：剪贴板历史、JSON、二维码、Mark
 
 ## 安装
 
-要求 **macOS 26 或更高版本**、Apple Silicon（当前脚本生成 arm64 包）。
+要求 **macOS 26 或更高版本**、Apple Silicon。
 
-```bash
-./打包.command
-```
-
-生成 `build/DevBar-free-macOS-arm64.zip`，解压后把 `DevBar.app` 拖进“应用程序”。免费分发使用 ad-hoc 签名、没有公证，首次打开请右键选择“打开”。
-
-从源码运行：
-
-```bash
-Scripts/build-app.sh release   # 生成 build/DevBar.app
-Scripts/check.sh               # 格式、构建、Swift/Web 测试与设计变量检查
-```
+解压分发包，把 `DevBar.app` 拖进“应用程序”。首次打开请右键选择“打开”。
 
 首次使用时按提示允许剪贴板读取；区域截图和长图需要屏幕采集权限；辅助功能权限只用于预选卡片的定位与 `Enter` 直接粘贴，不授权也能手动 `⌘V`。
 
@@ -101,5 +90,3 @@ Scripts/check.sh               # 格式、构建、Swift/Web 测试与设计变�
 - Paste 历史会持久保存，删除条目或调小上限会清理旧记录。
 - Json、QrCode、Markdown 的文本是本次运行会话，重启后清空；页面顺序、主题、快捷键和历史上限会保留。
 - 设置里可调整外观、页面顺序和是否参与 `⌘R` 循环、快捷键、剪贴板历史上限、“内容为空时带入剪贴板”以及权限入口。
-
-更多细节见 [产品方案](菜单栏工具方案.md)、[UI 基准](docs/UI基准.md) 和 [菜单栏图标隐藏排查](docs/菜单栏图标隐藏.md)。
