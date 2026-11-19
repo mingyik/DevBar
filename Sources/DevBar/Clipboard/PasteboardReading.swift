@@ -60,11 +60,21 @@ struct SystemPasteboardReader: PasteboardReading {
     let types: [NSPasteboard.PasteboardType] =
       imageTypes.contains(where: { board.types?.contains($0) == true })
       ? imageTypes : [.string, .rtf, .html]
-    return types.compactMap { type in
+    let payloads: [ClipboardPayload] = types.compactMap { type in
       guard board.types?.contains(type) == true, let data = board.data(forType: type), !data.isEmpty
       else { return nil }
       return ClipboardPayload(type: type.rawValue, data: data)
     }
+    let limit = ClipboardStore.imageByteLimit
+    if payloads.reduce(0, { $0 + $1.data.count }) > limit,
+      let png = payloads.first(where: {
+        $0.type == NSPasteboard.PasteboardType.png.rawValue && $0.data.count <= limit
+      }),
+      CGImageSourceCreateWithData(png.data as CFData, nil) != nil
+    {
+      return [png]
+    }
+    return payloads
   }
 }
 

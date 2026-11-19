@@ -146,6 +146,21 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
   #expect(SystemPasteboardReader(name: board.name).read() == payloads)
 }
 
+@MainActor @Test func clipboardKeepsPNGWhenTIFFExceedsHistoryLimit() throws {
+  let board = NSPasteboard.withUniqueName()
+  defer { board.releaseGlobally() }
+  let png = try #require(
+    Data(
+      base64Encoded:
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l2sAAAAASUVORK5CYII="
+    ))
+  let expected = ClipboardPayload(type: "public.png", data: png)
+  let tiff = ClipboardPayload(
+    type: "public.tiff", data: Data(count: ClipboardStore.imageByteLimit))
+  #expect(board.writeObjects(ClipboardController.pasteboardItems(payloads: [expected, tiff])))
+  #expect(SystemPasteboardReader(name: board.name).read() == [expected])
+}
+
 @MainActor @Test func clipboardOversizedFirstImageLeavesVisibleFeedbackAndNoHistory() async throws {
   _ = NSApplication.shared
   let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
