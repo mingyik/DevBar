@@ -39,8 +39,12 @@ export function createMarkdownPreview(doc: Document = document) {
       if (!/^(?:devbar:|data:)/i.test(address.trim())) {
         const placeholder = doc.createElement("span");
         placeholder.className = "external-image";
+        placeholder.dataset.imageAddress = address;
+        placeholder.dataset.imageAlt = image.alt;
         const label = doc.createElement("span");
-        label.textContent = "外部图片未加载";
+        label.textContent = /^https?:\/\//i.test(address)
+          ? "外部图片未加载"
+          : "本地图片未加载";
         const url = doc.createElement("span");
         url.className = "image-address";
         url.textContent = address;
@@ -61,7 +65,15 @@ export function createMarkdownPreview(doc: Document = document) {
     const html = purifier.sanitize(template.innerHTML, {
       USE_PROFILES: { html: true },
       ALLOW_DATA_ATTR: false,
-      ADD_ATTR: ["class", "data-src", "data-idx", "data-line", "data-lang"],
+      ADD_ATTR: [
+        "class",
+        "data-image-address",
+        "data-image-alt",
+        "data-src",
+        "data-idx",
+        "data-line",
+        "data-lang",
+      ],
       FORBID_ATTR: [
         "style",
         "srcset",

@@ -7,6 +7,7 @@ import os
 @MainActor
 @Observable
 final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDelegate, WKUIDelegate {
+  var documentImageBase: ((String) -> URL?)?
   private(set) var webView: WKWebView
   private(set) var generation = 0
   private(set) var panelVisible = false
@@ -356,6 +357,11 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     case "doc.cycleMode", "doc.toggleMode":
       onDocumentModeShortcut?()
       return "{}"
+    case "doc.image":
+      guard let address = payload["address"]?.stringValue else { return "{}" }
+      let base = payload["documentId"]?.stringValue.flatMap { documentImageBase?($0) }
+      guard let source = await DocumentImage.load(address, relativeTo: base) else { return "{}" }
+      return #"{"source":"# + BridgeJSON.quoted(source) + "}"
     case "doc.save":
       guard let saveDocument else { return #"{"status":"failed"}"# }
       return await saveDocument(

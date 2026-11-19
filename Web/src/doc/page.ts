@@ -424,16 +424,24 @@ export class DocPage {
       "pure-mermaid",
       this.mode === "mermaid",
     );
-    const key = `${this.theme()}:${this.mode}:${this.shell.preview.clientWidth}:${this.shell.text}`;
+    const key = `${this.documentID}:${this.theme()}:${this.mode}:${this.shell.preview.clientWidth}:${this.shell.text}`;
     if (
       key === this.renderKey &&
       (this.shell.preview.childElementCount > 0 || this.text() === "")
     )
       return this.pending;
     this.renderKey = key;
+    const documentId = this.documentID;
     this.pending = renderDocument(this.shell.preview, this.text(), {
       theme: this.theme(),
       mode: this.mode,
+      loadImage: async (address) => {
+        const reply = await post("doc.image", {
+          address,
+          documentId,
+        });
+        return typeof reply.source === "string" ? reply.source : undefined;
+      },
     })
       .then(() => {
         for (const diagram of Array.from(
