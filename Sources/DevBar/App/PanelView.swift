@@ -166,9 +166,10 @@ struct PanelView: View {
             ? Strings.documentPreview
             : model.documentDisplay == "preview" ? Strings.documentSplit : Strings.documentEdit)
       }
-      ActionIcon(symbol: "xmark", label: Strings.panelClose, scheme: scheme) {
+      NativeCloseButton {
         model.onClosePanel?()
       }
+      .frame(width: 24, height: 24)
     }
   }
 
@@ -545,6 +546,40 @@ private struct ShortcutRow: View {
       Spacer(minLength: 12)
       KeyboardShortcuts.Recorder(for: name).frame(width: SettingsControlLayout.width)
     }
+  }
+}
+
+private struct NativeCloseButton: NSViewRepresentable {
+  let action: () -> Void
+
+  func makeCoordinator() -> Coordinator { Coordinator(action: action) }
+
+  func makeNSView(context: Context) -> NSView {
+    let container = NSView()
+    guard let button = NSWindow.standardWindowButton(.closeButton, for: .titled) else {
+      return container
+    }
+    button.target = context.coordinator
+    button.action = #selector(Coordinator.close)
+    button.translatesAutoresizingMaskIntoConstraints = false
+    container.addSubview(button)
+    NSLayoutConstraint.activate([
+      button.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+      button.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+    ])
+    return container
+  }
+
+  func updateNSView(_ view: NSView, context: Context) {
+    context.coordinator.action = action
+  }
+
+  final class Coordinator: NSObject {
+    var action: () -> Void
+
+    init(action: @escaping () -> Void) { self.action = action }
+
+    @objc func close() { action() }
   }
 }
 
