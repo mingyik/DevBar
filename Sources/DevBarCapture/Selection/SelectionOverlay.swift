@@ -251,6 +251,18 @@ private final class SelectionPanel: NSPanel {
 }
 
 @MainActor
+private final class AnnotationTextView: NSTextView {
+  var onMarkedTextChange: (() -> Void)?
+
+  override func setMarkedText(
+    _ string: Any, selectedRange: NSRange, replacementRange: NSRange
+  ) {
+    super.setMarkedText(string, selectedRange: selectedRange, replacementRange: replacementRange)
+    onMarkedTextChange?()
+  }
+}
+
+@MainActor
 final class SelectionView: NSView, NSTextViewDelegate {
   var iconColor: NSColor = .labelColor
   var disabledIconColor: NSColor = .disabledControlTextColor
@@ -324,6 +336,7 @@ final class SelectionView: NSView, NSTextViewDelegate {
     return paragraph
   }()
   private var undoKinds: [String] = []
+  private var selectionStyleEditing = false
   private var selectedMark: Int?
   private var selectedText: Int?
   private var hoverTrackingArea: NSTrackingArea?
@@ -842,7 +855,17 @@ final class SelectionView: NSView, NSTextViewDelegate {
   }
 
   @objc private func modeChanged(_ sender: NSButton) {
-    if tool == "arrow" { largeArrow = sender.tag == 0 } else { mosaicBrush = sender.tag == 0 }
+    if tool == "arrow" {
+      largeArrow = sender.tag == 0
+      if selectionStyleEditing, let index = selectedMark, marks.indices.contains(index),
+        marks[index].0.hasPrefix("arrow")
+      {
+        marks[index].0 = largeArrow ? "arrowFilled" : "arrow"
+        applyStyle()
+      }
+    } else {
+      mosaicBrush = sender.tag == 0
+    }
     showToolbar()
   }
 
@@ -865,11 +888,41 @@ final class SelectionView: NSView, NSTextViewDelegate {
       editor.textColor = ink
       layoutTextEditor(editor)
     }
+    if selectionStyleEditing, let index = selectedText, texts.indices.contains(index),
+      tool == "text"
+    {
+      texts[index].color = ink
+      texts[index].fontSize = fontSize
+      texts[index].wrapWidth = min(
+        selection.maxX - texts[index].origin.x,
+        max(
+          texts[index].wrapWidth,
+          ceil(
+            (texts[index].text as NSString).size(
+              withAttributes: [.font: NSFont.systemFont(ofSize: fontSize)]).width) + 12))
+      texts[index].maxHeight = selection.maxY - texts[index].origin.y
+    }
+    if selectionStyleEditing, let index = selectedMark, marks.indices.contains(index) {
+      marks[index].2 = ink
+      marks[index].3 = stroke
+      if marks[index].0.hasPrefix("arrow"), marks[index].1.elementCount >= 2 {
+        var start = [NSPoint](repeating: .zero, count: 3)
+        var end = start
+        _ = marks[index].1.element(at: 0, associatedPoints: &start)
+        _ = marks[index].1.element(at: 1, associatedPoints: &end)
+        marks[index].1 = Self.arrowPath(
+          start: start[0], end: end[0], width: stroke, large: marks[index].0 == "arrowFilled")
+      }
+    }
     needsDisplay = true
   }
 
   private func startTextEditor(at point: CGPoint) {
-    let editor = NSTextView(frame: .zero)
+    let editor = AnnotationTextView(frame: .zero)
+    editor.onMarkedTextChange = { [weak self, weak editor] in
+      guard let self, let editor else { return }
+      self.layoutTextEditor(editor)
+    }
     editor.delegate = self
     editor.isRichText = false
     editor.drawsBackground = false
@@ -899,7 +952,7 @@ final class SelectionView: NSView, NSTextViewDelegate {
     let content = editor.string as NSString
     let paddingX = Self.textPaddingX
     let paddingY = Self.textPaddingY
-    let minWidth = min(selection.width, max(60, ceil(font.pointSize * 3.2)))
+    let minWidth = min(selection.width, max(120, ceil(font.pointSize * 8)))
     let contentWidth = ceil(content.size(withAttributes: [.font: font]).width)
     let desiredWidth = min(selection.width, max(minWidth, contentWidth + paddingX * 2))
     let width = editor.hasMarkedText() ? max(editor.frame.width, desiredWidth) : desiredWidth
@@ -965,6 +1018,9 @@ final class SelectionView: NSView, NSTextViewDelegate {
       needsDisplay = true
       showToolbar()
     case let value?:
+      selectionStyleEditing = false
+      selectedMark = nil
+      selectedText = nil
       tool = tool == value ? "select" : value
       showToolbar()
     default: break
@@ -1323,8 +1379,14 @@ final class SelectionView: NSView, NSTextViewDelegate {
     }
     selectedMark = nil
     selectedText = nil
+    selectionStyleEditing = false
     if selection.contains(point), let index = hitText(at: point) {
       selectedText = index
+      selectionStyleEditing = true
+      tool = "text"
+      styles[tool, default: ToolStyle()].color = texts[index].color
+      styles[tool, default: ToolStyle()].size = texts[index].fontSize
+      showToolbar()
       draggingTextIndex = index
       dragStartPoint = point
       dragTextOrigin = texts[index].origin
@@ -1334,6 +1396,14 @@ final class SelectionView: NSView, NSTextViewDelegate {
     }
     if selection.contains(point), let index = hitMark(at: point) {
       selectedMark = index
+      selectionStyleEditing = true
+      let kind = marks[index].0
+      tool = kind.hasPrefix("arrow") ? "arrow" : kind.hasPrefix("mosaic") ? "mosaic" : kind
+      largeArrow = kind == "arrowFilled"
+      mosaicBrush = kind == "mosaic"
+      styles[tool, default: ToolStyle()].color = marks[index].2
+      styles[tool, default: ToolStyle()].width = marks[index].3
+      showToolbar()
       draggingMarkIndex = index
       dragMarkLastPoint = point
       anchor = nil

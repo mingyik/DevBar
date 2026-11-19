@@ -79,10 +79,6 @@ struct PanelView: View {
           content(scheme)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        if !model.toast.isEmpty {
-          Text(model.toast).font(.system(size: 11))
-            .foregroundStyle(DesignTokens.textSecondary(scheme)).lineLimit(1)
-        }
       }
     }
     .padding(.horizontal, 10)
