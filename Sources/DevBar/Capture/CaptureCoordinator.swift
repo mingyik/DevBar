@@ -1,6 +1,7 @@
 import AppKit
 import DevBarCapture
 import DevBarCore
+import KeyboardShortcuts
 import Observation
 import SwiftUI
 import os
@@ -33,6 +34,7 @@ private final class CaptureHUDState {
   private let noticeState = CaptureHUDState()
   private var noticeTask: Task<Void, Never>?
   private var savedNoticeTask: Task<Void, Never>?
+  private var escapeTask: Task<Void, Never>?
 
   init(panel: PanelController) { self.panel = panel }
 
@@ -68,6 +70,7 @@ private final class CaptureHUDState {
     task = Task { [weak self] in
       guard let self else { return }
       defer {
+        self.stopEscapeMonitor()
         self.task = nil
       }
       guard await self.panel.prepareForCapture() else { return }
@@ -81,6 +84,13 @@ private final class CaptureHUDState {
           toolbarBorderColor: NSColor(DesignTokens.captureToolbarBorder(self.panel.theme.effective))
         )
         selection.insetControl = insets
+        selection.onVisibilityChange = { [weak self] visible in
+          if visible {
+            self?.startEscapeMonitor()
+          } else {
+            self?.stopEscapeMonitor()
+          }
+        }
         defer { selection.dismissScrollingOverlay() }
         let selected = scrolling ? nil : try await selection.selectImage()
         let scrolling = scrolling || selection.scrollingRequested
@@ -181,8 +191,29 @@ private final class CaptureHUDState {
   }
 
   private func closeProgress() {
+    stopEscapeMonitor()
     hidePreview()
     hud?.orderOut(nil)
+  }
+
+  private func startEscapeMonitor() {
+    guard escapeTask == nil else { return }
+    KeyboardShortcuts.setShortcut(.init(.escape), for: .captureExit)
+    escapeTask = Task { [weak self] in
+      guard !Task.isCancelled else { return }
+      for await event in KeyboardShortcuts.events(for: .captureExit) where event == .keyUp {
+        guard !Task.isCancelled else { return }
+        self?.cancel()
+      }
+    }
+  }
+
+  private func stopEscapeMonitor() {
+    guard let escapeTask else { return }
+    // Clearing the shortcut unregisters it and blocks queued registration.
+    KeyboardShortcuts.setShortcut(nil, for: .captureExit)
+    escapeTask.cancel()
+    self.escapeTask = nil
   }
 
   private static let scrollLogger = Logger(

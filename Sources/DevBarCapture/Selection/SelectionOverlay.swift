@@ -15,6 +15,7 @@ public final class SelectionOverlay {
   public private(set) var scrollingRequested = false
   public private(set) var saveRequested = false
   public var insetControl: ScrollingInsetControl?
+  public var onVisibilityChange: ((Bool) -> Void)?
   private var renderedFrame: CGImage?
   private var preparing = false
   private var continuation: CheckedContinuation<CaptureRegion, any Error>?
@@ -128,6 +129,7 @@ public final class SelectionOverlay {
           finish(.failure(CaptureError.displayUnavailable))
           return
         }
+        onVisibilityChange?(true)
         timeoutTask = Task { [weak self] in
           do { try await Task.sleep(for: timeout) } catch { return }
           self?.finish(.failure(CaptureError.timedOut))
@@ -210,6 +212,7 @@ public final class SelectionOverlay {
   }
 
   public func dismissScrollingOverlay() {
+    if !panels.isEmpty { onVisibilityChange?(false) }
     for shield in scrollingMouseShields { shield.orderOut(nil) }
     scrollingMouseShields.removeAll()
 

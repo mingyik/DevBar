@@ -15,6 +15,7 @@ extension KeyboardShortcuts.Name {
     "captureRegion", default: .init(.a, modifiers: [.command, .shift]))
   static let captureScroll = Self(
     "captureScroll", default: .init(.l, modifiers: [.command, .shift]))
+  static let captureExit = Self("captureExit")
 }
 
 @MainActor
