@@ -132,7 +132,6 @@ enum Strings {
   static let documentSave = "保存"
   static let documentKeepDraft = "保留为未保存文稿"
   static let documentCancel = "取消"
-  static let documentCopyLink = "复制链接"
   static let documentOpenBrowserTitle = "要在浏览器中打开此链接吗？"
   static let documentOpenBrowser = "打开浏览器"
   static let documentLinkOpenFailed = "无法打开链接中的文件"

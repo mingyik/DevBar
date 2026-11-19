@@ -131,7 +131,7 @@ export function createMarkdownPreview(doc: Document = document) {
 export function bindPreviewLinks(
   root: HTMLElement,
   onOpenLink: (url: string) => void = () => {},
-  onLinkMenu: (url: string) => void = () => {},
+  onLinkMenu: () => void = () => {},
 ): () => void {
   const link = (event: MouseEvent) => {
     const target =
@@ -152,10 +152,7 @@ export function bindPreviewLinks(
     }
   };
   const contextMenu = (event: MouseEvent) => {
-    const href = link(event)?.getAttribute("href");
-    if (!href) return;
-    event.preventDefault();
-    onLinkMenu(href);
+    if (link(event)) onLinkMenu();
   };
   root.addEventListener("contextmenu", contextMenu);
   root.addEventListener("click", click);

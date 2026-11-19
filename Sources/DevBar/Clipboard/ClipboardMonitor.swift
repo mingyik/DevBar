@@ -1,8 +1,11 @@
 import AppKit
 import Observation
+import os
 
 @MainActor @Observable
 final class ClipboardMonitor {
+  nonisolated private static let logger = Logger(
+    subsystem: "local.devbar.app", category: "clipboard-monitor")
   private let reader: any PasteboardReading
   private var timer: Task<Void, Never>?
   private var observedCount: Int?
@@ -69,13 +72,22 @@ final class ClipboardMonitor {
     let source = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
     let expectedCount = metadata.count
     let explicit = userInitiated
+    Self.logger.notice(
+      "read scheduled changeCount=\(expectedCount, privacy: .public) explicit=\(explicit, privacy: .public)"
+    )
     let capture = await Task.detached(priority: .utility) { () -> ClipboardCapture? in
+      Self.logger.notice("worker metadata start changeCount=\(expectedCount, privacy: .public)")
       let before = reader.metadata()
       guard before.count == expectedCount, !before.concealed,
         before.access != .deny, before.access == .allow || explicit
       else { return nil }
+      Self.logger.notice("worker read start changeCount=\(expectedCount, privacy: .public)")
       let payloads = reader.read()
-      guard reader.metadata().count == expectedCount else { return nil }
+      let afterCount = reader.metadata().count
+      Self.logger.notice(
+        "worker read end changeCount=\(expectedCount, privacy: .public) currentCount=\(afterCount, privacy: .public) types=\(payloads.count, privacy: .public)"
+      )
+      guard afterCount == expectedCount else { return nil }
       return ClipboardCapture(payloads: payloads)
     }.value
     // A UI write while the detached read was in flight must also invalidate it.

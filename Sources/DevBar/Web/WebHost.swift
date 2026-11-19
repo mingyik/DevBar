@@ -382,7 +382,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       }
       return #"{"state":null}"#
     case "link.menu":
-      if let url = payload["url"]?.stringValue, !url.isEmpty { showLinkMenu(url) }
+      logger.notice("link context menu opened")
       return "{}"
     case "link.open":
       guard let url = payload["url"]?.stringValue else { return #"{"opened":false}"# }
@@ -398,23 +398,6 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     default:
       return "{}"
     }
-  }
-
-  private func showLinkMenu(_ url: String) {
-    guard let window = webView.window, window.isVisible else { return }
-    let menu = NSMenu()
-    let copy = NSMenuItem(
-      title: Strings.documentCopyLink, action: #selector(copyLink(_:)), keyEquivalent: "")
-    copy.target = self
-    copy.representedObject = url
-    menu.addItem(copy)
-    let point = webView.convert(window.mouseLocationOutsideOfEventStream, from: nil)
-    menu.popUp(positioning: nil, at: point, in: webView)
-  }
-
-  @objc private func copyLink(_ item: NSMenuItem) {
-    guard let url = item.representedObject as? String else { return }
-    copyText(url)
   }
 
   private func copyText(_ text: String) {

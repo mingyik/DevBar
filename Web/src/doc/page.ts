@@ -125,7 +125,7 @@ export class DocPage {
     bindPreviewLinks(
       shell.preview,
       (url) => void post("link.open", { url }),
-      (url) => void post("link.menu", { url }),
+      () => void post("link.menu", {}),
     );
     shell.view.scrollDOM.addEventListener("scroll", () => {
       this.syncSplitScroll("editor");
