@@ -131,11 +131,16 @@ export function createMarkdownPreview(doc: Document = document) {
 export function bindPreviewLinks(
   root: HTMLElement,
   onOpenLink: (url: string) => void = () => {},
+  onLinkMenu: (url: string) => void = () => {},
 ): () => void {
-  const click = (event: MouseEvent) => {
+  const link = (event: MouseEvent) => {
     const target =
-      event.target instanceof Element ? event.target.closest("a") : null;
-    if (!target || !root.contains(target)) return;
+      event.target instanceof Element ? event.target.closest("a[href]") : null;
+    return target && root.contains(target) ? target : null;
+  };
+  const click = (event: MouseEvent) => {
+    const target = link(event);
+    if (!target) return;
     event.preventDefault();
     const href = target.getAttribute("href") ?? "";
     if (event.type !== "click" || event.button !== 0 || !href) return;
@@ -146,10 +151,18 @@ export function bindPreviewLinks(
       onOpenLink(href);
     }
   };
+  const contextMenu = (event: MouseEvent) => {
+    const href = link(event)?.getAttribute("href");
+    if (!href) return;
+    event.preventDefault();
+    onLinkMenu(href);
+  };
+  root.addEventListener("contextmenu", contextMenu);
   root.addEventListener("click", click);
   root.addEventListener("auxclick", click);
   return () => {
     root.removeEventListener("click", click);
     root.removeEventListener("auxclick", click);
+    root.removeEventListener("contextmenu", contextMenu);
   };
 }

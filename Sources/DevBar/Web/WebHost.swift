@@ -310,8 +310,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       }
       return PasteboardBridge.readText()
     case "clipboard.writeText":
-      PasteboardBridge.writeText(payload["text"]?.stringValue ?? "")
-      onClipboardWrite?(NSPasteboard.general.changeCount)
+      copyText(payload["text"]?.stringValue ?? "")
       return #"{"ok":true}"#
     case "clipboard.writeImage":
       PasteboardBridge.writePNGBase64(payload["pngBase64"]?.stringValue ?? "")
@@ -382,6 +381,9 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
         return #"{"state":"# + saved + "}"
       }
       return #"{"state":null}"#
+    case "link.menu":
+      if let url = payload["url"]?.stringValue, !url.isEmpty { showLinkMenu(url) }
+      return "{}"
     case "link.open":
       guard let url = payload["url"]?.stringValue else { return #"{"opened":false}"# }
       let opened = await onDocumentLink?(url) ?? false
@@ -396,6 +398,28 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     default:
       return "{}"
     }
+  }
+
+  private func showLinkMenu(_ url: String) {
+    guard let window = webView.window, window.isVisible else { return }
+    let menu = NSMenu()
+    let copy = NSMenuItem(
+      title: Strings.documentCopyLink, action: #selector(copyLink(_:)), keyEquivalent: "")
+    copy.target = self
+    copy.representedObject = url
+    menu.addItem(copy)
+    let point = webView.convert(window.mouseLocationOutsideOfEventStream, from: nil)
+    menu.popUp(positioning: nil, at: point, in: webView)
+  }
+
+  @objc private func copyLink(_ item: NSMenuItem) {
+    guard let url = item.representedObject as? String else { return }
+    copyText(url)
+  }
+
+  private func copyText(_ text: String) {
+    PasteboardBridge.writeText(text)
+    onClipboardWrite?(NSPasteboard.general.changeCount)
   }
 
   private func readyPayload() -> String {

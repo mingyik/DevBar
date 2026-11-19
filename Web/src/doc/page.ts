@@ -122,9 +122,11 @@ export class DocPage {
         }
       }).observe(shell.preview);
     }
-    bindPreviewLinks(shell.preview, (url) => {
-      void post("link.open", { url });
-    });
+    bindPreviewLinks(
+      shell.preview,
+      (url) => void post("link.open", { url }),
+      (url) => void post("link.menu", { url }),
+    );
     shell.view.scrollDOM.addEventListener("scroll", () => {
       this.syncSplitScroll("editor");
     });
