@@ -136,14 +136,15 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
   #expect(ClipboardCapture(payloads: payloads)?.kind == .image)
 }
 
-@MainActor @Test func clipboardPreservesMixedImageRepresentations() {
+@MainActor @Test func clipboardPreservesMixedImageRepresentationsExceptTIFFWhenPNGExists() {
   let board = NSPasteboard.withUniqueName()
   defer { board.releaseGlobally() }
   let payloads = ["public.png", "public.tiff", "public.jpeg", "public.heic"].enumerated().map {
     ClipboardPayload(type: $0.element, data: Data(repeating: UInt8($0.offset), count: 64))
   }
   #expect(board.writeObjects(ClipboardController.pasteboardItems(payloads: payloads)))
-  #expect(SystemPasteboardReader(name: board.name).read() == payloads)
+  #expect(
+    SystemPasteboardReader(name: board.name).read() == payloads.filter { $0.type != "public.tiff" })
 }
 
 @MainActor @Test func clipboardKeepsPNGWhenTIFFExceedsHistoryLimit() throws {

@@ -60,19 +60,15 @@ struct SystemPasteboardReader: PasteboardReading {
     let types: [NSPasteboard.PasteboardType] =
       imageTypes.contains(where: { board.types?.contains($0) == true })
       ? imageTypes : [.string, .rtf, .html]
-    let payloads: [ClipboardPayload] = types.compactMap { type in
+    var payloads: [ClipboardPayload] = []
+    for type in types {
+      // PNG is tried first, so its presence makes the TIFF fallback unnecessary.
+      if type == .tiff && payloads.first?.type == NSPasteboard.PasteboardType.png.rawValue {
+        continue
+      }
       guard board.types?.contains(type) == true, let data = board.data(forType: type), !data.isEmpty
-      else { return nil }
-      return ClipboardPayload(type: type.rawValue, data: data)
-    }
-    let limit = ClipboardStore.imageByteLimit
-    if payloads.reduce(0, { $0 + $1.data.count }) > limit,
-      let png = payloads.first(where: {
-        $0.type == NSPasteboard.PasteboardType.png.rawValue && $0.data.count <= limit
-      }),
-      CGImageSourceCreateWithData(png.data as CFData, nil) != nil
-    {
-      return [png]
+      else { continue }
+      payloads.append(ClipboardPayload(type: type.rawValue, data: data))
     }
     return payloads
   }
