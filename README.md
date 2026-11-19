@@ -27,7 +27,7 @@ macOS 菜单栏里的本地小工具：剪贴板历史、JSON、二维码、Mark
 
 自动记录文本、图片和文件历史，默认 10 条，可在设置中改为 3–30 条。点击条目或按 `↑` / `↓` 选择后，内容会写入系统剪贴板，再到目标应用按 `⌘V`。悬浮可预览长文本和图片。
 
-<img src="docs/images/readme/paste-dark.png" alt="Paste 剪贴板历史，深色界面" width="360">
+![Paste 剪贴板历史](docs/images/readme/paste-dark.png)
 
 拖拽条目：
 
@@ -41,7 +41,7 @@ macOS 菜单栏里的本地小工具：剪贴板历史、JSON、二维码、Mark
 
 粘贴 JSON 后直接编辑，数字保持原写法：`12345678901234567890`、`1.0`、`1e10`、`-0`、`0.1000` 不会被悄悄改写。底部按钮按当前内容执行格式化/压缩、转义/反转义、URL 或 Base64 编码/解码；结果可撤销。
 
-<img src="docs/images/readme/json-dark.png" alt="Json 页面，大整数和 1.0 保持原样" width="360">
+![Json 页面](docs/images/readme/json-dark.png)
 
 不合法 JSON 不自动修复，只提示错误位置。也支持拖入 `.json`、`.jsonc`、`.geojson` 文件。
 
@@ -49,21 +49,21 @@ macOS 菜单栏里的本地小工具：剪贴板历史、JSON、二维码、Mark
 
 输入文本，按 `⌘E` 生成二维码，再按一次回到编辑。预览态复制 PNG，编辑态复制文本。内容超过 2331 字节会提示，不会截断。
 
-<img src="docs/images/readme/qr-dark.png" alt="QrCode 二维码预览" width="320">
+![QrCode 二维码预览](docs/images/readme/qr-dark.png)
 
 ## Markdown
 
 粘贴或打开 Markdown，按 `⌘E` 或 `⌘⇧P` 在 **编辑 → 预览 → 编辑并预览** 之间循环。支持标题、列表、引用、表格、任务列表、代码块和 Mermaid；代码块和单张 Mermaid 图都有复制入口，单图出错不影响正文。
 
-<img src="docs/images/readme/markdown-dark.png" alt="Markdown 预览，含表格、代码和 Mermaid" width="380">
+![Markdown 预览](docs/images/readme/markdown-dark.png)
 
 编辑并预览时，左侧编辑、右侧预览，两栏等宽：
 
-<img src="docs/images/readme/markdown-split-dark.png" alt="Markdown 编辑并预览" width="760">
+![Markdown 编辑并预览](docs/images/readme/markdown-split-dark.png)
 
 标题栏左侧的目录按钮打开文稿目录，列出最近打开的文件和本次运行中未保存的文稿，也可以从底部选择文件：
 
-<img src="docs/images/readme/markdown-sidebar-dark.png" alt="Markdown 文稿目录" width="620">
+![Markdown 文稿目录](docs/images/readme/markdown-sidebar-dark.png)
 
 - 拖入 `.md`、`.markdown`、`.mmd`、`.mermaid`，或直接拖到菜单栏图标后选择 Json / Markdown 投放区；单个文件上限 10MB，只支持 UTF-8。
 - 底部“保存原文”写回关联的 `.md` 文件；没有关联文件时先选保存位置。外部修改或删除原文件时拒绝覆盖。
