@@ -40,6 +40,7 @@ final class PanelModel {
   var page: Page {
     didSet {
       guard oldValue != page else { return }
+      toast = ""
       if page != .settings { defaults.set(page.rawValue, forKey: "lastContentPage") }
       onPageChange?()
     }
@@ -86,7 +87,17 @@ final class PanelModel {
   @ObservationIgnored var onOpenDocument: ((URL) -> Void)?
   @ObservationIgnored var onOpenDocumentDraft: ((String) -> Void)?
   @ObservationIgnored var onPickDocument: (() -> Void)?
-  var toast = ""
+  @ObservationIgnored private var toastDismissTask: Task<Void, Never>?
+  var toast = "" {
+    didSet {
+      toastDismissTask?.cancel()
+      guard !toast.isEmpty else { return }
+      toastDismissTask = Task { [weak self] in
+        do { try await Task.sleep(for: .seconds(4)) } catch { return }
+        self?.toast = ""
+      }
+    }
+  }
   #if DEBUG
     var showsWebViewForSelfCheck =
       CommandLine.arguments.contains("--devbar-selfcheck")

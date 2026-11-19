@@ -23,7 +23,7 @@ final class PanelController {
   private var activationObserver: NSObjectProtocol?
   private var dismissing = false
   private var lastAnchor: CGRect?
-  private var documentWindowUserMoved = false
+  private var windowUserMoved = false
   private var applyingLayout = false
   private var previousPage: PanelModel.Page?
   private var windowMoveObserver: NSObjectProtocol?
@@ -142,8 +142,10 @@ final class PanelController {
       forName: NSWindow.didMoveNotification, object: panel, queue: nil
     ) { [weak self] _ in
       MainActor.assumeIsolated {
-        guard let self, self.model.page == .doc, !self.applyingLayout else { return }
-        self.documentWindowUserMoved = true
+        guard let self, [.doc, .json].contains(self.model.page), !self.applyingLayout else {
+          return
+        }
+        self.windowUserMoved = true
       }
     }
     model.onPageChange = { [weak self] in
@@ -159,8 +161,8 @@ final class PanelController {
   }
 
   private func finishPageChange(from previous: PanelModel.Page?, to next: PanelModel.Page) {
-    panel.isMovableByWindowBackground = next == .doc
-    if next != .doc { documentWindowUserMoved = false }
+    panel.isMovableByWindowBackground = [.doc, .json].contains(next)
+    if previous != next { windowUserMoved = false }
     if previous == .clipboard, next != .clipboard { releaseClipboardVisualCaches() }
     if next == .clipboard, clipboard.needsVisualCacheReload {
       Task { await clipboard.restoreVisualCaches() }
@@ -455,7 +457,7 @@ final class PanelController {
   private func installChrome() {
     let container = NSView()
     panel.contentView = container
-    panel.isMovableByWindowBackground = model.page == .doc
+    panel.isMovableByWindowBackground = [.doc, .json].contains(model.page)
     host.sizingOptions = []
     host.translatesAutoresizingMaskIntoConstraints = true
     host.autoresizingMask = [.width, .height]
@@ -512,7 +514,7 @@ final class PanelController {
     let placed = PanelLayout.placement(
       anchor: lastAnchor, screens: screens, fallbackVisible: mouseScreen.visibleFrame)
     let layoutVisible =
-      model.page == .doc && documentWindowUserMoved && panel.isVisible
+      [.doc, .json].contains(model.page) && windowUserMoved && panel.isVisible
       ? panel.screen?.visibleFrame ?? placed.visible : placed.visible
     var size = model.panelSize
     var sidebar: CGFloat = 0
@@ -533,7 +535,7 @@ final class PanelController {
       size.height = floor(layoutVisible.height * 4 / 5)
     }
     let frame: CGRect
-    if model.page == .doc, documentWindowUserMoved, panel.isVisible {
+    if [.doc, .json].contains(model.page), windowUserMoved, panel.isVisible {
       frame = PanelLayout.clamp(
         CGRect(
           x: panel.frame.maxX - size.width,
@@ -652,6 +654,7 @@ final class PanelController {
   ) async {
     openGeneration += 1
     let generation = openGeneration
+    let startingPage = model.page
     logger.notice("documentOpen start")
     let keepsDraftSilently =
       previewMarkdown && ["md", "markdown"].contains(url.pathExtension.lowercased())
@@ -665,7 +668,9 @@ final class PanelController {
     switch result {
     case .failure(let error):
       documents.pruneMissingRecent()
-      model.toast = Strings.fileDropError(Self.dropReason(error))
+      if model.page == startingPage {
+        model.toast = Strings.fileDropError(Self.dropReason(error))
+      }
     case .success(let opened):
       guard await stashCurrentDocumentDraft(), generation == openGeneration else { return }
       documents.adopt(opened)
