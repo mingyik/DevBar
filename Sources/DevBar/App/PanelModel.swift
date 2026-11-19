@@ -50,6 +50,8 @@ final class PanelModel {
   private(set) var settingsGroup = "general"
   private(set) var settingsOpenGeneration = 0
   var autoImport: Bool { didSet { defaults.set(autoImport, forKey: Self.autoImportKey) } }
+  var pinned = false { didSet { onPinnedChange?(pinned) } }
+  @ObservationIgnored var onPinnedChange: ((Bool) -> Void)?
   private var jsonEnlarged = true
   private var docEnlarged = true
   var enlarged: Bool {

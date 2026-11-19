@@ -301,6 +301,22 @@ import Testing
   #expect(qrReturnedToEdit)
 }
 
+@MainActor @Test func pinChangesWindowLevelWithoutClosingThePanel() {
+  _ = NSApplication.shared
+  let controller = PanelController(theme: ThemeManager())
+  controller.show(anchor: nil, activateApplication: false)
+  defer { controller.dismiss() }
+
+  #expect(controller.panel.isVisible)
+  #expect(controller.panel.level == .normal)
+  controller.model.pinned = true
+  #expect(controller.panel.level == .floating)
+  #expect(controller.panel.isVisible)
+  controller.model.pinned = false
+  #expect(controller.panel.level == .normal)
+  #expect(controller.panel.isVisible)
+}
+
 @MainActor @Test func closeShortcutsOnlyReachTheVisibleKeyPanelAndGlobalRDoesNotCycleTwice()
   throws
 {

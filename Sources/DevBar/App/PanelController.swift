@@ -71,6 +71,9 @@ final class PanelController {
         model: model, theme: theme, webHost: webHost, clipboard: clipboard, storage: storage,
         documents: documents))
     storage.clipboard = clipboard
+    model.onPinnedChange = { [weak panel] pinned in
+      panel?.level = pinned ? .floating : .normal
+    }
     model.onToggleDocumentSidebar = { [weak self] in self?.toggleDocumentSidebar() }
     model.onOpenDocument = { [weak self] url in
       Task { await self?.openDocument(url) }

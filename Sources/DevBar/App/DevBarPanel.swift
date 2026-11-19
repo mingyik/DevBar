@@ -15,7 +15,7 @@ final class DevBarPanel: NSPanel {
       backing: .buffered,
       defer: false
     )
-    level = .popUpMenu
+    level = .normal
     collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
     hasShadow = true
     isOpaque = false
