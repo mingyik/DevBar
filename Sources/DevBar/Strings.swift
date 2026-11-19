@@ -1,6 +1,13 @@
 import DevBarCore
 
 enum Strings {
+  static let filePreviewPermissionTitle = "设置文件预览权限"
+  static let filePreviewPermissionBody =
+    "允许 DevBar 读取桌面、文稿和下载中的文件，以便在剪贴板显示封面和内容摘要。macOS 会分别询问每个文件夹的访问权限。"
+  static let filePreviewPermissionAllow = "授权常用文件夹"
+  static let filePreviewPermissionLater = "稍后"
+  static let captureViewportMarker = "当前滚动位置"
+  static let captureRecoveryMarker = "滚回这里"
   static let documentPreview = "预览"
   static let documentSplit = "编辑并预览"
   static let documentEdit = "编辑"
@@ -67,7 +74,6 @@ enum Strings {
   static let tabClipboard = "Paste"
   static let tabTools = "工具"
   static let tabDocument = "Markdown"
-  static let pin = "钉住"
   static let theme = "白或黑"
   static let enlarge = "放大"
   static let settingsTitle = "设置…"
@@ -125,6 +131,9 @@ enum Strings {
   static let documentSave = "保存"
   static let documentKeepDraft = "保留为未保存文稿"
   static let documentCancel = "取消"
+  static let documentOpenBrowserTitle = "要在浏览器中打开此链接吗？"
+  static let documentOpenBrowser = "打开浏览器"
+  static let documentLinkOpenFailed = "无法打开链接中的文件"
   static let documentExternalTitle = "文件已被外部修改"
   static let documentExternalBody = "原文件在 DevBar 之外被修改或移动，未覆盖保存。请另存为后再继续。"
   static let documentMissingTitle = "原文件不存在"

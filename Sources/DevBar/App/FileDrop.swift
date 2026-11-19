@@ -7,7 +7,6 @@ import UniformTypeIdentifiers
   private unowned let panel: PanelController
   private unowned let status: StatusItemController
   private var generation = 0
-  private var openedForDrag = false
   private var origin: PanelModel.Page = .clipboard
   private var cancellation: Task<Void, Never>?
   init(panel: PanelController, status: StatusItemController) {
@@ -21,7 +20,6 @@ import UniformTypeIdentifiers
         fileName: first.lastPathComponent, sniff: FileDropReader.sniff(first))
     else { return [] }
     if !panel.model.dropActive {
-      openedForDrag = !panel.panel.isVisible
       origin = panel.model.page
       panel.model.dropDocument = true
       panel.model.dropActive = true
@@ -44,13 +42,9 @@ import UniformTypeIdentifiers
     cancellation?.cancel()
     let wasActive = panel.model.dropActive
     panel.model.dropActive = false
-    if wasActive {
-      panel.model.page = origin
-      if openedForDrag && !panel.model.pinned { panel.dismiss() }
-    }
-    openedForDrag = false
+    if wasActive { panel.model.page = origin }
   }
-  func receive(_ urls: [URL], document: Bool? = nil) {
+  func receive(_ urls: [URL], document: Bool? = nil, dragged: Bool = false) {
     guard MemoryBudget.allows(bytes: 0) else {
       panel.model.dropActive = false
       panel.model.toast = Strings.insufficientMemory
@@ -63,7 +57,6 @@ import UniformTypeIdentifiers
         ? panel.model.dropDocument
         : panel.model.page == .json ? false : panel.model.page == .doc ? true : nil)
     panel.model.dropActive = false
-    openedForDrag = false
     generation += 1
     let current = generation
     if let first = urls.first {
@@ -71,7 +64,7 @@ import UniformTypeIdentifiers
         fileName: first.lastPathComponent, sniff: FileDropReader.sniff(first))
       if case .doc = route {
         if urls.count > 1 { panel.model.toast = Strings.fileDropFirst }
-        Task { await panel.openDocument(first) }
+        Task { await panel.openDocument(first, previewMarkdown: dragged) }
         return
       }
     }
@@ -126,7 +119,7 @@ import UniformTypeIdentifiers
   override func draggingExited(_ sender: (any NSDraggingInfo)?) { coordinator?.exited() }
   override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool { true }
   override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
-    coordinator?.receive(urls(sender))
+    coordinator?.receive(urls(sender), dragged: true)
     return true
   }
 }
@@ -158,7 +151,7 @@ import UniformTypeIdentifiers
         }
         if let data, let url = URL(dataRepresentation: data, relativeTo: nil) { urls.append(url) }
       }
-      coordinator?.receive(urls, document: document)
+      coordinator?.receive(urls, document: document, dragged: true)
     }
     return !providers.isEmpty
   }

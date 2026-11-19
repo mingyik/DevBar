@@ -127,7 +127,7 @@ export function createMarkdownPreview(doc: Document = document) {
   }
   return { render, renderAsync, releaseMemory };
 }
-/** Ordinary clicks never navigate; only an explicit command-click requests the host. */
+/** Preview links are handled by the host so the WebView stays on the document. */
 export function bindPreviewLinks(
   root: HTMLElement,
   onOpenLink: (url: string) => void = () => {},
@@ -138,13 +138,13 @@ export function bindPreviewLinks(
     if (!target || !root.contains(target)) return;
     event.preventDefault();
     const href = target.getAttribute("href") ?? "";
+    if (event.type !== "click" || event.button !== 0 || !href) return;
     if (
-      event.type === "click" &&
-      event.button === 0 &&
-      event.metaKey &&
-      /^https?:\/\//i.test(href)
-    )
+      /^https?:\/\//i.test(href) ||
+      !/^(?:[a-z][a-z\d+.-]*:|[/#])/i.test(href)
+    ) {
       onOpenLink(href);
+    }
   };
   root.addEventListener("click", click);
   root.addEventListener("auxclick", click);

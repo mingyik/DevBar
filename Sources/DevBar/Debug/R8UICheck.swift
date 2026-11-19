@@ -16,7 +16,6 @@
       Task {
         panel.model.autoImport = false
         panel.theme.mode = dark ? .dark : .light
-        panel.model.pinned = true
         panel.model.page = scenario == "qr" ? .qr : .json
         panel.show(anchor: nil)
         for _ in 0..<100 {

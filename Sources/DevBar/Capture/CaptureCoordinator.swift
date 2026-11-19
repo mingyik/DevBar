@@ -4,12 +4,14 @@ import DevBarCore
 import KeyboardShortcuts
 import Observation
 import SwiftUI
+import os
 
 @MainActor @Observable
 private final class CaptureHUDState {
   var height = 0
   var preview: NSImage?
   var unmatched = false
+  var viewportRange: ClosedRange<Double>?
   var message = ""
   var path: URL?
   var finish: (() -> Void)?
@@ -21,7 +23,7 @@ private final class CaptureHUDState {
 @MainActor final class CaptureCoordinator {
   /// The selection overlay uses `.screenSaver`; progress UI must sit above it.
   private static let overlayLevel = NSWindow.Level(
-    rawValue: NSWindow.Level.screenSaver.rawValue + 1)
+    rawValue: NSWindow.Level.screenSaver.rawValue + 2)
   private unowned let panel: PanelController
   private var task: Task<Void, Never>?
   private var hud: NSPanel?
@@ -72,7 +74,6 @@ private final class CaptureHUDState {
         self.stopEscapeMonitor()
       }
       guard await self.panel.prepareForCapture() else { return }
-      self.startEscapeMonitor()
       do {
         let insets = ScrollingInsetControl()
         let selection = SelectionOverlay(
@@ -89,7 +90,6 @@ private final class CaptureHUDState {
         let image: CGImage
         var completionMessage = Strings.captureSaved
         if scrolling {
-          self.startEscapeMonitor()
           let region: CaptureRegion
           if let selected {
             region = selected.0
@@ -98,6 +98,7 @@ private final class CaptureHUDState {
           }
           let finish = ScreenshotScrollingCapture.FinishSignal()
           self.showProgress(region: region, finish: finish)
+          self.startEscapeMonitor()
           if selection.saveRequested {
             self.state.saveToDisk = true
             finish.request()
@@ -108,26 +109,25 @@ private final class CaptureHUDState {
               selection.setScrollingInsets(top: top, bottom: bottom, right: right)
             },
             onPreview: { [weak self] image in
-              self?.state.preview = NSImage(
+              guard let self else { return }
+              self.state.preview = NSImage(
                 cgImage: image, size: NSSize(width: image.width, height: image.height))
+              self.showPreview(region: region)
             },
             onLimitReached: { [weak self] in
               guard let self else { return }
               self.state.message = Strings.captureLimitPaused
               self.state.unmatched = false
-              self.resizeHUDForProgress()
+            },
+            onViewportRange: { [weak self] range, located in
+              self?.state.viewportRange = range
+              self?.state.unmatched = !located
             }
           ) {
-            [weak self] height, unmatched in
+            [weak self] height, _ in
             self?.state.height = height
-            if let self, self.state.unmatched != unmatched {
-              self.state.unmatched = unmatched
-              self.resizeHUDForProgress()
-            }
           }
-          self.stopEscapeMonitor()
-          self.hud?.orderOut(nil)
-          self.hidePreview()
+          self.closeProgress()
           selection.dismissScrollingOverlay()
           switch result {
           case .success(let resultImage): image = resultImage
@@ -145,7 +145,6 @@ private final class CaptureHUDState {
         } else {
           guard let selected else { return }
           image = selected.1
-          self.stopEscapeMonitor()
         }
         try Task.checkCancellation()
         if scrolling && !self.state.saveToDisk {
@@ -168,14 +167,11 @@ private final class CaptureHUDState {
         }.value
         self.showNotice(completionMessage, path: result.0)
       } catch is CancellationError {
-        self.hidePreview()
-        self.hud?.orderOut(nil)
+        self.closeProgress()
       } catch CaptureError.cancelled {
-        self.hidePreview()
-        self.hud?.orderOut(nil)
+        self.closeProgress()
       } catch {
-        self.hidePreview()
-        self.hud?.orderOut(nil)
+        self.closeProgress()
         self.showNotice(Strings.captureFailed, path: nil)
       }
     }
@@ -184,16 +180,21 @@ private final class CaptureHUDState {
   /// Same result as the progress bar's cancel button: drop the selection or
   /// the in-progress stitch and write nothing.
   func cancel() {
-    stopEscapeMonitor()
     task?.cancel()
+    closeProgress()
+  }
+
+  private func closeProgress() {
+    stopEscapeMonitor()
     hidePreview()
     hud?.orderOut(nil)
   }
 
-  /// Esc cancels either screenshot mode, including text editing and selection.
-  /// Register only during a capture; defer removes it on every exit path.
+  /// During scrolling the selection relinquishes keyboard focus, so Esc is
+  /// temporarily global while the scrolling controls are visible.
   private func startEscapeMonitor() {
-    guard escapeTask == nil else { return }
+    guard escapeTask == nil, hud?.isVisible == true else { return }
+    KeyboardShortcuts.setShortcut(.init(.escape), for: .captureExit)
     escapeTask = Task { [weak self] in
       guard !Task.isCancelled else { return }
       for await event in KeyboardShortcuts.events(for: .captureExit) where event == .keyUp {
@@ -203,11 +204,15 @@ private final class CaptureHUDState {
   }
 
   private func stopEscapeMonitor() {
-    // Release the OS hot key now, even if capture/encoding is still unwinding.
-    KeyboardShortcuts.disable(.captureExit)
+    guard escapeTask != nil else { return }
+    // Clearing the shortcut unregisters it immediately and blocks queued registration.
+    KeyboardShortcuts.setShortcut(nil, for: .captureExit)
     escapeTask?.cancel()
     escapeTask = nil
   }
+
+  private static let scrollLogger = Logger(
+    subsystem: "local.devbar.app", category: "scroll-capture")
 
   private func showProgress(region: CaptureRegion, finish: ScreenshotScrollingCapture.FinishSignal)
   {
@@ -215,6 +220,7 @@ private final class CaptureHUDState {
     activeRegion = region
     state.height = 0
     state.preview = nil
+    state.viewportRange = nil
     state.unmatched = false
     state.message = ""
     state.path = nil
@@ -225,8 +231,11 @@ private final class CaptureHUDState {
       finish.request()
     }
     state.cancel = { [weak self] in self?.cancel() }
-    showHUD(displayID: region.displayID)
     showPreview(region: region)
+    showHUD(displayID: region.displayID)
+    Self.scrollLogger.notice(
+      "selection confirmed window=\(region.windowID != nil, privacy: .public) hud=\(self.hud?.isVisible == true, privacy: .public) preview=\(self.previewWindow?.isVisible == true, privacy: .public)"
+    )
   }
 
   private func hidePreview() {
@@ -243,7 +252,13 @@ private final class CaptureHUDState {
     else { return }
     let visible = screen.visibleFrame
     let width: CGFloat = min(160, visible.width)
-    let height: CGFloat = min(400, visible.height * 2 / 3)
+    let maximumHeight = floor(visible.height * 2 / 3)
+    let imageSize = state.preview?.size
+    let fittedHeight =
+      imageSize.map { size in
+        ceil(max(1, width - 16) * size.height / max(1, size.width)) + 16
+      } ?? 64
+    let height = min(maximumHeight, max(64, fittedHeight))
     let rect = CGRect(
       x: screen.frame.minX + region.rectInPoints.minX,
       y: screen.frame.maxY - region.rectInPoints.maxY,
@@ -255,7 +270,7 @@ private final class CaptureHUDState {
     if fitsRight || fitsLeft {
       x = fitsRight ? rect.maxX + 8 : rect.minX - width - 8
       y = rect.maxY - height
-    } else if rect.minY - height - 8 >= visible.minY {
+    } else if rect.minY - maximumHeight - 8 >= visible.minY {
       x = min(max(rect.maxX - width, visible.minX + 8), visible.maxX - width - 8)
       y = rect.minY - height - 8
     } else {
@@ -264,6 +279,10 @@ private final class CaptureHUDState {
     }
     let frame = PanelLayout.clamp(
       CGRect(x: x, y: y, width: width, height: height), in: visible)
+    if let window = previewWindow, window.isVisible {
+      if window.frame != frame { window.setFrame(frame, display: true) }
+      return
+    }
     let window =
       previewWindow
       ?? NSPanel(
@@ -284,20 +303,6 @@ private final class CaptureHUDState {
     window.setFrame(frame, display: true)
     previewWindow = window
     window.orderFrontRegardless()
-  }
-
-  private func resizeHUDForProgress() {
-    guard let hud else { return }
-    var frame = hud.frame
-    let top = frame.maxY
-    frame.size.height = state.unmatched ? 63 : 43
-    frame.origin.y = top - frame.height
-    if let region = activeRegion, let screen = hud.screen {
-      frame = Self.progressFrame(
-        region: region, screen: screen.frame,
-        visible: screen.visibleFrame, size: frame.size)
-    }
-    hud.setFrame(frame, display: true)
   }
 
   private func showNotice(_ message: String, path: URL?) {
@@ -404,7 +409,7 @@ private final class CaptureHUDState {
     window.animationBehavior = .none
     window.appearance = panel.theme.appearance()
     window.contentView = NSHostingView(rootView: view)
-    let height: CGFloat = state.unmatched ? 63 : 43
+    let height: CGFloat = 43
     let width: CGFloat = 380
     let visible = screen.visibleFrame
     let frame: CGRect
@@ -459,7 +464,6 @@ private struct CaptureHUD: View {
           Button(Strings.captureReveal) { NSWorkspace.shared.activateFileViewerSelecting([path]) }
         }
       }
-      if state.unmatched { Text(Strings.captureRealigning).font(.system(size: 10)).lineLimit(1) }
     }
     .foregroundStyle(DesignTokens.textPrimary(scheme))
     .padding(.horizontal, 12).padding(.vertical, 9)
@@ -476,7 +480,40 @@ private struct ScrollingCapturePreview: View {
   var body: some View {
     Group {
       if let image = state.preview {
-        Image(nsImage: image).resizable().scaledToFit().padding(8)
+        GeometryReader { geometry in
+          let available = CGSize(
+            width: max(1, geometry.size.width - 16),
+            height: max(1, geometry.size.height - 16))
+          let scale = min(
+            available.width / max(1, image.size.width),
+            available.height / max(1, image.size.height))
+          let width = image.size.width * scale
+          let height = image.size.height * scale
+          Image(nsImage: image)
+            .resizable()
+            .frame(width: width, height: height)
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .overlay(alignment: .topLeading) {
+              if let range = state.viewportRange {
+                let cursorHeight = min(
+                  height, max(6, height * (range.upperBound - range.lowerBound)))
+                let y =
+                  (geometry.size.height - height) / 2
+                  + min(height - cursorHeight, height * range.lowerBound)
+                Group {
+                  if state.unmatched {
+                    Capsule().strokeBorder(DesignTokens.textPrimary(theme.effective), lineWidth: 1)
+                  } else {
+                    Capsule().fill(Color(nsColor: .systemGreen))  // devbar:allow-color
+                  }
+                }
+                .frame(width: 5, height: cursorHeight)
+                .offset(x: 4, y: y)
+                .accessibilityLabel(
+                  state.unmatched ? Strings.captureRecoveryMarker : Strings.captureViewportMarker)
+              }
+            }
+        }
       } else {
         ProgressView().controlSize(.small)
       }

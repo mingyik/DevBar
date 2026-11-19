@@ -1333,7 +1333,9 @@ private func registrationSample(_ offset: Int) -> ScreenshotSupport.ScrollingSam
     var pixels = [UInt8](repeating: 0, count: width * height)
     for row in 0..<height {
       for col in 0..<width {
-        if col >= width - 10 {
+        if col == width - 1 {
+          pixels[row * width + col] = 60
+        } else if col >= width - 10 {
           if let thumbRow,
             row >= thumbRow && row < thumbRow + 24 && col >= width - 8 && col < width - 2
           {
@@ -1377,6 +1379,34 @@ private func registrationSample(_ offset: Int) -> ScreenshotSupport.ScrollingSam
   }
   #expect(image.width == 80 - reportedRight)
   #expect(image.height == 180)
+
+  let windowRegion = try CaptureRegion(
+    displayID: 1, globalRect: CGRect(x: 0, y: 0, width: 80, height: 120),
+    screenFrame: CGRect(x: 0, y: 0, width: 80, height: 120), scale: 1,
+    windowID: 7, touchesWindowRight: true)
+  let windowFrames = Frames([
+    scrollerFrame(offset: 0, thumbRow: 25),
+    scrollerFrame(offset: 30, thumbRow: 45),
+    scrollerFrame(offset: 60, thumbRow: 95),
+  ])
+  let windowResult = await ScreenshotScrollingCapture.captureFrames(
+    region: windowRegion, finishSignal: .init(),
+    onProgress: { _, _ in }, nextFrame: { await windowFrames.next() })
+  guard case .partial(let windowImage) = windowResult else {
+    Issue.record("expected a stitched window")
+    return
+  }
+  #expect(windowImage.width == 80)
+  #expect(windowImage.height == 180)
+  let bytes = try #require(windowImage.dataProvider?.data as Data?)
+  let pixelBytes = windowImage.bitsPerPixel / 8
+  func gray(_ x: Int, _ y: Int) -> UInt8 {
+    bytes[y * windowImage.bytesPerRow + x * pixelBytes]
+  }
+  #expect(gray(74, 30) < 140)
+  #expect(gray(74, 160) > 200)
+  #expect(gray(79, 30) == gray(79, 150))
+  #expect(gray(79, 150) < 100)
 
   // Also verify small-advance smooth scrolling on a tall window where thumb
   // only shifts by 1px while content advances by 6px (2*advance < overlap/30).

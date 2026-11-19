@@ -44,8 +44,10 @@ enum ScreenshotSupport {
       entries.append(Entry(sample: sample, top: top))
       entries.sort { $0.top < $1.top }
       while entries.count > Self.maximumCount || retainedBytes > Self.maximumBytes {
-        // Keep the extremes; remove the most redundant interior viewpoint.
-        let removable = entries.count > 2 ? Array(1..<(entries.count - 1)) : [0]
+        // Protect both edges and the latest confirmed position when the budget permits.
+        let interior = entries.count > 2 ? Array(1..<(entries.count - 1)) : [0]
+        let olderInterior = interior.filter { entries[$0].top != top }
+        let removable = olderInterior.isEmpty ? interior : olderInterior
         let index = removable.min {
           entries[min($0 + 1, entries.count - 1)].top - entries[max(0, $0 - 1)].top
             < entries[min($1 + 1, entries.count - 1)].top - entries[max(0, $1 - 1)].top
@@ -123,7 +125,7 @@ enum ScreenshotSupport {
       }
       groups.sort { $0.count > $1.count }
       guard let best = groups.first, best.count >= minimumSupport else {
-        return .ambiguous
+        return groups.count == 1 ? .unavailable : .ambiguous
       }
       // Any other position that also meets the support threshold is a real
       // alternative, not noise: adopting the best-known one could duplicate
@@ -758,6 +760,29 @@ enum ScreenshotSupport {
     }
     guard scrollerCount >= 2, let start = scrollerStart else { return 0 }
     return maxScan - start
+  }
+
+  /// The most common right-edge row is normally the track outside the thumb.
+  /// Sample the interior so rounded window corners cannot be extended.
+  static func scrollingTrackRow(_ edge: CGImage) -> CGImage? {
+    let margin = edge.height / 10
+    let rect = CGRect(x: 0, y: margin, width: edge.width, height: edge.height - 2 * margin)
+    guard let pixels = grayscalePixels(edge, rect: rect) else { return nil }
+    var patterns: [[UInt8]: (count: Int, row: Int)] = [:]
+    var selectedRow = margin
+    var highestCount = 0
+    for row in stride(from: 0, to: Int(rect.height), by: max(1, Int(rect.height) / 256)) {
+      let start = row * edge.width
+      let pattern = pixels[start..<(start + edge.width)].map { $0 / 8 }
+      let previous = patterns[pattern] ?? (0, row + margin)
+      let count = previous.count + 1
+      patterns[pattern] = (count, previous.row)
+      if count > highestCount {
+        highestCount = count
+        selectedRow = previous.row
+      }
+    }
+    return edge.cropping(to: CGRect(x: 0, y: selectedRow, width: edge.width, height: 1))
   }
 
   private static func grayscalePixels(_ image: CGImage, rect: CGRect) -> [UInt8]? {

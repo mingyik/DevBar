@@ -22,6 +22,12 @@
 	<string>0.1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>DevBar 需要读取桌面文件，以在剪贴板显示文件预览。</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>DevBar 需要读取文稿文件，以在剪贴板显示文件预览。</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>DevBar 需要读取下载文件，以在剪贴板显示文件预览。</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>26.0</string>
 	<key>LSUIElement</key>

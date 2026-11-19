@@ -166,19 +166,7 @@ struct PanelView: View {
             ? Strings.documentPreview
             : model.documentDisplay == "preview" ? Strings.documentSplit : Strings.documentEdit)
       }
-      actionButton(model.pinned ? "pin.fill" : "pin.slash", label: Strings.pin, scheme: scheme) {
-        model.pinned.toggle()
-      }
     }
-  }
-
-  private func actionButton(
-    _ symbol: String,
-    label: String,
-    scheme: ColorScheme,
-    action: @escaping () -> Void
-  ) -> some View {
-    ActionIcon(symbol: symbol, label: label, scheme: scheme, action: action)
   }
 
   private func sidebarButton(_ scheme: ColorScheme) -> some View {

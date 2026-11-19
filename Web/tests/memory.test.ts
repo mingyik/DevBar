@@ -27,13 +27,14 @@ it("bounds Mermaid text cache by entry count and estimated UTF-16 bytes", () => 
 it("disposes the Shiki highlighter and recreates it after memory flush", async () => {
   const { getHighlighter, releaseHighlighter } =
     await import("../src/doc/highlight");
+  const theme = "devbar-tomorrow-dark";
   const first = await getHighlighter();
   expect(first.getLoadedLanguages()).toContain("json");
-  expect(first.getLoadedThemes()).toContain("github-dark");
+  expect(first.getLoadedThemes()).toContain(theme);
   await releaseHighlighter();
-  expect(() =>
-    first.codeToHtml("{}", { lang: "json", theme: "github-dark" }),
-  ).toThrow(/disposed/i);
+  expect(() => first.codeToHtml("{}", { lang: "json", theme })).toThrow(
+    /disposed/i,
+  );
   const second = await getHighlighter();
   expect(second).not.toBe(first);
   await releaseHighlighter();

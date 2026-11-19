@@ -31,7 +31,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_: Notification) {
     theme.refresh()
     statusItem.onPrimaryClick = { [weak self] in
-      self?.panel.toggle(anchor: self?.statusItem.anchor)
+      self?.panel.openFromMenuBar(anchor: self?.statusItem.anchor)
     }
     statusItem.onCaptureRegion = { [weak self] in self?.panel.capture.start(scrolling: false) }
     statusItem.onCaptureScroll = { [weak self] in self?.panel.capture.start(scrolling: true) }
@@ -54,10 +54,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     panel.webHost.acceptsFiles = { [weak self] in
       self?.panel.model.page == .json || self?.panel.model.page == .doc
     }
-    panel.webHost.receivedFiles = { [weak fileDrop] urls in fileDrop?.receive(urls) }
+    panel.webHost.receivedFiles = { [weak fileDrop] urls in fileDrop?.receive(urls, dragged: true) }
     statusItem.installFileDrop(fileDrop)
     ShortcutActions.register(panel: panel, status: statusItem)
     terminalYield.start()
+    #if !DEBUG
+      Task { @MainActor in self.offerFilePreviewPermissions() }
+    #endif
     #if DEBUG
       WebSelfCheck.runIfRequested(panel: panel)
       R7UICheck.runIfRequested(panel: panel)
@@ -68,6 +71,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.show(anchor: statusItem.anchor)
       }
     #endif
+  }
+
+  private func offerFilePreviewPermissions() {
+    let key = "didOfferFilePreviewPermissions"
+    guard !UserDefaults.standard.bool(forKey: key) else { return }
+    UserDefaults.standard.set(true, forKey: key)
+
+    let alert = NSAlert()
+    alert.messageText = Strings.filePreviewPermissionTitle
+    alert.informativeText = Strings.filePreviewPermissionBody
+    alert.addButton(withTitle: Strings.filePreviewPermissionAllow)
+    alert.addButton(withTitle: Strings.filePreviewPermissionLater)
+    NSApp.activate()
+    guard alert.runModal() == .alertFirstButtonReturn else { return }
+
+    Task.detached(priority: .utility) {
+      let manager = FileManager.default
+      let folders: [FileManager.SearchPathDirectory] = [
+        .desktopDirectory, .documentDirectory, .downloadsDirectory,
+      ]
+      for folder in folders {
+        guard let url = manager.urls(for: folder, in: .userDomainMask).first else { continue }
+        let entries = manager.enumerator(
+          at: url, includingPropertiesForKeys: [],
+          options: [.skipsSubdirectoryDescendants, .skipsPackageDescendants])
+        _ = entries?.nextObject()
+      }
+    }
   }
 
   func application(_ sender: NSApplication, openFiles filenames: [String]) {

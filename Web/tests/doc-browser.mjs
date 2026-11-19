@@ -41,7 +41,7 @@ try {
     const fence = render(
       '```mermaid\nA["<script>"]\n```\n\n```js\nconst x = "<img>";\n```',
     );
-    const links = render("[link](https://example.com)");
+    const links = render("[link](https://example.com) [local](docs/UI基准.md)");
     document.body.append(links);
     let opened = "";
     const dispose = bindPreviewLinks(links, (url) => {
@@ -52,14 +52,13 @@ try {
       cancelable: true,
     });
     links.querySelector("a").dispatchEvent(ordinary);
-    const noJump = ordinary.defaultPrevented && opened === "";
-    links.querySelector("a").dispatchEvent(
-      new MouseEvent("click", {
-        bubbles: true,
-        cancelable: true,
-        metaKey: true,
-      }),
-    );
+    const noJump = ordinary.defaultPrevented;
+    const openedExternal = opened;
+    const localClick = new MouseEvent("click", {
+      bubbles: true,
+      cancelable: true,
+    });
+    links.querySelectorAll("a")[1].dispatchEvent(localClick);
     dispose();
     links.remove();
     return {
@@ -84,7 +83,9 @@ try {
       diagram: fence.querySelector(".mmd")?.getAttribute("data-src"),
       plain: fence.querySelector("pre.code.plain code")?.textContent,
       noJump,
-      opened,
+      openedExternal,
+      localClickBlockedNavigation: localClick.defaultPrevented,
+      openedLocal: opened,
       cache: preview.render("same") === preview.render("same"),
     };
   });
@@ -105,7 +106,9 @@ try {
   assert.equal(result.diagram, 'A["<script>"]\n');
   assert.equal(result.plain, 'const x = "<img>";\n');
   assert.equal(result.noJump, true);
-  assert.equal(result.opened, "https://example.com");
+  assert.equal(result.openedExternal, "https://example.com");
+  assert.equal(result.localClickBlockedNavigation, true);
+  assert.equal(result.openedLocal, "docs/UI%E5%9F%BA%E5%87%86.md");
   assert.equal(result.cache, true);
   for (const theme of ["light", "dark"])
     for (const size of ["normal", "large"]) {

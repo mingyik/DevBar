@@ -100,6 +100,14 @@ final class DocumentSession {
     defaults.set(recent.map(\.path), forKey: Self.recentKey)
   }
 
+  func resolveDocumentLink(_ href: String) -> URL? {
+    guard let url, let link = URLComponents(string: href),
+      link.scheme == nil, link.host == nil, !link.path.isEmpty,
+      !link.path.hasPrefix("/"), !link.path.contains("\0")
+    else { return nil }
+    return url.deletingLastPathComponent().appending(path: link.path).standardizedFileURL
+  }
+
   func read(_ file: URL) async -> Result<OpenedDocument, DocumentOpenError> {
     let url = file.standardizedFileURL
     let result = await Task.detached(priority: .userInitiated) {
@@ -151,11 +159,10 @@ final class DocumentSession {
   /// Draft contents are intentionally session-only and never written to logs or defaults.
   @discardableResult
   func stashDraft(_ snapshot: [String: Any]) -> DocumentDraft? {
-    guard let text = snapshot["text"] as? String, !text.isEmpty,
+    guard let text = snapshot["text"] as? String, requiresDraft(snapshot),
       MemoryBudget.allows(bytes: text.utf8.count)
     else { return nil }
     let savedText = snapshot["savedText"] as? String ?? text
-    guard url == nil || text != savedText else { return nil }
 
     let id = documentID ?? UUID().uuidString
     documentID = id
@@ -177,9 +184,9 @@ final class DocumentSession {
   }
 
   func requiresDraft(_ snapshot: [String: Any]) -> Bool {
-    guard let text = snapshot["text"] as? String, !text.isEmpty else { return false }
+    guard let text = snapshot["text"] as? String else { return false }
     let savedText = snapshot["savedText"] as? String ?? text
-    return url == nil || text != savedText
+    return url == nil ? !text.isEmpty : text != savedText
   }
 
   func draft(id: String) -> DocumentDraft? {

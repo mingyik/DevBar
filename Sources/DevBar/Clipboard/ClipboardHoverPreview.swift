@@ -1,8 +1,20 @@
+import AVKit
 import AppKit
 import DevBarCore
 import ImageIO
 import Observation
+import PDFKit
+@preconcurrency import QuickLookThumbnailing
 import SwiftUI
+import UniformTypeIdentifiers
+import WebKit
+
+enum ClipboardPreviewMedia: Equatable, Sendable {
+  case pdf(URL)
+  case audiovisual(URL)
+  case imageFile(URL)
+  case webImage(Data, mime: String)
+}
 
 @MainActor @Observable
 final class ClipboardHoverPreviewState {
@@ -10,6 +22,7 @@ final class ClipboardHoverPreviewState {
   private(set) var tag = ""
   private(set) var content = ""
   private(set) var image: NSImage?
+  private(set) var media: ClipboardPreviewMedia?
   private(set) var isLoading = true
   private(set) var isSizing = true
 
@@ -20,6 +33,7 @@ final class ClipboardHoverPreviewState {
     self.tag = tag
     content = item.kind == .image ? "" : cachedContent ?? item.preview
     image = nil
+    media = nil
     isLoading = item.kind == .image
     isSizing = !sizingComplete
   }
@@ -29,9 +43,10 @@ final class ClipboardHoverPreviewState {
     isSizing = false
   }
 
-  func finish(itemID: UUID, content: String, image: CGImage?) {
+  func finish(itemID: UUID, content: String, image: CGImage?, media: ClipboardPreviewMedia?) {
     guard item?.id == itemID else { return }
     self.content = content
+    self.media = media
     self.image = image.map {
       NSImage(cgImage: $0, size: NSSize(width: $0.width, height: $0.height))
     }
@@ -42,6 +57,7 @@ final class ClipboardHoverPreviewState {
     item = nil
     content = ""
     image = nil
+    media = nil
     isLoading = false
     isSizing = false
   }
@@ -53,27 +69,112 @@ struct PreparedClipboardHover: @unchecked Sendable {
   let content: String
   let image: CGImage?
   let imageHeight: CGFloat?
+  let media: ClipboardPreviewMedia?
 }
 
 enum ClipboardHoverContentLoader {
   static func prepare(
-    item: ClipItem, payloads: [ClipboardPayload], width: CGFloat, maximum: CGFloat
+    item: ClipItem, payloads: [ClipboardPayload], width: CGFloat, maximum: CGFloat,
+    systemThumbnail: CGImage? = nil
   ) -> PreparedClipboardHover {
-    let image = item.kind == .image ? decodeImage(payloads) : nil
+    let media = systemThumbnail == nil ? previewMedia(item: item, payloads: payloads) : nil
+    let image = systemThumbnail ?? (item.kind == .image ? decodeImage(payloads) : nil)
     let content = textContent(item: item, payloads: payloads)
     let imageHeight: CGFloat?
     if let image, image.width > 0, image.height > 0 {
       imageHeight = min(
         maximum, max(width, (width - 28) * CGFloat(image.height) / CGFloat(image.width) + 60))
     } else {
-      imageHeight = nil
+      imageHeight = media == nil ? nil : min(maximum, width * 1.25)
     }
     return PreparedClipboardHover(
-      itemID: item.id, content: content, image: image, imageHeight: imageHeight)
+      itemID: item.id, content: content, image: image, imageHeight: imageHeight, media: media)
+  }
+
+  static func singleFileURL(_ payloads: [ClipboardPayload]) -> URL? {
+    let files = payloads.filter { $0.type == NSPasteboard.PasteboardType.fileURL.rawValue }
+    guard files.count == 1, let data = files.first?.data,
+      let raw = String(data: data, encoding: .utf8),
+      let url = URL(string: raw), url.isFileURL,
+      (try? url.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true
+    else { return nil }
+    return url
+  }
+
+  static func systemThumbnail(url: URL, width: CGFloat, scale: CGFloat) async -> CGImage? {
+    guard !Task.isCancelled else { return nil }
+    let generator = QLThumbnailGenerator.shared
+    let request = QLThumbnailGenerator.Request(
+      fileAt: url, size: CGSize(width: width, height: width * 1.4),
+      scale: scale, representationTypes: [.thumbnail, .lowQualityThumbnail])
+    return await withTaskCancellationHandler {
+      guard !Task.isCancelled else { return nil }
+      return try? await generator.generateBestRepresentation(for: request).cgImage
+    } onCancel: {
+      generator.cancel(request)
+    }
+  }
+
+  private static func previewMedia(
+    item: ClipItem, payloads: [ClipboardPayload]
+  ) -> ClipboardPreviewMedia? {
+    if item.kind == .files {
+      let files = payloads.filter { $0.type == NSPasteboard.PasteboardType.fileURL.rawValue }
+      guard files.count == 1, let data = files.first?.data,
+        let raw = String(data: data, encoding: .utf8),
+        let url = URL(string: raw), url.isFileURL,
+        let values = try? url.resourceValues(forKeys: [
+          .isRegularFileKey, .contentTypeKey, .fileSizeKey,
+        ]),
+        values.isRegularFile == true, let type = values.contentType,
+        type.conforms(to: .pdf) || [.png, .jpeg, .gif, .tiff, .bmp, .svg].contains(type)
+          || type.identifier == "org.webmproject.webp"
+          || type.conforms(to: .movie) || type.conforms(to: .audio),
+        FileManager.default.isReadableFile(atPath: url.path)
+      else { return nil }
+      if type == .svg {
+        guard let size = values.fileSize, size <= 10 * 1024 * 1024,
+          let handle = try? FileHandle(forReadingFrom: url)
+        else { return nil }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: 10 * 1024 * 1024 + 1),
+          data.count <= 10 * 1024 * 1024
+        else { return nil }
+        return .webImage(data, mime: "image/svg+xml")
+      }
+      if type.conforms(to: .pdf) { return .pdf(url) }
+      if type.conforms(to: .image) { return .imageFile(url) }
+      return .audiovisual(url)
+    }
+    guard item.kind == .image else { return nil }
+    for payload in payloads {
+      if payload.type == UTType.svg.identifier, payload.data.count <= 10 * 1024 * 1024 {
+        return .webImage(payload.data, mime: "image/svg+xml")
+      }
+      guard let source = CGImageSourceCreateWithData(payload.data as CFData, nil),
+        CGImageSourceGetCount(source) > 1,
+        let identifier = CGImageSourceGetType(source),
+        let type = UTType(identifier as String),
+        type == .gif || type.identifier == "org.webmproject.webp"
+      else { continue }
+      return .webImage(payload.data, mime: type == .gif ? "image/gif" : "image/webp")
+    }
+    return nil
   }
 
   private static func textContent(item: ClipItem, payloads: [ClipboardPayload]) -> String {
     if item.kind == .files {
+      if let url = singleFileURL(payloads),
+        let type = (try? url.resourceValues(forKeys: [.contentTypeKey]))?.contentType,
+        type.conforms(to: .text)
+          || ["md", "markdown", "json"].contains(url.pathExtension.lowercased()),
+        let handle = try? FileHandle(forReadingFrom: url)
+      {
+        defer { try? handle.close() }
+        if let data = try? handle.read(upToCount: 4096), !data.isEmpty {
+          return String(decoding: data, as: UTF8.self)
+        }
+      }
       return ClipboardController.filePaths(payloads: payloads) ?? item.preview
     }
     if let payload = payloads.first(where: {
@@ -134,6 +235,11 @@ struct ClipboardHoverPreview: View {
             .frame(maxWidth: .infinity)
         }
         Spacer(minLength: 0)
+      } else if let media = state.media {
+        ClipboardNativeMediaPreview(media: media)
+          .id(state.item?.id)
+          .padding(.trailing, 14)
+          .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else if let image = state.image {
         Image(nsImage: image).resizable().scaledToFit()
           .padding(.trailing, 14)
@@ -166,6 +272,59 @@ struct ClipboardHoverPreview: View {
       do { try await Task.sleep(for: .milliseconds(120)) } catch { return }
       showsProgress = true
     }
+  }
+}
+
+private struct ClipboardNativeMediaPreview: NSViewRepresentable {
+  let media: ClipboardPreviewMedia
+
+  func makeNSView(context: Context) -> NSView {
+    switch media {
+    case .pdf(let url):
+      let view = PDFView()
+      view.document = PDFDocument(url: url)
+      view.autoScales = true
+      return view
+    case .audiovisual(let url):
+      let view = AVPlayerView()
+      view.controlsStyle = .inline
+      view.player = AVPlayer(url: url)
+      return view
+    case .imageFile(let url):
+      let view = NSImageView()
+      view.imageScaling = .scaleProportionallyUpOrDown
+      view.image = NSImage(contentsOf: url)
+      view.animates = true
+      return view
+    case .webImage(let data, let mime):
+      let view = imageWebView()
+      let html = """
+        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'">
+        <style>body{margin:0;display:grid;place-items:center;height:100vh}
+        img{max-width:100vw;max-height:100vh;object-fit:contain}</style>
+        <img src="data:\(mime);base64,\(data.base64EncodedString())">
+        """
+      view.loadHTMLString(html, baseURL: nil)
+      return view
+    }
+  }
+
+  private func imageWebView() -> WKWebView {
+    let configuration = WKWebViewConfiguration()
+    configuration.websiteDataStore = .nonPersistent()
+    configuration.defaultWebpagePreferences.allowsContentJavaScript = false
+    return WKWebView(frame: .zero, configuration: configuration)
+  }
+
+  func updateNSView(_ view: NSView, context: Context) {}
+
+  static func dismantleNSView(_ view: NSView, coordinator: ()) {
+    if let playerView = view as? AVPlayerView {
+      playerView.player?.pause()
+      playerView.player = nil
+    }
+    if let pdfView = view as? PDFView { pdfView.document = nil }
+    if let webView = view as? WKWebView { webView.stopLoading() }
   }
 }
 

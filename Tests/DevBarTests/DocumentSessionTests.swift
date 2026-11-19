@@ -91,3 +91,23 @@ import Testing
   #expect(session.recent.isEmpty)
   #expect(defaults.stringArray(forKey: "recentDocumentPaths") == [])
 }
+
+@MainActor
+@Test func documentSessionResolvesRelativeMarkdownLinksFromTheOpenFile() {
+  let document = URL(fileURLWithPath: "/tmp/devbar-link-test/方案.md")
+  let session = DocumentSession(defaults: UserDefaults(suiteName: UUID().uuidString)!)
+  let link = "docs/UI%E5%9F%BA%E5%87%86.md"
+  #expect(session.resolveDocumentLink(link) == nil)
+
+  session.adopt(
+    OpenedDocument(
+      id: "plan", url: document, text: "", fileName: "方案.md",
+      mode: .markdown, hadBOM: false, newline: "\n"))
+
+  #expect(session.resolveDocumentLink(link)?.path == "/tmp/devbar-link-test/docs/UI基准.md")
+  #expect(session.resolveDocumentLink("docs/说明与视频制作提纲.md")?.lastPathComponent == "说明与视频制作提纲.md")
+  #expect(session.resolveDocumentLink("file:///tmp/private.md") == nil)
+  #expect(session.resolveDocumentLink("//example.com/page.md") == nil)
+  #expect(session.resolveDocumentLink("%2Ftmp/private.md") == nil)
+  #expect(session.resolveDocumentLink("docs/手册.pdf")?.lastPathComponent == "手册.pdf")
+}

@@ -8,6 +8,13 @@ import CoreMedia
 import ScreenCaptureKit
 
 enum ScreenshotCaptureEngine {
+  struct FrameMetrics {
+    var received = 0
+    var intervals = 0
+    var totalMilliseconds = 0
+    var maximumMilliseconds = 0
+  }
+
   final class RegionCapture: @unchecked Sendable {
     private let filter: SCContentFilter
     private let configuration: SCStreamConfiguration
@@ -19,10 +26,7 @@ enum ScreenshotCaptureEngine {
       self.configuration = configuration
       guard streaming else { return }
       let sink = FrameSink()
-      guard
-        let stream = try? SCStream(
-          filter: filter, configuration: configuration, delegate: nil)
-      else { return }
+      let stream = SCStream(filter: filter, configuration: configuration, delegate: nil)
       do {
         try stream.addStreamOutput(sink, type: .screen, sampleHandlerQueue: sink.queue)
       } catch { return }
@@ -49,6 +53,7 @@ enum ScreenshotCaptureEngine {
 
     var queuedFrameCount: Int { sink?.queuedCount ?? 0 }
     var droppedFrameCount: Int { sink?.droppedCount ?? 0 }
+    func drainFrameMetrics() -> FrameMetrics { sink?.drainMetrics() ?? FrameMetrics() }
 
     func wake() {
       sink?.wake()
@@ -76,6 +81,8 @@ enum ScreenshotCaptureEngine {
     private var frames: [CGImage] = []
     private var queuedPixels = 0
     private var droppedFrames = 0
+    private var metrics = FrameMetrics()
+    private var lastPresentationTime: Double?
     private var waiters: [CheckedContinuation<CGImage?, Never>] = []
     private var lastImage: CGImage?
     private var stopped = false
@@ -93,6 +100,14 @@ enum ScreenshotCaptureEngine {
       return droppedFrames
     }
 
+    func drainMetrics() -> FrameMetrics {
+      lock.lock()
+      defer { lock.unlock() }
+      let snapshot = metrics
+      metrics = FrameMetrics()
+      return snapshot
+    }
+
     func stream(
       _ stream: SCStream, didOutputSampleBuffer sampleBuffer: CMSampleBuffer,
       of outputType: SCStreamOutputType
@@ -101,7 +116,20 @@ enum ScreenshotCaptureEngine {
         let buffer = CMSampleBufferGetImageBuffer(sampleBuffer)
       else { return }
       let framePixels = CVPixelBufferGetWidth(buffer) * CVPixelBufferGetHeight(buffer)
+      let presentationTime = CMSampleBufferGetPresentationTimeStamp(sampleBuffer).seconds
       lock.lock()
+      if !stopped {
+        metrics.received += 1
+        if presentationTime.isFinite {
+          if let previous = lastPresentationTime, presentationTime > previous {
+            let milliseconds = Int(((presentationTime - previous) * 1000).rounded())
+            metrics.intervals += 1
+            metrics.totalMilliseconds += milliseconds
+            metrics.maximumMilliseconds = max(metrics.maximumMilliseconds, milliseconds)
+          }
+          lastPresentationTime = presentationTime
+        }
+      }
       let canQueue =
         !stopped
         && (!waiters.isEmpty
@@ -218,17 +246,18 @@ enum ScreenshotCaptureEngine {
     let clamped = region.pixelRect.intersection(bounds).integral
     guard !clamped.isNull, !clamped.isEmpty else { return nil }
     let ownPID = ProcessInfo.processInfo.processIdentifier
-    let windows: [SCWindow]
-    if let target = region.windowID,
-      content.windows.contains(where: { $0.windowID == target })
-    {
-      // Long capture: show only the target window. Other applications and
-      // transient panels covering the selection must not enter the image.
-      windows = content.windows.filter { $0.windowID != target }
-    } else {
-      windows = content.windows.filter { $0.owningApplication?.processID == ownPID }
+    let targetWindow = region.windowID.flatMap { id in
+      content.windows.first { $0.windowID == id }
     }
-    let filter = SCContentFilter(display: display, excludingWindows: windows)
+    let filter: SCContentFilter
+    if let targetWindow {
+      filter = SCContentFilter(display: display, including: [targetWindow])
+    } else if region.windowID != nil {
+      return nil
+    } else {
+      let windows = content.windows.filter { $0.owningApplication?.processID == ownPID }
+      filter = SCContentFilter(display: display, excludingWindows: windows)
+    }
     let configuration = SCStreamConfiguration()
     configuration.sourceRect = CGRect(
       x: clamped.minX / region.scale, y: clamped.minY / region.scale,

@@ -46,12 +46,12 @@ import Testing
   #expect(model.page == .json)
 }
 
-@MainActor @Test func pageSizesUseMediumJSONAndLargeMarkdownDefaults() {
+@MainActor @Test func pageSizesUseLargeJSONAndMarkdownDefaults() {
   let defaults = UserDefaults(suiteName: "local.devbar.test.sizes.\(UUID())")!
   let model = PanelModel(defaults: defaults)
   #expect(model.panelSize == CGSize(width: 380, height: 520))
   model.page = .json
-  #expect(model.panelSize == CGSize(width: 560, height: 660))
+  #expect(model.panelSize == CGSize(width: 640, height: 720))
   model.enlarged = true
   #expect(model.panelSize == CGSize(width: 640, height: 720))
   model.page = .doc
@@ -64,7 +64,7 @@ import Testing
   defaults.set(true, forKey: "enlarged.doc")
   let restored = PanelModel(defaults: defaults)
   restored.page = .json
-  #expect(!restored.enlarged)
+  #expect(restored.enlarged)
   restored.page = .doc
   #expect(restored.enlarged)
 }
@@ -301,23 +301,43 @@ import Testing
   #expect(qrReturnedToEdit)
 }
 
-@MainActor @Test func commandWClosesPanelAndGlobalRDoesNotCycleTwice() throws {
+@MainActor @Test func closeShortcutsOnlyReachTheVisibleKeyPanelAndGlobalRDoesNotCycleTwice()
+  throws
+{
+  _ = NSApplication.shared
   let panel = DevBarPanel()
   var closes = 0
   var cycles = 0
-  panel.onEscape = { closes += 1 }
+  panel.onEscape = {
+    closes += 1
+    panel.orderOut(nil)
+  }
   panel.onCyclePage = { _ in cycles += 1 }
   panel.globalCycleOwnsR = { true }
-  for (key, code) in [("w", UInt16(13)), ("r", UInt16(15))] {
-    let event = try #require(
+  func keyEvent(_ key: String, code: UInt16, modifiers: NSEvent.ModifierFlags = []) throws
+    -> NSEvent
+  {
+    try #require(
       NSEvent.keyEvent(
-        with: .keyDown, location: .zero,
-        modifierFlags: .command, timestamp: 0, windowNumber: 0, context: nil,
-        characters: key, charactersIgnoringModifiers: key, isARepeat: false, keyCode: code))
-    #expect(panel.performKeyEquivalent(with: event))
+        with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
+        windowNumber: panel.windowNumber, context: nil, characters: key,
+        charactersIgnoringModifiers: key, isARepeat: false, keyCode: code))
   }
-  #expect(closes == 1)
+  let commandW = try keyEvent("w", code: 13, modifiers: .command)
+  let escape = try keyEvent("\u{1b}", code: 53)
+  #expect(!panel.performKeyEquivalent(with: commandW))
+  #expect(!panel.performKeyEquivalent(with: escape))
+  panel.makeKeyAndOrderFront(nil)
+  defer { panel.orderOut(nil) }
+  #expect(panel.performKeyEquivalent(with: try keyEvent("r", code: 15, modifiers: .command)))
   #expect(cycles == 0)
+  #expect(panel.performKeyEquivalent(with: commandW))
+  #expect(!panel.isVisible)
+  #expect(!panel.performKeyEquivalent(with: escape))
+  panel.makeKeyAndOrderFront(nil)
+  #expect(panel.performKeyEquivalent(with: escape))
+  #expect(!panel.isVisible)
+  #expect(closes == 2)
 }
 
 @MainActor @Test func markdownSingleWindowSplitLifecycleAndPersistence() async throws {
@@ -570,7 +590,6 @@ import Testing
     .appending(path: "Web/dist")
   let defaults = UserDefaults(suiteName: "devbar.singlewin.\(UUID())")!
   let controller = PanelController(theme: ThemeManager(defaults: defaults), webRoot: webRoot)
-  controller.model.pinned = true
   controller.model.prepareToOpen(page: .doc)
   controller.show(anchor: nil, activateApplication: false)
   defer { controller.dismiss() }
@@ -664,7 +683,6 @@ import Testing
     let theme = ThemeManager(defaults: defaults)
     theme.mode = themeName == "dark" ? .dark : .light
     let controller = PanelController(theme: theme, webRoot: webDist)
-    controller.model.pinned = true
     controller.model.autoImport = false
     controller.model.page = .doc
     controller.show(anchor: nil, activateApplication: false)

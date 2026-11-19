@@ -15,7 +15,6 @@
       let size = args[index + 3]
       Task {
         panel.theme.mode = theme == "dark" ? .dark : .light
-        panel.model.pinned = true
         let fixtures = [
           "SELECT * FROM users;\nWHERE active = true;",
           "https://example.com/docs?lang=zh",
@@ -106,7 +105,7 @@
         panel.open(page: .qr, anchor: nil)
         let opensQR = panel.model.page == .qr && panel.panel.isVisible
         panel.open(page: .qr, anchor: nil)
-        let sameCloses = !panel.panel.isVisible
+        let sameStaysOpen = panel.panel.isVisible
         panel.model.page = initial
         panel.show(anchor: nil)
         try? await Task.sleep(for: .milliseconds(700))
@@ -130,7 +129,7 @@
           "orderUnchangedAfter15Cycles": noReorder,
           "cycleToOrderFrontMilliseconds": timings,
           "pageShortcutOpensQR": opensQR,
-          "samePageShortcutCloses": sameCloses,
+          "samePageShortcutStaysOpen": sameStaysOpen,
           "page": panel.model.page.rawValue,
         ]
         if let data = try? JSONSerialization.data(

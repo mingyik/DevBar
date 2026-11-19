@@ -260,7 +260,8 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
     item: item, payloads: try #require(controller.originals[item.id]), width: 300, maximum: 800)
   #expect(prepared.imageHeight == nil)
   #expect(prepared.content == fullText)
-  state.finish(itemID: item.id, content: prepared.content, image: prepared.image)
+  state.finish(
+    itemID: item.id, content: prepared.content, image: prepared.image, media: prepared.media)
   #expect(!state.isLoading)
   #expect(state.content == fullText)
   state.finishSizing(itemID: item.id)

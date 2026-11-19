@@ -27,7 +27,6 @@
         }
         if scenario == "mem-daily" {
           panel.theme.mode = theme == "dark" ? .dark : .light
-          panel.model.pinned = true
           panel.model.page = .json
           panel.show(anchor: nil, activateApplication: false)
           let text = "{\"daily\":{\"items\":[1,2,3,4,5],\"ready\":true}}"
@@ -82,7 +81,6 @@
           return
         }
         panel.theme.mode = theme == "dark" ? .dark : .light
-        panel.model.pinned = true
         panel.model.page = scenario == "json" ? .json : .doc
         panel.show(anchor: nil, activateApplication: false)
         panel.model.enlarged = large

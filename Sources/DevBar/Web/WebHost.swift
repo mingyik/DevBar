@@ -20,6 +20,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   var receivedFiles: (([URL]) -> Void)?
   var saveDocument: ((String, String?) async -> String)?
   var onDocumentMode: ((String, String, String, String?) async -> Void)?
+  var onDocumentLink: ((String) async -> Bool)?
   var onDocumentModeShortcut: (() -> Void)?
 
   private let previewImage = PreviewImage()
@@ -100,7 +101,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     send(type: document ? "doc.import" : "tools.import", payload: payload)
   }
 
-  func importDocument(_ document: OpenedDocument) {
+  func importDocument(_ document: OpenedDocument, display: String? = nil) {
     guard MemoryBudget.allows(bytes: document.text.utf8.count) else {
       onToast?(Strings.insufficientMemory)
       return
@@ -110,6 +111,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       "documentId": .string(document.id), "mode": .string("replace"),
     ]
     if let mode = document.mode { payload["docMode"] = .string(mode.rawValue) }
+    if let display { payload["display"] = .string(display) }
     send(type: "doc.import", payload: payload)
   }
 
@@ -381,7 +383,8 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
       }
       return #"{"state":null}"#
     case "link.open":
-      let opened = Self.openLink(payload["url"]?.stringValue)
+      guard let url = payload["url"]?.stringValue else { return #"{"opened":false}"# }
+      let opened = await onDocumentLink?(url) ?? false
       return opened ? #"{"opened":true}"# : #"{"opened":false}"#
     case "ui.toast":
       let text = payload["text"]?.stringValue ?? ""
@@ -551,13 +554,6 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     }
   }
 
-  private static func openLink(_ raw: String?) -> Bool {
-    guard let raw, let url = URL(string: raw), let scheme = url.scheme?.lowercased(),
-      scheme == "http" || scheme == "https"
-    else { return false }
-    NSWorkspace.shared.open(url)
-    return true
-  }
 }
 
 private final class MemoryFlushGate: @unchecked Sendable {

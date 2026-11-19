@@ -60,6 +60,8 @@ import Testing
 @MainActor @Test func escapePrecedesInputResponderAndClosesPanel() {
   _ = NSApplication.shared
   let panel = DevBarPanel()
+  panel.makeKeyAndOrderFront(nil)
+  defer { panel.orderOut(nil) }
   let responder = ArrowConsumingResponder()
   panel.makeFirstResponder(responder)
   var dismissed = 0

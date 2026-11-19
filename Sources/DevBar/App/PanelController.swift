@@ -20,9 +20,7 @@ final class PanelController {
   private var documentAlertVisible = false
   private let host: NSHostingView<PanelView>
   private var layoutAnimationTask: Task<Void, Never>?
-  private var outsideMonitor: Any?
   private var activationObserver: NSObjectProtocol?
-  private var resignObserver: NSObjectProtocol?
   private var dismissing = false
   private var lastAnchor: CGRect?
   private var documentWindowUserMoved = false
@@ -103,6 +101,9 @@ final class PanelController {
     webHost.saveDocument = { [weak self] text, id in
       await self?.saveDocument(text: text, documentID: id) ?? #"{"status":"failed"}"#
     }
+    webHost.onDocumentLink = { [weak self] href in
+      await self?.openDocumentLink(href) ?? false
+    }
     webHost.onDocumentMode = { [weak self] mode, text, docMode, documentID in
       await self?.handleDocumentMode(
         mode, text: text, docMode: docMode, documentID: documentID)
@@ -145,28 +146,6 @@ final class PanelController {
         self.documentWindowUserMoved = true
       }
     }
-    resignObserver = NotificationCenter.default.addObserver(
-      forName: NSWindow.didResignKeyNotification,
-      object: panel,
-      queue: .main
-    ) { [weak self] _ in
-      MainActor.assumeIsolated {
-        self?.handleResignKey()
-      }
-    }
-    outsideMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown])
-    { [weak self] _ in
-      MainActor.assumeIsolated {
-        guard let self else { return }
-        let location = NSEvent.mouseLocation
-        if self.panel.isVisible, self.panel.frame.contains(location),
-          !self.panel.isKeyWindow
-        {
-          self.panel.makeKeyAndOrderFront(nil)
-        }
-        self.handleOutsideClick()
-      }
-    }
     model.onPageChange = { [weak self] in
       guard let self else { return }
       let previous = self.previousPage
@@ -194,20 +173,12 @@ final class PanelController {
     page == .doc || page == .qr
   }
 
-  func toggle(anchor: CGRect?) {
-    if panel.isVisible {
-      dismiss()
-    } else {
-      model.prepareToOpen()
-      show(anchor: anchor)
-    }
+  func openFromMenuBar(anchor: CGRect?) {
+    if !panel.isVisible { model.prepareToOpen() }
+    show(anchor: anchor)
   }
 
   func open(page: PanelModel.Page, anchor: CGRect?) {
-    if panel.isVisible, model.page == page {
-      dismiss()
-      return
-    }
     if let anchor {
       lastAnchor = anchor
     }
@@ -377,9 +348,19 @@ final class PanelController {
     if cachedContent != nil { return }
 
     let payloads = clipboard.originals[id] ?? []
+    let scale = min(2, preview.backingScaleFactor)
     previewLoadTask = Task.detached(priority: .userInitiated) { [weak self] in
+      let thumbnail: CGImage?
+      if item.kind == .files, let url = ClipboardHoverContentLoader.singleFileURL(payloads) {
+        thumbnail = await ClipboardHoverContentLoader.systemThumbnail(
+          url: url, width: max(1, width - 28), scale: scale)
+      } else {
+        thumbnail = nil
+      }
+      guard !Task.isCancelled else { return }
       let prepared = ClipboardHoverContentLoader.prepare(
-        item: item, payloads: payloads, width: width, maximum: maximum)
+        item: item, payloads: payloads, width: width, maximum: maximum,
+        systemThumbnail: thumbnail)
       guard !Task.isCancelled else { return }
       await MainActor.run {
         guard let self,
@@ -388,8 +369,8 @@ final class PanelController {
           self.clipboardPreview?.isVisible == true
         else { return }
         self.clipboardPreviewState?.finish(
-          itemID: id, content: prepared.content, image: prepared.image)
-        if item.kind != .image, prepared.content.utf8.count <= 128_000 {
+          itemID: id, content: prepared.content, image: prepared.image, media: prepared.media)
+        if item.kind == .text, prepared.media == nil, prepared.content.utf8.count <= 128_000 {
           if self.previewContents.count >= 20 { self.previewContents.removeAll() }
           self.previewContents[id] = prepared.content
         }
@@ -613,23 +594,6 @@ final class PanelController {
     }
   }
 
-  private func handleOutsideClick() {
-    guard panel.isVisible, !model.pinned else { return }
-    let location = NSEvent.mouseLocation
-    if panel.frame.contains(location)
-      || (clipboardPreview?.isVisible == true && clipboardPreview?.frame.contains(location) == true)
-      || (NSApp.modalWindow?.frame.contains(location) == true)
-    {
-      return
-    }
-    dismiss()
-  }
-
-  private func handleResignKey() {
-    guard panel.isVisible, !model.pinned, !dismissing, !NSApp.isActive else { return }
-    dismiss()
-  }
-
   // MARK: - Markdown document
 
   private func handleDocumentMode(
@@ -651,11 +615,49 @@ final class PanelController {
     reposition(animated: true, avoidDocumentContentReflow: true)
   }
 
-  func openDocument(_ url: URL) async {
+  private func openDocumentLink(_ href: String) async -> Bool {
+    guard model.page == .doc else { return false }
+    if let url = URL(string: href), let scheme = url.scheme?.lowercased(),
+      scheme == "http" || scheme == "https", let host = url.host(), !host.isEmpty
+    {
+      guard !documentAlertVisible else { return false }
+      documentAlertVisible = true
+      defer { documentAlertVisible = false }
+      let alert = NSAlert()
+      alert.messageText = Strings.documentOpenBrowserTitle
+      alert.informativeText = url.absoluteString
+      alert.addButton(withTitle: Strings.documentOpenBrowser)
+      alert.addButton(withTitle: Strings.documentCancel)
+      alert.window.level = .modalPanel
+      guard alert.runModal() == .alertFirstButtonReturn else { return false }
+      return NSWorkspace.shared.open(url)
+    }
+    guard let target = documents.resolveDocumentLink(href) else { return false }
+    if ["md", "markdown"].contains(target.pathExtension.lowercased()) {
+      await openDocument(target, previewMarkdown: true, revealSidebar: true)
+      return documents.url == target
+    }
+    let values = try? target.resourceValues(forKeys: [.isRegularFileKey, .isExecutableKey])
+    guard values?.isRegularFile == true, values?.isExecutable == false,
+      NSWorkspace.shared.open(target)
+    else {
+      model.toast = Strings.documentLinkOpenFailed
+      return false
+    }
+    return true
+  }
+
+  func openDocument(
+    _ url: URL, previewMarkdown: Bool = false, revealSidebar: Bool = false
+  ) async {
     openGeneration += 1
     let generation = openGeneration
     logger.notice("documentOpen start")
-    guard await confirmReplaceIfNeeded(generation: generation) else { return }
+    let keepsDraftSilently =
+      previewMarkdown && ["md", "markdown"].contains(url.pathExtension.lowercased())
+    if !keepsDraftSilently {
+      guard await confirmReplaceIfNeeded(generation: generation) else { return }
+    }
     guard generation == openGeneration else { return }
     let result = await documents.read(url)
     guard generation == openGeneration else { return }
@@ -665,14 +667,18 @@ final class PanelController {
       documents.pruneMissingRecent()
       model.toast = Strings.fileDropError(Self.dropReason(error))
     case .success(let opened):
-      guard await stashCurrentDocumentDraft() else { return }
+      guard await stashCurrentDocumentDraft(), generation == openGeneration else { return }
       documents.adopt(opened)
       model.toast = ""
       model.page = .doc
-      webHost.importDocument(opened)
-      if opened.mode == nil {
+      let opensInPreview = previewMarkdown && opened.mode == .markdown
+      if opensInPreview {
+        documentMode = "preview"
+      } else if opened.mode == nil {
         documentMode = "source"
       }
+      if revealSidebar { model.documentSidebarVisible = true }
+      webHost.importDocument(opened, display: opensInPreview ? "preview" : nil)
       model.documentDisplay = documentMode
       model.documentSplit = documentMode == "split"
       reposition(animated: false)

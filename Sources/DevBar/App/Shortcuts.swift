@@ -16,7 +16,7 @@ extension KeyboardShortcuts.Name {
   static let captureScroll = Self(
     "captureScroll", default: .init(.l, modifiers: [.command, .shift]))
   /// Temporary global hot key while a long capture is active.
-  static let captureExit = Self("captureExit", default: .init(.escape))
+  static let captureExit = Self("captureExit")
 }
 
 @MainActor
@@ -62,7 +62,7 @@ enum ShortcutActions {
         if panel.panel.isVisible {
           panel.model.cyclePage()
         } else {
-          panel.toggle(anchor: status.anchor)
+          panel.openFromMenuBar(anchor: status.anchor)
         }
       }
     }

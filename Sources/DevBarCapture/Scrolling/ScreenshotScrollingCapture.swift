@@ -4,12 +4,14 @@
 
 import AppKit
 import CoreGraphics
+import os
 
 /// Watches a selected region while the person scrolls it. A frame that overlaps
 /// any already captured piece is placed immediately and deduplicated; a frame
 /// that overlaps none is held as its own piece. A later frame that overlaps two
 /// pieces joins them, so a skipped gap can be filled by scrolling back over it.
 public enum ScreenshotScrollingCapture {
+  private static let logger = Logger(subsystem: "local.devbar.app", category: "scroll-capture")
   /// Disjoint runs of frames that could not be placed on the main chain yet.
   /// Overlapping frames extend each fragment locally; once any entry in a
   /// fragment bridges to the main chain, the entire fragment merges at once.
@@ -90,6 +92,20 @@ public enum ScreenshotScrollingCapture {
     let bottomFrame: CGImage
   }
 
+  private struct FixedEdges {
+    let top: Int
+    let bottom: Int
+
+    var isEmpty: Bool { top == 0 && bottom == 0 }
+
+    func confirms(_ previous: FixedEdges) -> Bool {
+      func agrees(_ current: Int, _ prior: Int) -> Bool {
+        current > 0 && prior > 0 && abs(current - prior) <= max(4, min(current, prior) / 5)
+      }
+      return agrees(top, previous.top) || agrees(bottom, previous.bottom)
+    }
+  }
+
   private static let sampleInterval: TimeInterval = 0.03
   private static let settleInterval: TimeInterval = 0.22
   private static let finishGraceInterval: TimeInterval = 0.85
@@ -109,17 +125,32 @@ public enum ScreenshotScrollingCapture {
     },
     onPreview: @escaping @MainActor (CGImage) -> Void = { _ in },
     onLimitReached: @escaping @MainActor () -> Void = {},
+    onViewportRange: @escaping @MainActor (ClosedRange<Double>?, Bool) -> Void = { _, _ in },
     onProgress: @escaping @MainActor (Int, Bool) -> Void
   ) async -> Result {
     guard
       let source = await ScreenshotCaptureEngine.prepareDisplayRegion(
         region: region, streaming: true)
     else {
+      logger.notice("scroll stream preparation failed")
       return Task.isCancelled ? .cancelled : .failed
+    }
+    logger.notice("scroll session started")
+    let metrics = Task {
+      while !Task.isCancelled {
+        do { try await Task.sleep(for: .seconds(1)) } catch { return }
+        let frames = source.drainFrameMetrics()
+        let average = frames.totalMilliseconds / max(1, frames.intervals)
+        logger.notice(
+          "stream queue=\(source.queuedFrameCount, privacy: .public) dropped=\(source.droppedFrameCount, privacy: .public) received=\(frames.received, privacy: .public) avgPTSIntervalMs=\(average, privacy: .public) maxPTSIntervalMs=\(frames.maximumMilliseconds, privacy: .public)"
+        )
+      }
     }
     finishSignal.onRequest { source.wake() }
     insets?.onChange { source.repeatLastFrameIfIdle() }
     defer {
+      metrics.cancel()
+      logger.notice("scroll session ended")
       finishSignal.onRequest(nil)
       insets?.onChange(nil)
       source.stop()
@@ -131,7 +162,12 @@ public enum ScreenshotScrollingCapture {
         source.stop()
         onLimitReached()
       },
-      onProgress: onProgress,
+      onViewportRange: onViewportRange,
+      onProgress: { height, unmatched in
+        logger.notice(
+          "stitched height=\(height, privacy: .public) unmatched=\(unmatched, privacy: .public)")
+        onProgress(height, unmatched)
+      },
       pendingFrames: { source.queuedFrameCount },
       nextFrame: { await source.nextFrame(wait: !finishSignal.isRequested) })
   }
@@ -144,6 +180,7 @@ public enum ScreenshotScrollingCapture {
     onInsets: @escaping @MainActor (Int, Int, Int) -> Void = { _, _, _ in },
     onPreview: @escaping @MainActor (CGImage) -> Void = { _ in },
     onLimitReached: @escaping @MainActor () -> Void = {},
+    onViewportRange: @escaping @MainActor (ClosedRange<Double>?, Bool) -> Void = { _, _ in },
     onProgress: @escaping @MainActor (Int, Bool) -> Void,
     pendingFrames: @escaping @Sendable () -> Int = { 0 },
     nextFrame: @escaping @Sendable () async -> CGImage?,
@@ -183,7 +220,10 @@ public enum ScreenshotScrollingCapture {
 
       let startedAt = currentTime()
       var slices = [first]
+      var edgeReference = first
       var capturedFrames = 1
+      var startupStableFrames = 0
+      var lastLoggedTransition: String?
       var previousFrame = first
       var lastObservedFrame = first
       var rawPreviousSample = rawFirstSample
@@ -222,11 +262,180 @@ public enum ScreenshotScrollingCapture {
       var userRightSet = wantedInsets.right != nil
       let frameHeight = first.height
       let minimumContent = minimumContentHeight(frameHeight: frameHeight)
+      var publishedViewportRange: ClosedRange<Double>?
+      var hasExtendedCapture = false
+      var publishedViewportLocated = false
+      var previewPosition = 0
+      var previewSample = firstSample
+
+      func previewAgreesWithMotion(
+        _ position: Int, motion: ScreenshotSupport.ScrollingTransition?
+      ) -> Bool {
+        guard case .advanced(_, let direction, _) = motion else { return true }
+        switch direction {
+        case .forward: return position >= previewPosition
+        case .backward: return position <= previewPosition
+        }
+      }
+
+      func updatePreviewPosition(_ position: Int, sample: ScreenshotSupport.ScrollingSample) {
+        previewPosition = position
+        previewSample = sample
+      }
+
+      func trackPreview(
+        _ sample: ScreenshotSupport.ScrollingSample,
+        motion: ScreenshotSupport.ScrollingTransition?
+      ) -> Bool {
+        guard let columns = contentSampleColumns else { return false }
+        func isValid(_ position: Int) -> Bool {
+          position >= capturedTop && position + sample.height <= capturedBottom
+            && previewAgreesWithMotion(position, motion: motion)
+        }
+        var candidate: Int?
+        if previewSample.width == sample.width, previewSample.height == sample.height {
+          switch ScreenshotSupport.scrollingTransition(
+            previous: previewSample, current: sample, contentColumns: columns)
+          {
+          case .end:
+            if sample == previewSample { candidate = previewPosition }
+          case .advanced(let overlap, let direction, _) where overlap * 2 >= sample.height:
+            if hasStrongAlignedOverlap(
+              origin: previewSample, current: sample, overlap: overlap,
+              direction: direction, columns: columns)
+            {
+              let delta = sample.height - overlap
+              candidate = previewPosition + (direction == .forward ? delta : -delta)
+            }
+          default:
+            break
+          }
+        }
+        if let position = candidate, isValid(position) {
+          updatePreviewPosition(position, sample: sample)
+          return true
+        }
+        guard
+          case .position(let position) = anchors.registration(
+            matching: sample, columns: columns, allowOverlap: false)
+        else { return false }
+        guard isValid(position) else {
+          Self.logger.info(
+            "preview history rejected from=\(previewPosition, privacy: .public) to=\(position, privacy: .public)"
+          )
+          return false
+        }
+        Self.logger.info(
+          "preview history relocated from=\(previewPosition, privacy: .public) to=\(position, privacy: .public)"
+        )
+        updatePreviewPosition(position, sample: sample)
+        return true
+      }
+
+      func reportProgress(
+        _ height: Int, _ unmatched: Bool, previewLocated: Bool = false,
+        previewMotion: ScreenshotSupport.ScrollingTransition? = nil
+      ) async {
+        if height > frameHeight { hasExtendedCapture = true }
+        let followsStitch =
+          !unmatched && previewAgreesWithMotion(viewportTop, motion: previewMotion)
+        if followsStitch {
+          updatePreviewPosition(viewportTop, sample: confirmedContent)
+        }
+        let located = followsStitch || previewLocated
+        let marker: ClosedRange<Double>?
+        if !located {
+          marker = publishedViewportRange
+        } else if height > 0 {
+          let contentHeight = max(1, frameHeight - fixedTopPixels - fixedBottomPixels)
+          let start = min(height, max(0, previewPosition - capturedTop + fixedTopPixels))
+          let end = min(height, start + contentHeight)
+          marker = Double(start) / Double(height)...Double(end) / Double(height)
+        } else {
+          marker = nil
+        }
+        if marker != publishedViewportRange || located != publishedViewportLocated {
+          if located != publishedViewportLocated {
+            Self.logger.notice(
+              "preview cursor located=\(located, privacy: .public) stitchingUnmatched=\(unmatched, privacy: .public)"
+            )
+          }
+          publishedViewportRange = marker
+          publishedViewportLocated = located
+          await onViewportRange(marker, located)
+        }
+        await onProgress(height, unmatched)
+      }
+
+      var edgeSamples: [ScreenshotSupport.ScrollingDirection: EdgeSample] = [:]
+      func locateFromCapturedEdge(
+        _ current: ScreenshotSupport.ScrollingSample, minimumOverlap: Int
+      ) -> Located? {
+        // A fallback against the sole captured viewport repeats the same
+        // evidence that the primary matcher already rejected.
+        guard anchors.entries.count >= 2, let columns = contentSampleColumns else { return nil }
+        var placement: Located?
+        var correction = 0
+        for direction: ScreenshotSupport.ScrollingDirection in [.backward, .forward] {
+          let frame = direction == .backward ? topFrame : bottomFrame
+          let edgeSample: ScreenshotSupport.ScrollingSample
+          if let cached = edgeSamples[direction], cached.frame === frame,
+            cached.top == fixedTopPixels, cached.bottom == fixedBottomPixels,
+            cached.right == rightCrop
+          {
+            edgeSample = cached.sample
+          } else {
+            guard let raw = sample(frame),
+              let cropped = ScreenshotSupport.scrollingContentSample(
+                masked(raw), top: fixedTopPixels, bottom: fixedBottomPixels)
+            else { continue }
+            edgeSample = cropped
+            edgeSamples[direction] = EdgeSample(
+              frame: frame, top: fixedTopPixels, bottom: fixedBottomPixels, right: rightCrop,
+              sample: cropped)
+          }
+          guard
+            case .advanced(let overlap, let movement, _) = ScreenshotSupport.scrollingTransition(
+              previous: edgeSample, current: current, contentColumns: columns),
+            movement == direction, overlap >= minimumOverlap, overlap * 3 >= current.height * 2,
+            let alignedOverlap = refinedEdgeOverlap(
+              origin: edgeSample, current: current, overlap: overlap,
+              direction: direction, columns: columns)
+          else { continue }
+          let position =
+            direction == .backward
+            ? capturedTop - (current.height - alignedOverlap) : capturedBottom - alignedOverlap
+          if placement != nil { return nil }
+          placement = Located(position: position, direction: direction)
+          correction = alignedOverlap - overlap
+        }
+        guard let placement else { return nil }
+        switch anchors.registration(
+          matching: current, columns: columns, allowOverlap: true, minimumOverlap: minimumOverlap)
+        {
+        case .ambiguous: return nil
+        case .position(let remembered) where abs(remembered - placement.position) > 1: return nil
+        default: break
+        }
+        Self.logger.notice(
+          "captured edge located position=\(placement.position, privacy: .public) top=\(capturedTop, privacy: .public) bottom=\(capturedBottom, privacy: .public) correction=\(correction, privacy: .public)"
+        )
+        return placement
+      }
+
       func contentWithHeader() -> [CGImage] { headerSlice.map { [$0] + slices } ?? slices }
+      func finish(_ result: CompletedResult) -> Result {
+        completed(
+          slices: contentWithHeader(), footerSlice: footerSlice, rightCrop: rightCrop,
+          region: region, fixedRows: (fixedTopPixels, fixedBottomPixels),
+          edgeReference: (edgeReference, capturedTop), result: result)
+      }
       var rollback: AppendRollback?
-      var fixedLayoutChanged = false
+      var pendingFixedEdges: FixedEdges?
+      var confirmedFixedEdges: FixedEdges?
       var hasUnmatchedContent = false
       var lastChangedAt = startedAt
+      var lastMotionLogAt = -Double.infinity
       var lastCaptureAt = currentTime()
       var scrollPending = false
       var finishRequestedAt: TimeInterval?
@@ -240,12 +449,10 @@ public enum ScreenshotScrollingCapture {
         }
         lastPreviewAt = now
         guard
-          let full = makePreview(
-            footerSlice.map { contentWithHeader() + [$0] } ?? contentWithHeader()),
-          let preview = croppedRight(
-            full,
-            pixels: Int(
-              (Double(rightCrop) * Double(full.width) / Double(first.width)).rounded()))
+          let preview = makePreview(
+            footerSlice.map { contentWithHeader() + [$0] } ?? contentWithHeader(),
+            rightCrop: rightCrop, region: region, fixedRows: (fixedTopPixels, fixedBottomPixels),
+            edgeReference: (edgeReference, capturedTop))
         else {
           previewStale = true
           return
@@ -360,7 +567,8 @@ public enum ScreenshotScrollingCapture {
           capturedBottom = capturedTop + totalHeight
           retainedPixels = slices.reduce(0) { $0 + $1.width * $1.height }
           rollback = nil
-          fixedLayoutChanged = false
+          pendingFixedEdges = nil
+          confirmedFixedEdges = nil
         }
         if newRight != rightCrop {
           rightCrop = newRight
@@ -390,7 +598,7 @@ public enum ScreenshotScrollingCapture {
         }
         await onInsets(fixedTopPixels, fixedBottomPixels, rightCrop)
         await publishPreview(force: true)
-        await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, hasUnmatchedContent)
+        await reportProgress(totalHeight + fixedTopPixels + fixedBottomPixels, hasUnmatchedContent)
         return true
       }
       if wantedInsets.top != nil || wantedInsets.bottom != nil || wantedInsets.right != nil {
@@ -410,9 +618,7 @@ public enum ScreenshotScrollingCapture {
           try await sleep(0.05)
         }
         try Task.checkCancellation()
-        return completed(
-          slices: contentWithHeader(), footerSlice: footerSlice, rightCrop: rightCrop,
-          region: region, result: .limited)
+        return finish(.limited)
       }
       func hold(
         _ content: CGImage,
@@ -645,7 +851,7 @@ public enum ScreenshotScrollingCapture {
         return (nil, merged, false)
       }
       await publishPreview(force: true)
-      await onProgress(totalHeight, false)
+      await reportProgress(totalHeight, false)
 
       while true {
         try Task.checkCancellation()
@@ -666,11 +872,7 @@ public enum ScreenshotScrollingCapture {
             || now - finishRequestedAt >= finishGraceInterval
         {
           await flushStalePreview(now: now, force: true)
-          return completedByUser(
-            slices: contentWithHeader(),
-            footerSlice: footerSlice, rightCrop: rightCrop,
-            region: region,
-            hasUnmatchedContent: hasUnmatchedContent)
+          return finish(hasUnmatchedContent || pendingFixedEdges != nil ? .partial : .success)
         }
         if totalHeight + fixedTopPixels + fixedBottomPixels >= heightLimit {
           return try await waitAtLimit()
@@ -699,21 +901,20 @@ public enum ScreenshotScrollingCapture {
             continue
           }
           await flushStalePreview(now: now, force: true)
-          return completed(
-            slices: contentWithHeader(), footerSlice: footerSlice, rightCrop: rightCrop,
-            region: region, result: .partial)
+          return finish(.partial)
         }
         guard let current = contentFrame(frame),
           let rawCurrentSample = sample(current)
         else {
           await flushStalePreview(now: now, force: true)
-          return completed(
-            slices: contentWithHeader(), footerSlice: footerSlice, rightCrop: rightCrop,
-            region: region, result: .partial)
+          return finish(.partial)
         }
         try Task.checkCancellation()
         if let nextInsets = insetControl?.changes(since: &insetVersion) {
           guard await applyInsets(nextInsets) else { return .failed }
+        } else if hasUnmatchedContent && rawCurrentSample == rawLastObservedSample {
+          // An identical sample cannot bridge a gap while the anchors are unchanged.
+          continue
         }
         var currentSample = masked(rawCurrentSample)
         capturedFrames += 1
@@ -728,7 +929,13 @@ public enum ScreenshotScrollingCapture {
         var observedBefore = lastObservedSample
         rawLastObservedSample = rawCurrentSample
         lastObservedSample = currentSample
+        let changeIntervalMs = Int(max(0, lastCaptureAt - lastChangedAt) * 1000)
         if !frameIsStable { lastChangedAt = lastCaptureAt }
+        if contentSampleColumns == nil, !hasUnmatchedContent,
+          ScreenshotSupport.scrollingSamplesAreStable(rawFirstSample, rawCurrentSample)
+        {
+          startupStableFrames += 1
+        }
         var transition: ScreenshotSupport.ScrollingTransition = .unmatched
         if contentSampleColumns == nil,
           let prevBand = ScreenshotSupport.scrollingContentSample(
@@ -740,6 +947,22 @@ public enum ScreenshotScrollingCapture {
             previous: prevBand, current: currBand)
         }
 
+        let initialMatch: String
+        switch transition {
+        case .advanced: initialMatch = "advanced"
+        case .unmatched: initialMatch = contentSampleColumns == nil ? "unmatched" : "skipped"
+        default: initialMatch = "stationary"
+        }
+        if capturedFrames <= 8 || capturedFrames.isMultiple(of: 30)
+          || initialMatch != lastLoggedTransition
+        {
+          Self.logger.notice(
+            "frame=\(capturedFrames, privacy: .public) changed=\(!frameIsStable, privacy: .public) initialMatch=\(initialMatch, privacy: .public)"
+          )
+          lastLoggedTransition = initialMatch
+        }
+
+        var confirmedStartupOverlap = false
         if contentSampleColumns == nil,
           case .advanced(let overlap, let direction, let matchedColumns) = transition,
           let prevBand = ScreenshotSupport.scrollingContentSample(
@@ -798,14 +1021,24 @@ public enum ScreenshotScrollingCapture {
               firstSample, top: top, bottom: bottom),
             let lateContent = ScreenshotSupport.scrollingContentSample(
               currentSample, top: top, bottom: bottom),
-            case .advanced(let originOverlap, _, _) = ScreenshotSupport.scrollingTransition(
-              previous: originContent, current: lateContent,
-              contentColumns: matchedColumns),
+            case .advanced(let originOverlap, let originDirection, _) =
+              ScreenshotSupport.scrollingTransition(
+                previous: originContent, current: lateContent,
+                contentColumns: matchedColumns),
             originOverlap >= max(24, originContent.height / 4)
           {
             continuesOrigin = true
+            if startupStableFrames >= 2, originOverlap * 2 >= originContent.height {
+              confirmedStartupOverlap = hasStrongAlignedOverlap(
+                origin: originContent, current: lateContent, overlap: originOverlap,
+                direction: originDirection, columns: matchedColumns)
+            }
+            Self.logger.notice(
+              "startup overlap=\(originOverlap, privacy: .public) stable=\(startupStableFrames, privacy: .public) confirmed=\(confirmedStartupOverlap, privacy: .public)"
+            )
           }
           let base = continuesOrigin ? first : current
+          edgeReference = base
           let rawBaseSample = continuesOrigin ? rawFirstSample : rawCurrentSample
           let baseSample = continuesOrigin ? firstSample : currentSample
           guard top + bottom < base.height,
@@ -861,9 +1094,7 @@ public enum ScreenshotScrollingCapture {
             currentSample, top: fixedTopPixels, bottom: fixedBottomPixels)
         else {
           await flushStalePreview(now: now, force: true)
-          return completed(
-            slices: contentWithHeader(), footerSlice: footerSlice, rightCrop: rightCrop,
-            region: region, result: .partial)
+          return finish(.partial)
         }
 
         var observedTransition: ScreenshotSupport.ScrollingTransition?
@@ -882,16 +1113,40 @@ public enum ScreenshotScrollingCapture {
             // slices would silently change coordinates, so pause instead of
             // guessing. A fast jump has no reliable overlap; skip the scan
             // rather than treating shifted rows as a layout change.
+            // Match and scan the same content band. Already excluded rows
+            // must not contribute evidence for a newly fixed edge.
             let top = ScreenshotSupport.scrollingFixedTopRows(
-              previous: observedBefore, current: currentSample,
+              previous: observedPrevious, current: observedCurrent,
               overlap: observedOverlap, contentColumns: columns)
             let bottom = ScreenshotSupport.scrollingFixedBottomRows(
-              previous: observedBefore, current: currentSample,
+              previous: observedPrevious, current: observedCurrent,
               overlap: observedOverlap, contentColumns: columns)
-            fixedLayoutChanged =
-              (!userTopSet && top > fixedTopPixels + 2)
-              || (!userBottomSet && bottom > fixedBottomPixels + 2)
-            if !fixedLayoutChanged, !userRightSet {
+            let detected = FixedEdges(
+              top: !userTopSet && top > 2 ? top : 0,
+              bottom: !userBottomSet && bottom > 2 ? bottom : 0)
+            if detected.isEmpty {
+              if pendingFixedEdges != nil {
+                Self.logger.info(
+                  "fixed layout candidate cleared frame=\(capturedFrames, privacy: .public)")
+              }
+              pendingFixedEdges = nil
+              confirmedFixedEdges = nil
+            } else if let confirmed = confirmedFixedEdges, detected.confirms(confirmed) {
+              confirmedFixedEdges = detected
+            } else if let pending = pendingFixedEdges, detected.confirms(pending) {
+              pendingFixedEdges = nil
+              confirmedFixedEdges = detected
+              Self.logger.notice(
+                "fixed layout confirmed frame=\(capturedFrames, privacy: .public) top=\(detected.top, privacy: .public) bottom=\(detected.bottom, privacy: .public) priorTop=\(pending.top, privacy: .public) priorBottom=\(pending.bottom, privacy: .public)"
+              )
+            } else {
+              confirmedFixedEdges = nil
+              pendingFixedEdges = detected
+              Self.logger.info(
+                "fixed layout candidate frame=\(capturedFrames, privacy: .public) top=\(detected.top, privacy: .public) bottom=\(detected.bottom, privacy: .public)"
+              )
+            }
+            if detected.isEmpty, !userRightSet {
               let detectedRight = ScreenshotSupport.scrollingRightScrollerColumns(
                 previous: observedFrameBefore, current: current,
                 advance: observedCurrent.height - observedOverlap, direction: observedDirection,
@@ -916,11 +1171,54 @@ public enum ScreenshotScrollingCapture {
             }
           }
         }
-        if fixedLayoutChanged && currentSample == previousSample {
-          fixedLayoutChanged = false
+        if !frameIsStable, lastCaptureAt - lastMotionLogAt >= 0.25 {
+          lastMotionLogAt = lastCaptureAt
+          let displacement: Int
+          let motion: String
+          if case .advanced(let overlap, let direction, _) = observedTransition {
+            displacement = (currentContent.height - overlap) * (direction == .forward ? 1 : -1)
+            motion = "matched"
+          } else {
+            displacement = 0
+            motion = "undetermined"
+          }
+          Self.logger.notice(
+            "observed motion frame=\(capturedFrames, privacy: .public) changeIntervalMs=\(changeIntervalMs, privacy: .public) rows=\(displacement, privacy: .public) state=\(motion, privacy: .public)"
+          )
         }
-        if fixedLayoutChanged {
+        if currentSample == previousSample {
+          pendingFixedEdges = nil
+          confirmedFixedEdges = nil
+        }
+        if pendingFixedEdges != nil {
+          // Keep the current stitch and its rollback snapshot while waiting
+          // for the next moving frame to confirm the same fixed edge.
+          scrollPending = false
+          continue
+        }
+        if let fixedEdges = confirmedFixedEdges, !hasExtendedCapture {
+          let maxTotal = max(0, frameHeight - minimumContent)
+          let newTop = min(maxTotal, fixedTopPixels + fixedEdges.top)
+          let newBottom = min(maxTotal - newTop, fixedBottomPixels + fixedEdges.bottom)
+          if newTop > fixedTopPixels || newBottom > fixedBottomPixels {
+            if !userTopSet { autoTopPixels = newTop }
+            if !userBottomSet { autoBottomPixels = newBottom }
+            guard await applyInsets(insetControl?.current ?? .init()),
+              let updated = ScreenshotSupport.scrollingContentSample(
+                currentSample, top: fixedTopPixels, bottom: fixedBottomPixels)
+            else { return .failed }
+            currentContent = updated
+            observedTransition = nil
+            Self.logger.notice(
+              "startup fixed rows adjusted top=\(fixedTopPixels, privacy: .public) bottom=\(fixedBottomPixels, privacy: .public)"
+            )
+          }
+        }
+        if let fixedEdges = confirmedFixedEdges {
           if let saved = rollback {
+            Self.logger.notice(
+              "fixed layout rollback from=\(totalHeight, privacy: .public) to=\(saved.height, privacy: .public) top=\(fixedEdges.top, privacy: .public) bottom=\(fixedEdges.bottom, privacy: .public)"
+            )
             slices = saved.slices
             totalHeight = saved.height
             capturedTop = saved.top
@@ -950,7 +1248,10 @@ public enum ScreenshotScrollingCapture {
           hasUnmatchedContent = true
           // Stay locked until a later moving frame shows the original bands.
           scrollPending = false
-          await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, true)
+          let previewLocated = trackPreview(currentContent, motion: observedTransition)
+          await reportProgress(
+            totalHeight + fixedTopPixels + fixedBottomPixels, true, previewLocated: previewLocated,
+            previewMotion: observedTransition)
           continue
         }
 
@@ -963,15 +1264,23 @@ public enum ScreenshotScrollingCapture {
             content: currentContent, anchor: confirmedContent, anchorTop: viewportTop,
             anchors: anchors, columns: contentSampleColumns, minimumOverlap: minimumOverlap,
             lastDirection: lastDirection, precomputed: reusableTransition,
-            needsCorroboration: hasUnmatchedContent)
+            capturedTop: capturedTop, capturedBottom: capturedBottom,
+            needsCorroboration: hasUnmatchedContent && !confirmedStartupOverlap)
+            ?? locateFromCapturedEdge(currentContent, minimumOverlap: minimumOverlap)
         else {
+          Self.logger.info(
+            "placement rejected frame=\(capturedFrames, privacy: .public) reason=noReliablePosition recovery=\(hasUnmatchedContent, privacy: .public)"
+          )
           // A jump with no reliable overlap is not new content and must never
           // move the stitch. Keep the frame so a later bridge frame can place
           // it and fill the skipped rows.
           hold(current, rawSample: rawCurrentSample, sample: currentSample)
           hasUnmatchedContent = true
           scrollPending = false
-          await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, true)
+          let previewLocated = trackPreview(currentContent, motion: observedTransition)
+          await reportProgress(
+            totalHeight + fixedTopPixels + fixedBottomPixels, true, previewLocated: previewLocated,
+            previewMotion: observedTransition)
           continue
         }
 
@@ -985,7 +1294,9 @@ public enum ScreenshotScrollingCapture {
           fullAnchors.remember(rawCurrentSample, at: placed.position)
           if let direction = placed.direction { lastDirection = direction }
           hasUnmatchedContent = false
-          await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, false)
+          await reportProgress(
+            totalHeight + fixedTopPixels + fixedBottomPixels, false,
+            previewMotion: observedTransition)
           scrollPending = !frameIsStable || lastCaptureAt - lastChangedAt < settleInterval
           continue
         }
@@ -995,16 +1306,26 @@ public enum ScreenshotScrollingCapture {
         let prepend = max(0, capturedTop - position)
         let append = max(0, position + contentHeight - capturedBottom)
         guard sharedRows >= minimumOverlap, prepend == 0 || append == 0 else {
+          Self.logger.info(
+            "placement rejected frame=\(capturedFrames, privacy: .public) shared=\(sharedRows, privacy: .public) required=\(minimumOverlap, privacy: .public) prepend=\(prepend, privacy: .public) append=\(append, privacy: .public)"
+          )
           // Too little shared content to trust this placement, or a jump across
           // the whole captured range. Hold instead of appending out of order.
+          hold(current, rawSample: rawCurrentSample, sample: currentSample)
           hasUnmatchedContent = true
           scrollPending = false
-          await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, true)
+          let previewLocated = trackPreview(currentContent, motion: observedTransition)
+          await reportProgress(
+            totalHeight + fixedTopPixels + fixedBottomPixels, true, previewLocated: previewLocated,
+            previewMotion: observedTransition)
           continue
         }
 
         let extraRows = prepend + append
         if extraRows > 0 {
+          Self.logger.info(
+            "placement accepted frame=\(capturedFrames, privacy: .public) prepend=\(prepend, privacy: .public) append=\(append, privacy: .public)"
+          )
           guard
             totalHeight + extraRows + fixedTopPixels + fixedBottomPixels <= heightLimit,
             totalHeight + extraRows + fixedTopPixels + fixedBottomPixels
@@ -1020,7 +1341,7 @@ public enum ScreenshotScrollingCapture {
             rawSample: rawOriginSample, anchors: anchors, fullAnchors: fullAnchors,
             direction: lastDirection, footer: footerSlice, topFrame: topFrame,
             bottomFrame: bottomFrame)
-          if fixedBottomPixels > 0 {
+          if append > 0, fixedBottomPixels > 0 {
             footerSlice = copiedStrip(
               from: current, columns: columns,
               topCrop: current.height - fixedBottomPixels, bottomCrop: 0)
@@ -1076,7 +1397,6 @@ public enum ScreenshotScrollingCapture {
         if let limit = merge.limit { return limit }
         if merge.failed { return .failed }
         if merge.merged { await publishPreview() }
-
         viewportTop = position
         rawOriginSample = rawCurrentSample
         originSample = currentSample
@@ -1086,7 +1406,9 @@ public enum ScreenshotScrollingCapture {
         if let direction = placed.direction { lastDirection = direction }
         hasUnmatchedContent = false
         if extraRows > 0 { await publishPreview() }
-        await onProgress(totalHeight + fixedTopPixels + fixedBottomPixels, false)
+        await reportProgress(
+          totalHeight + fixedTopPixels + fixedBottomPixels, false, previewMotion: observedTransition
+        )
         scrollPending = !frameIsStable || lastCaptureAt - lastChangedAt < settleInterval
       }
     } catch is CancellationError {
@@ -1094,27 +1416,6 @@ public enum ScreenshotScrollingCapture {
     } catch {
       return .failed
     }
-  }
-
-  private static func completedByUser(
-    slices: [CGImage],
-    footerSlice: CGImage?,
-    rightCrop: Int,
-    region: CaptureRegion,
-    hasUnmatchedContent: Bool
-  ) -> Result {
-    guard hasUnmatchedContent else {
-      return completed(
-        slices: slices,
-        footerSlice: footerSlice, rightCrop: rightCrop,
-        region: region,
-        result: .success)
-    }
-    return completed(
-      slices: slices,
-      footerSlice: footerSlice, rightCrop: rightCrop,
-      region: region,
-      result: .partial)
   }
 
   private enum CompletedResult {
@@ -1128,12 +1429,16 @@ public enum ScreenshotScrollingCapture {
     footerSlice: CGImage?,
     rightCrop: Int,
     region: CaptureRegion,
+    fixedRows: (top: Int, bottom: Int),
+    edgeReference: (frame: CGImage, capturedTop: Int),
     result: CompletedResult
   ) -> Result {
     guard !Task.isCancelled else { return .cancelled }
     let completedSlices = footerSlice.map { slices + [$0] } ?? slices
-    guard let stitched = stitch(completedSlices),
-      let image = croppedRight(stitched, pixels: rightCrop)
+    guard
+      let image = stitch(
+        completedSlices, rightCrop: rightCrop, region: region, fixedRows: fixedRows,
+        edgeReference: edgeReference)
     else {
       return Task.isCancelled ? .cancelled : .failed
     }
@@ -1144,14 +1449,6 @@ public enum ScreenshotScrollingCapture {
     case .partial: return .partial(capture)
     case .limited: return .limited(capture)
     }
-  }
-
-  /// Leave out the excluded right band (overlay scroller, window edge).
-  static func croppedRight(_ image: CGImage, pixels: Int) -> CGImage? {
-    guard pixels > 0 else { return image }
-    let width = image.width - pixels
-    guard width > 0 else { return nil }
-    return image.cropping(to: CGRect(x: 0, y: 0, width: width, height: image.height))
   }
 
   /// ScreenCaptureKit can pad a region with a transparent edge row. Keeping
@@ -1283,11 +1580,18 @@ public enum ScreenshotScrollingCapture {
   }
 
   /// Compose directly into a small preview, never allocate a full-resolution joined image here.
-  static func makePreview(_ slices: [CGImage]) -> CGImage? {
+  static func makePreview(
+    _ slices: [CGImage], rightCrop: Int = 0, region: CaptureRegion? = nil,
+    fixedRows: (top: Int, bottom: Int) = (0, 0),
+    edgeReference: (frame: CGImage, capturedTop: Int)? = nil
+  ) -> CGImage? {
     guard let first = slices.first else { return nil }
     let total = slices.reduce(0) { $0 + $1.height }
-    let scale = min(320 / CGFloat(first.width), 800 / CGFloat(total), 1)
-    let width = max(1, Int(CGFloat(first.width) * scale))
+    let rightFill = region?.windowID != nil && region?.touchesWindowRight == true ? rightCrop : 0
+    let contentWidth = first.width - (rightFill > 0 ? 0 : rightCrop)
+    guard contentWidth > 0, total > 0 else { return nil }
+    let scale = min(320 / CGFloat(contentWidth), 800 / CGFloat(total), 1)
+    let width = max(1, Int(CGFloat(contentWidth) * scale))
     let height = max(1, Int(CGFloat(total) * scale))
     guard
       let context = CGContext(
@@ -1299,21 +1603,31 @@ public enum ScreenshotScrollingCapture {
     var row = total
     for slice in slices {
       row -= slice.height
-      context.draw(
-        slice,
-        in: CGRect(
-          x: 0, y: CGFloat(row) * scale,
-          width: CGFloat(width), height: CGFloat(slice.height) * scale))
+      let rect = CGRect(
+        x: 0, y: CGFloat(row) * scale,
+        width: CGFloat(width) * CGFloat(slice.width) / CGFloat(contentWidth),
+        height: CGFloat(slice.height) * scale)
+      context.draw(slice, in: rect)
+    }
+    if let region, let edgeReference, rightFill > 0 {
+      drawScrollerEdge(
+        context, reference: edgeReference, pixels: rightFill, region: region,
+        fixedRows: fixedRows, totalRows: total,
+        horizontalScale: CGFloat(width) / CGFloat(contentWidth), verticalScale: scale)
     }
     return context.makeImage()
   }
 
-  private static func stitch(_ slices: [CGImage]) -> CGImage? {
+  private static func stitch(
+    _ slices: [CGImage], rightCrop: Int, region: CaptureRegion, fixedRows: (top: Int, bottom: Int),
+    edgeReference: (frame: CGImage, capturedTop: Int)
+  ) -> CGImage? {
     guard !Task.isCancelled else { return nil }
     guard let first = slices.first else { return nil }
-    guard slices.count > 1 else { return first }
-    let width = first.width
-    guard slices.allSatisfy({ $0.width == width }) else { return nil }
+    if slices.count == 1, rightCrop == 0 { return first }
+    let rightFill = region.windowID != nil && region.touchesWindowRight ? rightCrop : 0
+    let width = first.width - (rightFill > 0 ? 0 : rightCrop)
+    guard width > 0, slices.allSatisfy({ $0.width == first.width }) else { return nil }
     let height = slices.reduce(0) { $0 + $1.height }
     guard
       let context = CGContext(
@@ -1339,14 +1653,155 @@ public enum ScreenshotScrollingCapture {
             width: width,
             height: slice.height))
       else { return nil }
-      context.draw(
-        piece,
-        in: CGRect(
-          x: 0, y: destinationY,
-          width: piece.width, height: piece.height))
+      let rect = CGRect(x: 0, y: destinationY, width: width, height: piece.height)
+      context.draw(piece, in: rect)
     }
     guard !Task.isCancelled, destinationY == 0 else { return nil }
+    if rightFill > 0 {
+      drawScrollerEdge(
+        context, reference: edgeReference, pixels: rightFill, region: region,
+        fixedRows: fixedRows, totalRows: height, horizontalScale: 1, verticalScale: 1)
+    }
     return context.makeImage()
+  }
+
+  /// Keep the first placed viewport's right edge, then extend its track and
+  /// window outline together into the rows added above or below it.
+  private static func drawScrollerEdge(
+    _ context: CGContext, reference: (frame: CGImage, capturedTop: Int), pixels: Int,
+    region: CaptureRegion, fixedRows: (top: Int, bottom: Int), totalRows: Int,
+    horizontalScale: CGFloat, verticalScale: CGFloat
+  ) {
+    let frame = reference.frame
+    let top = max(fixedRows.top, region.touchesWindowTop ? Int(ceil(64 * region.scale)) : 0)
+    let bottom = fixedRows.bottom
+    let rows = frame.height - top - bottom
+    let sourceX = frame.width - pixels
+    guard sourceX >= 0, rows > 0, totalRows > top + bottom,
+      let edge = frame.cropping(to: CGRect(x: sourceX, y: top, width: pixels, height: rows))
+    else { return }
+
+    func rect(_ start: Int, _ end: Int) -> CGRect {
+      CGRect(
+        x: CGFloat(sourceX) * horizontalScale, y: CGFloat(totalRows - end) * verticalScale,
+        width: CGFloat(pixels) * horizontalScale, height: CGFloat(end - start) * verticalScale)
+    }
+    let originalStart = top - reference.capturedTop
+    let originalEnd = originalStart + rows
+    let contentEnd = totalRows - bottom
+    context.saveGState()
+    defer { context.restoreGState() }
+    context.clip(to: rect(top, contentEnd))
+    context.setBlendMode(.sourceAtop)
+    context.interpolationQuality = .none
+    context.draw(edge, in: rect(originalStart, originalEnd))
+    if originalStart > top || originalEnd < contentEnd,
+      let track = ScreenshotSupport.scrollingTrackRow(edge)
+    {
+      if originalStart > top { context.draw(track, in: rect(top, originalStart)) }
+      if originalEnd < contentEnd { context.draw(track, in: rect(originalEnd, contentEnd)) }
+    }
+  }
+
+  private static func hasStrongAlignedOverlap(
+    origin: ScreenshotSupport.ScrollingSample, current: ScreenshotSupport.ScrollingSample,
+    overlap: Int, direction: ScreenshotSupport.ScrollingDirection, columns: Range<Int>
+  ) -> Bool {
+    guard origin.width == current.width, origin.height == current.height,
+      overlap > 0, overlap <= origin.height, !columns.isEmpty,
+      columns.lowerBound >= 0, columns.upperBound <= origin.width
+    else { return false }
+    let offset = origin.height - overlap
+    let originStart = direction == .forward ? offset : 0
+    let currentStart = direction == .forward ? 0 : offset
+    let limit = overlap * columns.count / 50
+    var changed = 0
+    for row in 0..<overlap {
+      let originRow = (originStart + row) * origin.width
+      let currentRow = (currentStart + row) * current.width
+      for column in columns {
+        if abs(Int(origin.pixels[originRow + column]) - Int(current.pixels[currentRow + column]))
+          > 3
+        {
+          changed += 1
+          if changed > limit { return false }
+        }
+      }
+    }
+    return true
+  }
+
+  private static func refinedEdgeOverlap(
+    origin: ScreenshotSupport.ScrollingSample, current: ScreenshotSupport.ScrollingSample,
+    overlap: Int, direction: ScreenshotSupport.ScrollingDirection, columns: Range<Int>
+  ) -> Int? {
+    if hasStrongAlignedOverlap(
+      origin: origin, current: current, overlap: overlap, direction: direction, columns: columns)
+    {
+      return overlap
+    }
+    // A correction must be the sole nearby shift passing the same pixel check.
+    var corrected: Int?
+    for adjustment in [-2, -1, 1, 2] {
+      let candidate = overlap + adjustment
+      guard candidate < current.height, candidate * 3 >= current.height * 2,
+        hasStrongAlignedOverlap(
+          origin: origin, current: current, overlap: candidate, direction: direction,
+          columns: columns)
+      else { continue }
+      guard corrected == nil else { return nil }
+      corrected = candidate
+    }
+    return corrected
+  }
+
+  private static func logRejectedAlignment(
+    origin: ScreenshotSupport.ScrollingSample, current: ScreenshotSupport.ScrollingSample,
+    overlap: Int, direction: ScreenshotSupport.ScrollingDirection, columns: Range<Int>
+  ) {
+    guard origin.width == current.width, origin.height == current.height, !columns.isEmpty,
+      columns.lowerBound >= 0, columns.upperBound <= origin.width
+    else { return }
+    let shift = (origin.height - overlap) * (direction == .forward ? 1 : -1)
+    // Keep diagnostics bounded. Only publish aggregate differences, never images or pixel values.
+    func mismatch(shift: Int, band: Int? = nil) -> Int {
+      let originStart = max(0, shift)
+      let currentStart = max(0, -shift)
+      let rows = origin.height - abs(shift)
+      guard rows > 0 else { return -1 }
+      let lower = band.map { rows * $0 / 3 } ?? 0
+      let upper = band.map { rows * ($0 + 1) / 3 } ?? rows
+      var compared = 0
+      var changed = 0
+      for row in stride(from: lower, to: upper, by: max(1, rows / 96)) {
+        let originRow = (originStart + row) * origin.width
+        let currentRow = (currentStart + row) * current.width
+        for column in stride(
+          from: columns.lowerBound, to: columns.upperBound, by: max(1, columns.count / 48))
+        {
+          compared += 1
+          if abs(Int(origin.pixels[originRow + column]) - Int(current.pixels[currentRow + column]))
+            > 3
+          {
+            changed += 1
+          }
+        }
+      }
+      return compared == 0 ? -1 : changed * 1000 / compared
+    }
+    let bands = (0..<3).map { mismatch(shift: shift, band: $0) }
+    let nearby = (-2...2).map { mismatch(shift: shift + $0) }
+    logger.notice(
+      "edge pixel mismatch shift=\(shift, privacy: .public) columns=\(columns.count, privacy: .public) bandsPerMille=\(String(describing: bands), privacy: .public) nearbyPerMille=\(String(describing: nearby), privacy: .public)"
+    )
+  }
+
+  private struct EdgeSample {
+    let frame: CGImage
+    let top: Int
+    let bottom: Int
+    let right: Int
+    let sample: ScreenshotSupport.ScrollingSample
   }
 
   private struct Located {
@@ -1354,14 +1809,13 @@ public enum ScreenshotScrollingCapture {
     let direction: ScreenshotSupport.ScrollingDirection?
   }
 
-  /// One remembered viewpoint is not a second opinion. An approximate match
-  /// can be a repeated-content alias, so accept only an exact revisit.
-  private static func exactSingleAnchorRevisit(
+  /// An unambiguous exact revisit can restore the viewport without adding rows.
+  private static func exactAnchorRevisit(
     anchors: ScreenshotSupport.ScrollingAnchors,
     content: ScreenshotSupport.ScrollingSample,
     columns: Range<Int>?
   ) -> Located? {
-    guard anchors.entries.count < 2,
+    guard
       case .position(let exact) = anchors.registration(
         matching: content, columns: columns, allowOverlap: false)
     else { return nil }
@@ -1380,6 +1834,7 @@ public enum ScreenshotScrollingCapture {
     minimumOverlap: Int,
     lastDirection: ScreenshotSupport.ScrollingDirection?,
     precomputed: ScreenshotSupport.ScrollingTransition? = nil,
+    capturedTop: Int, capturedBottom: Int,
     needsCorroboration: Bool = false
   ) -> Located? {
     let transition =
@@ -1408,11 +1863,51 @@ public enum ScreenshotScrollingCapture {
       {
       case .position(let verified):
         return Located(position: verified, direction: direction)
-      case .ambiguous, .unavailable:
-        if let revisit = exactSingleAnchorRevisit(
+      case .ambiguous: return nil
+      case .unavailable:
+        if let revisit = exactAnchorRevisit(
           anchors: anchors, content: content, columns: columns)
         {
           return revisit
+        }
+        // At either edge, test the aligned overlap with the confirmed viewport
+        // when too few historical viewpoints can corroborate the placement.
+        let edgeGrowth =
+          direction == .backward
+          ? capturedTop - continuous.position
+          : continuous.position + content.height - capturedBottom
+        let edge = direction == .backward ? "top" : "bottom"
+        if edgeGrowth > 0 {
+          let enoughOverlap = overlap * 3 >= content.height * 2
+          let aligned =
+            enoughOverlap && anchors.entries.count >= 2
+            && hasStrongAlignedOverlap(
+              origin: anchor, current: content, overlap: overlap,
+              direction: direction, columns: columns)
+          if enoughOverlap, !aligned, anchors.entries.count >= 2 {
+            logRejectedAlignment(
+              origin: anchor, current: content, overlap: overlap,
+              direction: direction, columns: columns)
+          }
+          let historyAgrees: Bool
+          if aligned,
+            case .position(let historical) = anchors.registration(
+              matching: content, columns: columns, allowOverlap: true,
+              minimumOverlap: minimumOverlap)
+          {
+            historyAgrees = abs(historical - continuous.position) <= 1
+          } else {
+            historyAgrees = false
+          }
+          if historyAgrees {
+            logger.notice(
+              "edge recovered side=\(edge, privacy: .public) overlap=\(overlap, privacy: .public) added=\(edgeGrowth, privacy: .public)"
+            )
+            return continuous
+          }
+          logger.info(
+            "edge held side=\(edge, privacy: .public) overlap=\(overlap, privacy: .public)/\(content.height, privacy: .public) enoughOverlap=\(enoughOverlap, privacy: .public) aligned=\(aligned, privacy: .public) anchors=\(anchors.entries.count, privacy: .public) historyAgrees=\(historyAgrees, privacy: .public)"
+          )
         }
         return nil
       }
@@ -1437,8 +1932,9 @@ public enum ScreenshotScrollingCapture {
     {
     case .position(let top):
       return Located(position: top, direction: nil)
-    case .ambiguous, .unavailable:
-      if let revisit = exactSingleAnchorRevisit(
+    case .ambiguous: return nil
+    case .unavailable:
+      if let revisit = exactAnchorRevisit(
         anchors: anchors, content: content, columns: columns)
       {
         return revisit
