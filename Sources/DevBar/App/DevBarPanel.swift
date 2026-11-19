@@ -2,7 +2,6 @@ import AppKit
 
 @MainActor
 final class DevBarPanel: NSPanel {
-  var onEscape: (() -> Void)?
   var onDocumentMode: (() -> Bool)?
   var globalCycleOwnsR: (() -> Bool)?
   var onCyclePage: ((Bool) -> Void)?
@@ -32,8 +31,6 @@ final class DevBarPanel: NSPanel {
   @objc func hasKeyAppearance() -> Bool { true }
 
   override func sendEvent(_ event: NSEvent) {
-    // Explicit dismissal takes precedence over text/preview responders.
-    if event.type == .keyDown, handleCloseShortcut(event) { return }
     // Scroll views can consume arrows before keyDown reaches the window.
     // Clipboard navigation owns unmodified arrows/return on that page only.
     let modifiers = event.modifierFlags.intersection([.command, .shift, .control, .option])
@@ -59,18 +56,7 @@ final class DevBarPanel: NSPanel {
     super.keyDown(with: event)
   }
 
-  private func handleCloseShortcut(_ event: NSEvent) -> Bool {
-    guard isVisible, isKeyWindow else { return false }
-    let flags = event.modifierFlags.intersection([.command, .shift, .control, .option])
-    let isEscape = flags.isEmpty && event.keyCode == 53
-    let isCommandW = flags == .command && event.charactersIgnoringModifiers?.lowercased() == "w"
-    guard isEscape || isCommandW else { return false }
-    onEscape?()
-    return true
-  }
-
   private func handle(_ event: NSEvent) -> Bool {
-    if handleCloseShortcut(event) { return true }
     let flags = event.modifierFlags.intersection([.command, .shift, .control, .option])
     if flags == .command, event.charactersIgnoringModifiers?.lowercased() == "e" {
       return onDocumentMode?() ?? false

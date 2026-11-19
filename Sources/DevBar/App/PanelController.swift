@@ -71,9 +71,6 @@ final class PanelController {
         model: model, theme: theme, webHost: webHost, clipboard: clipboard, storage: storage,
         documents: documents))
     storage.clipboard = clipboard
-    model.onPinnedChange = { [weak panel] pinned in
-      panel?.level = pinned ? .floating : .normal
-    }
     model.onToggleDocumentSidebar = { [weak self] in self?.toggleDocumentSidebar() }
     model.onOpenDocument = { [weak self] url in
       Task { await self?.openDocument(url) }
@@ -121,7 +118,7 @@ final class PanelController {
       Task { @MainActor in await clipboard?.monitor.poll() }
     }
     installChrome()
-    panel.onEscape = { [weak self] in
+    model.onClosePanel = { [weak self] in
       guard let self else { return }
       if model.dropActive {
         model.fileDrop?.cancel()

@@ -57,20 +57,18 @@ import Testing
   #expect(responder.consumed == 0)
 }
 
-@MainActor @Test func escapePrecedesInputResponderAndClosesPanel() {
+@MainActor @Test func escapeReachesTheInputResponder() {
   _ = NSApplication.shared
   let panel = DevBarPanel()
   panel.makeKeyAndOrderFront(nil)
   defer { panel.orderOut(nil) }
   let responder = ArrowConsumingResponder()
   panel.makeFirstResponder(responder)
-  var dismissed = 0
-  panel.onEscape = { dismissed += 1 }
   let event = NSEvent.keyEvent(
     with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
     windowNumber: panel.windowNumber, context: nil, characters: "\u{1b}",
     charactersIgnoringModifiers: "\u{1b}", isARepeat: false, keyCode: 53)!
   panel.sendEvent(event)
-  #expect(dismissed == 1)
-  #expect(responder.consumed == 0)
+  #expect(panel.isVisible)
+  #expect(responder.consumed == 1)
 }

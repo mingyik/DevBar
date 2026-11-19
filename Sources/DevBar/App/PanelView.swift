@@ -166,11 +166,8 @@ struct PanelView: View {
             ? Strings.documentPreview
             : model.documentDisplay == "preview" ? Strings.documentSplit : Strings.documentEdit)
       }
-      ActionIcon(
-        symbol: model.pinned ? "pin.fill" : "pin.slash",
-        label: model.pinned ? Strings.panelUnpin : Strings.panelPin, scheme: scheme
-      ) {
-        model.pinned.toggle()
+      ActionIcon(symbol: "xmark", label: Strings.panelClose, scheme: scheme) {
+        model.onClosePanel?()
       }
     }
   }

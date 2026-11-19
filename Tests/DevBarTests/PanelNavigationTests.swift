@@ -301,59 +301,27 @@ import Testing
   #expect(qrReturnedToEdit)
 }
 
-@MainActor @Test func pinChangesWindowLevelWithoutClosingThePanel() {
+@MainActor @Test func closeButtonClosesThePanelAndGlobalRDoesNotCycleTwice() throws {
   _ = NSApplication.shared
   let controller = PanelController(theme: ThemeManager())
-  controller.show(anchor: nil, activateApplication: false)
+  controller.show(anchor: nil)
   defer { controller.dismiss() }
-
-  #expect(controller.panel.isVisible)
-  #expect(controller.panel.level == .normal)
-  controller.model.pinned = true
-  #expect(controller.panel.level == .floating)
-  #expect(controller.panel.isVisible)
-  controller.model.pinned = false
-  #expect(controller.panel.level == .normal)
-  #expect(controller.panel.isVisible)
-}
-
-@MainActor @Test func closeShortcutsOnlyReachTheVisibleKeyPanelAndGlobalRDoesNotCycleTwice()
-  throws
-{
-  _ = NSApplication.shared
-  let panel = DevBarPanel()
-  var closes = 0
   var cycles = 0
-  panel.onEscape = {
-    closes += 1
-    panel.orderOut(nil)
-  }
+  let panel = controller.panel
   panel.onCyclePage = { _ in cycles += 1 }
   panel.globalCycleOwnsR = { true }
-  func keyEvent(_ key: String, code: UInt16, modifiers: NSEvent.ModifierFlags = []) throws
-    -> NSEvent
-  {
-    try #require(
+  for (key, code) in [("w", UInt16(13)), ("r", UInt16(15))] {
+    let event = try #require(
       NSEvent.keyEvent(
-        with: .keyDown, location: .zero, modifierFlags: modifiers, timestamp: 0,
+        with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
         windowNumber: panel.windowNumber, context: nil, characters: key,
         charactersIgnoringModifiers: key, isARepeat: false, keyCode: code))
+    _ = panel.performKeyEquivalent(with: event)
   }
-  let commandW = try keyEvent("w", code: 13, modifiers: .command)
-  let escape = try keyEvent("\u{1b}", code: 53)
-  #expect(!panel.performKeyEquivalent(with: commandW))
-  #expect(!panel.performKeyEquivalent(with: escape))
-  panel.makeKeyAndOrderFront(nil)
-  defer { panel.orderOut(nil) }
-  #expect(panel.performKeyEquivalent(with: try keyEvent("r", code: 15, modifiers: .command)))
   #expect(cycles == 0)
-  #expect(panel.performKeyEquivalent(with: commandW))
+  #expect(panel.isVisible)
+  controller.model.onClosePanel?()
   #expect(!panel.isVisible)
-  #expect(!panel.performKeyEquivalent(with: escape))
-  panel.makeKeyAndOrderFront(nil)
-  #expect(panel.performKeyEquivalent(with: escape))
-  #expect(!panel.isVisible)
-  #expect(closes == 2)
 }
 
 @MainActor @Test func markdownSingleWindowSplitLifecycleAndPersistence() async throws {

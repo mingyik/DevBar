@@ -1,7 +1,6 @@
 import AppKit
 import DevBarCapture
 import DevBarCore
-import KeyboardShortcuts
 import Observation
 import SwiftUI
 import os
@@ -34,7 +33,6 @@ private final class CaptureHUDState {
   private let noticeState = CaptureHUDState()
   private var noticeTask: Task<Void, Never>?
   private var savedNoticeTask: Task<Void, Never>?
-  private var escapeTask: Task<Void, Never>?
 
   init(panel: PanelController) { self.panel = panel }
 
@@ -71,7 +69,6 @@ private final class CaptureHUDState {
       guard let self else { return }
       defer {
         self.task = nil
-        self.stopEscapeMonitor()
       }
       guard await self.panel.prepareForCapture() else { return }
       do {
@@ -98,7 +95,6 @@ private final class CaptureHUDState {
           }
           let finish = ScreenshotScrollingCapture.FinishSignal()
           self.showProgress(region: region, finish: finish)
-          self.startEscapeMonitor()
           if selection.saveRequested {
             self.state.saveToDisk = true
             finish.request()
@@ -185,30 +181,8 @@ private final class CaptureHUDState {
   }
 
   private func closeProgress() {
-    stopEscapeMonitor()
     hidePreview()
     hud?.orderOut(nil)
-  }
-
-  /// During scrolling the selection relinquishes keyboard focus, so Esc is
-  /// temporarily global while the scrolling controls are visible.
-  private func startEscapeMonitor() {
-    guard escapeTask == nil, hud?.isVisible == true else { return }
-    KeyboardShortcuts.setShortcut(.init(.escape), for: .captureExit)
-    escapeTask = Task { [weak self] in
-      guard !Task.isCancelled else { return }
-      for await event in KeyboardShortcuts.events(for: .captureExit) where event == .keyUp {
-        self?.cancel()
-      }
-    }
-  }
-
-  private func stopEscapeMonitor() {
-    guard escapeTask != nil else { return }
-    // Clearing the shortcut unregisters it immediately and blocks queued registration.
-    KeyboardShortcuts.setShortcut(nil, for: .captureExit)
-    escapeTask?.cancel()
-    escapeTask = nil
   }
 
   private static let scrollLogger = Logger(
