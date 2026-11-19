@@ -116,9 +116,8 @@ import Testing
       #expect(button.image?.size == NSSize(width: 18, height: 18))
       #expect(button.image?.isTemplate == true)
       #expect(button.image?.representations.contains { $0 is NSCustomImageRep } == true)
-      if button.identifier?.rawValue == "select" {
-        #expect(button.contentTintColor == .systemBlue)  // devbar:allow-color
-      } else if button.identifier?.rawValue == "undo" {
+      #expect(button.identifier?.rawValue != "select")
+      if button.identifier?.rawValue == "undo" {
         #expect(!button.isEnabled)
         #expect(button.contentTintColor == view.disabledIconColor)
       } else {
@@ -323,13 +322,22 @@ import Testing
   view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 180, y: 200)))
   view.mouseDragged(with: try event(.leftMouseDragged, CGPoint(x: 280, y: 300)))
   view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 280, y: 300)))
-  try button("select").performClick(nil)
   view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 230, y: 250)))
   view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 230, y: 250)))
   view.mouseMoved(with: try event(.mouseMoved, CGPoint(x: 180, y: 200)))
   #expect(NSCursor.current == NSCursor.pointingHand)
   view.mouseMoved(with: try event(.mouseMoved, CGPoint(x: 230, y: 250)))
   #expect(NSCursor.current == NSCursor.openHand)
+
+  try button("text").performClick(nil)
+  view.mouseMoved(with: try event(.mouseMoved, CGPoint(x: 230, y: 250)))
+  #expect(NSCursor.current == NSCursor.openHand)
+  view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 230, y: 250)))
+  view.mouseDragged(with: try event(.leftMouseDragged, CGPoint(x: 430, y: 330)))
+  #expect(NSCursor.current == NSCursor.closedHand)
+  view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 430, y: 330)))
+  #expect(view.markBoundsForTesting.count == 1)
+  #expect(view.subviews.compactMap { $0 as? NSTextView }.isEmpty)
 
   // Draw a rectangle and resize it from its right-middle and left-middle handles.
   try button("rect").performClick(nil)
@@ -350,9 +358,9 @@ import Testing
 
   // Draw an ellipse, hover top-middle handle, resize it, and clamp to selection.
   try button("ellipse").performClick(nil)
-  view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 320, y: 200)))
-  view.mouseDragged(with: try event(.leftMouseDragged, CGPoint(x: 420, y: 280)))
-  view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 420, y: 280)))
+  view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 420, y: 280)))
+  view.mouseDragged(with: try event(.leftMouseDragged, CGPoint(x: 320, y: 200)))
+  view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 320, y: 200)))
   view.mouseMoved(with: try event(.mouseMoved, CGPoint(x: 370, y: 280)))
   #expect(NSCursor.current == NSCursor.resizeUpDown)
   view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 370, y: 280)))
@@ -369,7 +377,7 @@ import Testing
   #expect(abs(clampedEllipse.height - 250) < 0.001)
 }
 
-@MainActor @Test func textFieldAlwaysStaysWithinSelectionBounds() throws {
+@MainActor @Test func annotationTextStaysCenteredAndStillDuringMarkedInput() throws {
   _ = NSApplication.shared
   let window = NSWindow(
     contentRect: CGRect(x: 0, y: 0, width: 800, height: 600), styleMask: .borderless,
@@ -384,11 +392,12 @@ import Testing
   view.frozenFrame = bitmap.cgImage
   view.screenFrame = view.bounds
   view.scale = 1
-  func event(_ type: NSEvent.EventType, _ point: CGPoint) throws -> NSEvent {
+  func event(_ type: NSEvent.EventType, _ point: CGPoint, clicks: Int = 1) throws -> NSEvent {
     try #require(
       NSEvent.mouseEvent(
         with: type, location: point, modifierFlags: [], timestamp: 0,
-        windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: 1, pressure: 1)
+        windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: clicks,
+        pressure: 1)
     )
   }
   func button(_ name: String) throws -> NSButton {
@@ -404,24 +413,41 @@ import Testing
   try button("text").performClick(nil)
   view.mouseDown(with: try event(.leftMouseDown, CGPoint(x: 120, y: 190)))
   view.mouseUp(with: try event(.leftMouseUp, CGPoint(x: 120, y: 190)))
-  let narrowField = try #require(view.subviews.compactMap { $0 as? NSTextField }.first)
-  #expect(view.selection.contains(narrowField.frame))
+  let editor = try #require(view.subviews.compactMap { $0 as? NSTextView }.first)
+  #expect(view.selection.contains(editor.frame))
+  #expect(editor.alignment == .center)
+  let initialFrame = editor.frame
+  editor.setMarkedText(
+    "輸入法組字中的長文字", selectedRange: NSRange(location: 8, length: 0),
+    replacementRange: NSRange(location: NSNotFound, length: 0))
+  #expect(editor.hasMarkedText())
+  view.textDidChange(Notification(name: NSText.didChangeNotification, object: editor))
+  #expect(editor.frame == initialFrame)
+  editor.unmarkText()
 
   // Multi-line overflow and font-size increase stay inside selection.
-  narrowField.stringValue = "line1\nline2\nline3\nline4\nline5\nline6\nline7"
-  NotificationCenter.default.post(name: NSControl.textDidChangeNotification, object: narrowField)
-  #expect(view.selection.contains(narrowField.frame))
+  editor.string = "line1\nline2\nline3\nline4\nline5\nline6\nline7"
+  view.textDidChange(Notification(name: NSText.didChangeNotification, object: editor))
+  #expect(view.selection.contains(editor.frame))
 
   let slider = try #require(view.subviews.flatMap(\.subviews).compactMap { $0 as? NSSlider }.first)
   slider.doubleValue = 36
   NSApp.sendAction(try #require(slider.action), to: slider.target, from: slider)
-  #expect(view.selection.contains(narrowField.frame))
+  #expect(view.selection.contains(editor.frame))
 
-  // Committing overflowing multi-line text keeps committed bounds within selection.
-  let expectedOrigin = CGPoint(x: narrowField.frame.minX + 6, y: narrowField.frame.minY + 4)
-  NSApp.sendAction(try #require(narrowField.action), to: narrowField.target, from: narrowField)
-  #expect(view.subviews.compactMap { $0 as? NSTextField }.isEmpty)
+  let expectedOrigin = CGPoint(
+    x: editor.frame.minX + editor.textContainerInset.width,
+    y: editor.frame.minY + editor.textContainerInset.height)
+  #expect(view.textView(editor, doCommandBy: #selector(NSResponder.insertNewline(_:))))
+  #expect(view.subviews.compactMap { $0 as? NSTextView }.isEmpty)
   let committedBounds = try #require(view.textBoundsForTesting.first)
   #expect(committedBounds.origin == expectedOrigin)
   #expect(view.selection.contains(committedBounds))
+  let existingText = CGPoint(x: committedBounds.midX, y: committedBounds.midY)
+  view.mouseMoved(with: try event(.mouseMoved, existingText))
+  #expect(NSCursor.current == .openHand)
+  view.mouseDown(with: try event(.leftMouseDown, existingText, clicks: 2))
+  view.mouseUp(with: try event(.leftMouseUp, existingText, clicks: 2))
+  #expect(view.subviews.compactMap { $0 as? NSTextView }.isEmpty)
+  #expect(view.textBoundsForTesting == [committedBounds])
 }

@@ -251,7 +251,7 @@ private final class SelectionPanel: NSPanel {
 }
 
 @MainActor
-final class SelectionView: NSView, NSTextFieldDelegate {
+final class SelectionView: NSView, NSTextViewDelegate {
   var iconColor: NSColor = .labelColor
   var disabledIconColor: NSColor = .disabledControlTextColor
   var toolbarTintColor: NSColor = .clear
@@ -314,6 +314,15 @@ final class SelectionView: NSView, NSTextFieldDelegate {
 
   private var mosaicFrame: CGImage?
   private var texts: [TextAnnotation] = []
+  private var textEditor: NSTextView?
+  private var textEditorCenter: CGPoint?
+  private static let textPaddingX: CGFloat = 6
+  private static let textPaddingY: CGFloat = 4
+  private let centeredParagraph: NSParagraphStyle = {
+    let paragraph = NSMutableParagraphStyle()
+    paragraph.alignment = .center
+    return paragraph
+  }()
   private var undoKinds: [String] = []
   private var selectedMark: Int?
   private var selectedText: Int?
@@ -394,6 +403,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
         options: [.usesLineFragmentOrigin, .usesFontLeading],
         attributes: [
           .font: NSFont.systemFont(ofSize: item.fontSize), .foregroundColor: item.color,
+          .paragraphStyle: centeredParagraph,
         ])
       NSGraphicsContext.restoreGraphicsState()
     }
@@ -415,7 +425,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
         points = [first[0], last[0]]
       } else if isResizableBoxKind(kind) {
         points = objectHandles(path.bounds)
-      } else if kind != "mosaic" {
+      } else {
         box = path.bounds.insetBy(dx: -5, dy: -5)
       }
     } else if let index = selectedText, texts.indices.contains(index) {
@@ -522,7 +532,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
       attributes: [.font: NSFont.systemFont(ofSize: fontSize)])
     return CGRect(
       x: origin.x, y: origin.y,
-      width: min(wrapWidth, ceil(bounding.width)),
+      width: wrapWidth,
       height: min(maxHeight, ceil(bounding.height)))
   }
 
@@ -559,7 +569,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
     optionsBar?.removeFromSuperview()
     let bar = makeToolbar(cornerRadius: 10)
     var tools = [
-      ("hand.draw", "select"), ("rectangle", "rect"), ("circle", "ellipse"),
+      ("rectangle", "rect"), ("circle", "ellipse"),
       ("arrow.up.right", "arrow"), ("pencil", "pen"), ("textformat", "text"),
       ("square.on.square", "mosaic"), ("arrow.uturn.backward", "undo"),
       ("rectangle.stack", "scroll"), ("arrow.down.to.line", "save"), ("xmark", "cancel"),
@@ -569,7 +579,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
         ("xmark", "cancel"), ("checkmark", "confirm"),
       ]
     }
-    let breaks: Set<Int> = frozenFrame == nil ? [] : [1, 7, 9]
+    let breaks: Set<Int> = frozenFrame == nil ? [] : [6, 8]
     let width = CGFloat(tools.count * 44 + 24 + breaks.count * 12)
     let x = min(max(selection.maxX - width, 8), bounds.maxX - width - 8)
     let y = selection.minY > 54 ? selection.minY - 50 : min(selection.maxY + 10, bounds.maxY - 44)
@@ -617,7 +627,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
 
   private func toolbarImage(symbol: String, tool: String) -> NSImage {
     if [
-      "select", "rect", "ellipse", "text", "arrow", "pen", "mosaic", "undo", "scroll", "save",
+      "rect", "ellipse", "text", "arrow", "pen", "mosaic", "undo", "scroll", "save",
       "cancel", "confirm",
     ].contains(tool) {
       let path = NSBezierPath()
@@ -625,40 +635,6 @@ final class SelectionView: NSView, NSTextFieldDelegate {
       path.lineCapStyle = .round
       path.lineJoinStyle = .round
       switch tool {
-      case "select":
-        path.move(to: CGPoint(x: 6, y: 7))
-        path.line(to: CGPoint(x: 6, y: 15))
-        path.curve(
-          to: CGPoint(x: 8.5, y: 15), controlPoint1: CGPoint(x: 6, y: 17),
-          controlPoint2: CGPoint(x: 8.5, y: 17))
-        path.line(to: CGPoint(x: 8.5, y: 10))
-        path.move(to: CGPoint(x: 8.5, y: 12))
-        path.curve(
-          to: CGPoint(x: 11, y: 12), controlPoint1: CGPoint(x: 8.5, y: 14),
-          controlPoint2: CGPoint(x: 11, y: 14))
-        path.line(to: CGPoint(x: 11, y: 9.5))
-        path.move(to: CGPoint(x: 11, y: 11))
-        path.curve(
-          to: CGPoint(x: 13.5, y: 11), controlPoint1: CGPoint(x: 11, y: 13),
-          controlPoint2: CGPoint(x: 13.5, y: 13))
-        path.line(to: CGPoint(x: 13.5, y: 8.5))
-        path.move(to: CGPoint(x: 13.5, y: 9.5))
-        path.curve(
-          to: CGPoint(x: 16, y: 9.5), controlPoint1: CGPoint(x: 13.5, y: 11.5),
-          controlPoint2: CGPoint(x: 16, y: 11.5))
-        path.line(to: CGPoint(x: 16, y: 6))
-        path.curve(
-          to: CGPoint(x: 11, y: 2), controlPoint1: CGPoint(x: 16, y: 3),
-          controlPoint2: CGPoint(x: 14, y: 2))
-        path.line(to: CGPoint(x: 9, y: 2))
-        path.curve(
-          to: CGPoint(x: 6.5, y: 3.5), controlPoint1: CGPoint(x: 8, y: 2),
-          controlPoint2: CGPoint(x: 7, y: 2.5))
-        path.line(to: CGPoint(x: 2, y: 9))
-        path.curve(
-          to: CGPoint(x: 4.5, y: 11), controlPoint1: CGPoint(x: 0.5, y: 11),
-          controlPoint2: CGPoint(x: 3, y: 12.5))
-        path.line(to: CGPoint(x: 6, y: 9))
       case "rect":
         path.append(
           NSBezierPath(
@@ -884,70 +860,87 @@ final class SelectionView: NSView, NSTextFieldDelegate {
     showToolbar()
   }
   private func applyStyle() {
-    for field in subviews.compactMap({ $0 as? NSTextField }) {
-      field.font = .systemFont(ofSize: fontSize)
-      field.textColor = ink
-      layoutTextField(field)
+    if let editor = textEditor {
+      editor.font = .systemFont(ofSize: fontSize)
+      editor.textColor = ink
+      layoutTextEditor(editor)
     }
     needsDisplay = true
   }
 
-  private func layoutTextField(_ field: NSTextField) {
-    guard !selection.isEmpty else { return }
-    let font = field.font ?? .systemFont(ofSize: fontSize)
-    let text = field.currentEditor()?.string ?? field.stringValue
-    let availableWidth = max(1, selection.width)
-    let minWidth = min(availableWidth, max(60, ceil(fontSize * 3.2)))
-    let originX = max(selection.minX, min(field.frame.minX, selection.maxX - minWidth))
-    let maxWidth = max(minWidth, selection.maxX - originX)
-    let contentWidth = (text as NSString).size(withAttributes: [.font: font]).width
-    let width = min(maxWidth, max(minWidth, ceil(contentWidth) + 16))
-    let sample = text.isEmpty ? " " : text
-    let bounding = (sample as NSString).boundingRect(
-      with: CGSize(width: max(1, width - 12), height: .greatestFiniteMagnitude),
+  private func startTextEditor(at point: CGPoint) {
+    let editor = NSTextView(frame: .zero)
+    editor.delegate = self
+    editor.isRichText = false
+    editor.drawsBackground = false
+    editor.isHorizontallyResizable = false
+    editor.isVerticallyResizable = false
+    editor.textContainer?.widthTracksTextView = true
+    editor.textContainer?.lineFragmentPadding = 0
+    editor.font = .systemFont(ofSize: fontSize)
+    editor.textColor = ink
+    editor.alignment = .center
+    editor.defaultParagraphStyle = centeredParagraph
+    editor.wantsLayer = true
+    editor.layer?.cornerRadius = 4
+    editor.layer?.borderWidth = 2
+    editor.layer?.masksToBounds = true
+    editor.layer?.borderColor = NSColor.systemBlue.cgColor  // devbar:allow-color
+    textEditor = editor
+    textEditorCenter = point
+    layoutTextEditor(editor)
+    addSubview(editor)
+    window?.makeFirstResponder(editor)
+  }
+
+  private func layoutTextEditor(_ editor: NSTextView) {
+    guard let center = textEditorCenter, !selection.isEmpty, !editor.hasMarkedText() else { return }
+    let font = editor.font ?? .systemFont(ofSize: fontSize)
+    let content = editor.string as NSString
+    let paddingX = Self.textPaddingX
+    let paddingY = Self.textPaddingY
+    let minWidth = min(selection.width, max(60, ceil(font.pointSize * 3.2)))
+    let contentWidth = ceil(content.size(withAttributes: [.font: font]).width)
+    let width = min(selection.width, max(minWidth, contentWidth + paddingX * 2))
+    let lineHeight = ceil(font.ascender - font.descender + font.leading)
+    let bounding = ((editor.string.isEmpty ? " " : editor.string) as NSString).boundingRect(
+      with: CGSize(width: max(1, width - paddingX * 2), height: .greatestFiniteMagnitude),
       options: [.usesLineFragmentOrigin, .usesFontLeading],
-      attributes: [.font: font])
-    let availableHeight = max(1, selection.height)
-    let minHeight = min(availableHeight, ceil(fontSize * 1.4 + 8))
-    let height = min(availableHeight, max(minHeight, ceil(bounding.height) + 8))
-    let topY = min(field.frame.maxY, selection.maxY)
-    let originY = max(selection.minY, topY - height)
-    field.frame = NSRect(x: originX, y: originY, width: width, height: height)
+      attributes: [.font: font, .paragraphStyle: centeredParagraph])
+    let textHeight = max(lineHeight, ceil(bounding.height))
+    let height = min(selection.height, max(lineHeight + 12, textHeight + paddingY * 2))
+    let x = min(max(center.x - width / 2, selection.minX), selection.maxX - width)
+    let y = min(max(center.y - height / 2, selection.minY), selection.maxY - height)
+    let frame = CGRect(x: x, y: y, width: width, height: height)
+    if editor.frame != frame { editor.frame = frame }
+    let inset = NSSize(
+      width: min(paddingX, max(0, (width - 1) / 2)),
+      height: min(max(0, (height - 1) / 2), max(paddingY, floor((height - textHeight) / 2))))
+    if editor.textContainerInset != inset { editor.textContainerInset = inset }
   }
 
-  func controlTextDidChange(_ obj: Notification) {
-    guard let field = obj.object as? NSTextField else { return }
-    layoutTextField(field)
+  func textDidChange(_ notification: Notification) {
+    guard let editor = notification.object as? NSTextView, editor === textEditor else { return }
+    layoutTextEditor(editor)
   }
 
-  func control(
-    _ control: NSControl, textView: NSTextView, doCommandBy commandSelector: Selector
-  ) -> Bool {
+  func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+    guard textView === textEditor, !textView.hasMarkedText() else { return false }
     if commandSelector == #selector(NSResponder.insertNewline(_:)) {
       if let flags = NSApp.currentEvent?.modifierFlags,
         flags.contains(.shift) || flags.contains(.option)
       {
         textView.insertNewlineIgnoringFieldEditor(nil)
-        return true
+      } else {
+        commitText()
       }
-      if let field = control as? NSTextField {
-        commitText(field)
-        return true
-      }
-    } else if commandSelector == #selector(NSResponder.cancelOperation(_:)),
-      let field = control as? NSTextField
-    {
-      field.removeFromSuperview()
-      window?.makeFirstResponder(self)
-      needsDisplay = true
-      showToolbar()
       return true
     }
     return false
   }
 
   @objc private func toolClicked(_ sender: NSButton) {
-    for field in subviews.compactMap({ $0 as? NSTextField }) { commitText(field) }
+    commitText()
     switch sender.identifier?.rawValue {
     case "save":
       saveRequested = true
@@ -968,7 +961,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
       needsDisplay = true
       showToolbar()
     case let value?:
-      tool = value
+      tool = tool == value ? "select" : value
       showToolbar()
     default: break
     }
@@ -1179,6 +1172,27 @@ final class SelectionView: NSView, NSTextFieldDelegate {
     return .resizeUpDown
   }
 
+  private func hitText(at point: CGPoint) -> Int? {
+    texts.indices.reversed().first {
+      textBounds($0).insetBy(dx: -6, dy: -4).contains(point)
+    }
+  }
+
+  private func hitMark(at point: CGPoint) -> Int? {
+    marks.indices.reversed().first { index in
+      let (kind, path, _, weight) = marks[index]
+      let tolerance = max(12, weight + 8)
+      guard path.bounds.insetBy(dx: -tolerance / 2, dy: -tolerance / 2).contains(point)
+      else { return false }
+      if (kind == "arrowFilled" || kind.hasPrefix("mosaic")) && path.contains(point) {
+        return true
+      }
+      return path.cgPath.copy(
+        strokingWithWidth: tolerance, lineCap: .round, lineJoin: .round, miterLimit: 1
+      ).contains(point)
+    }
+  }
+
   private func updateCursor(at point: CGPoint) {
     guard !captureInProgress else {
       NSCursor.arrow.set()
@@ -1218,7 +1232,11 @@ final class SelectionView: NSView, NSTextFieldDelegate {
         return
       }
     }
-    if let edge = selectionResizeEdge(at: point), tool == "select" || !selection.contains(point) {
+    if selection.contains(point), hitText(at: point) != nil || hitMark(at: point) != nil {
+      NSCursor.openHand.set()
+      return
+    }
+    if let edge = selectionResizeEdge(at: point) {
       resizeCursor(for: edge).set()
       return
     }
@@ -1236,6 +1254,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
   override func mouseDown(with event: NSEvent) {
     guard !captureInProgress else { return }
     window?.makeKey()
+    commitText()
     window?.makeFirstResponder(self)
     let point = convert(event.locationInWindow, from: nil)
     onInteraction?()
@@ -1292,7 +1311,6 @@ final class SelectionView: NSView, NSTextFieldDelegate {
     }
     anchor = point
     if !selection.isEmpty && !selection.insetBy(dx: -9, dy: -9).contains(point) {
-      for field in subviews.compactMap({ $0 as? NSTextField }) { commitText(field) }
       selectedMark = nil
       selectedText = nil
       anchor = nil
@@ -1301,97 +1319,62 @@ final class SelectionView: NSView, NSTextFieldDelegate {
     }
     selectedMark = nil
     selectedText = nil
-    if tool == "select" && selection.contains(point) {
-      if let index = texts.indices.reversed().first(where: {
-        textBounds($0).insetBy(dx: -6, dy: -4).contains(point)
-      }) {
-        selectedText = index
-        draggingTextIndex = index
-        dragStartPoint = point
-        dragTextOrigin = texts[index].origin
-        showToolbar()
-        anchor = nil
-        needsDisplay = true
-        updateCursor(at: point)
-        return
-      }
-      if let index = marks.indices.reversed().first(where: {
-        marks[$0].1.bounds.insetBy(dx: -6, dy: -6).contains(point)
-      }) {
-        selectedMark = index
-        draggingMarkIndex = index
-        dragStartPoint = point
-        dragMarkLastPoint = point
-        showToolbar()
-        anchor = nil
-        needsDisplay = true
-        updateCursor(at: point)
-        return
-      }
-    }
-    if tool == "text" && selection.contains(point) {
-      for existing in subviews.compactMap({ $0 as? NSTextField }) { commitText(existing) }
-      let field = NSTextField(string: "")
-      field.usesSingleLineMode = false
-      field.lineBreakMode = .byWordWrapping
-      field.cell?.wraps = true
-      field.cell?.isScrollable = false
-      field.delegate = self
-      field.isBordered = false
-      field.drawsBackground = false
-      field.font = .systemFont(ofSize: fontSize)
-      field.textColor = ink
-      field.wantsLayer = true
-      field.layer?.cornerRadius = 4
-      field.layer?.borderWidth = 2
-      field.layer?.masksToBounds = true
-      field.layer?.borderColor = NSColor.systemBlue.cgColor  // devbar:allow-color
-      field.target = self
-      field.action = #selector(commitText(_:))
-      let availableWidth = max(1, selection.width)
-      let minWidth = min(availableWidth, max(60, ceil(fontSize * 3.2)))
-      let startX = max(selection.minX, min(point.x, selection.maxX - minWidth))
-      let availableHeight = max(1, selection.height)
-      let minHeight = min(availableHeight, ceil(fontSize * 1.4 + 8))
-      let startY = max(selection.minY, min(point.y, selection.maxY - minHeight))
-      field.frame = NSRect(x: startX, y: startY, width: minWidth, height: minHeight)
-      layoutTextField(field)
-      addSubview(field)
-      window?.makeFirstResponder(field)
+    if selection.contains(point), let index = hitText(at: point) {
+      selectedText = index
+      draggingTextIndex = index
+      dragStartPoint = point
+      dragTextOrigin = texts[index].origin
       anchor = nil
+      needsDisplay = true
       return
     }
-    if !selection.isEmpty && tool != "select" && selection.contains(point) {
+    if selection.contains(point), let index = hitMark(at: point) {
+      selectedMark = index
+      draggingMarkIndex = index
+      dragMarkLastPoint = point
+      anchor = nil
+      needsDisplay = true
+      return
+    }
+    guard !selection.isEmpty else { return }
+    if let edge = selectionResizeEdge(at: point) {
+      resizeHandle = CGPoint(
+        x: edge.left ? selection.minX : edge.right ? selection.maxX : selection.midX,
+        y: edge.bottom ? selection.minY : edge.top ? selection.maxY : selection.midY)
+      moveOrigin = selection
+      updateCursor(at: point)
+    } else if tool == "text" && selection.contains(point) {
+      startTextEditor(at: point)
+      anchor = nil
+    } else if tool != "select" && selection.contains(point) {
       draft = NSBezierPath()
       draft?.move(to: point)
-    } else if !selection.isEmpty {
-      if let handle = handles.first(where: { hypot($0.x - point.x, $0.y - point.y) < 9 }) {
-        resizeHandle = handle
-      } else if let edge = selectionResizeEdge(at: point) {
-        resizeHandle = CGPoint(
-          x: edge.left ? selection.minX : edge.right ? selection.maxX : selection.midX,
-          y: edge.bottom ? selection.minY : edge.top ? selection.maxY : selection.midY)
-      } else {
-        resizeHandle = nil
-      }
-      moveOrigin = selection.contains(point) || resizeHandle != nil ? selection : nil
+    } else if selection.contains(point) {
+      moveOrigin = selection
       updateCursor(at: point)
     }
   }
 
-  @objc private func commitText(_ field: NSTextField) {
-    if !field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-      let wrapWidth = max(1, field.frame.width - 12)
-      let maxHeight = max(1, field.frame.height - 8)
-      let origin = CGPoint(x: field.frame.minX + 6, y: field.frame.minY + 4)
+  private func commitText() {
+    guard let editor = textEditor else { return }
+    if editor.hasMarkedText() { editor.unmarkText() }
+    layoutTextEditor(editor)
+    let text = editor.string
+    if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+      let content = editor.frame.insetBy(
+        dx: editor.textContainerInset.width, dy: editor.textContainerInset.height)
       texts.append(
         TextAnnotation(
-          text: field.stringValue, origin: origin, wrapWidth: wrapWidth,
-          maxHeight: maxHeight, color: ink, fontSize: fontSize))
+          text: text, origin: content.origin, wrapWidth: max(1, content.width),
+          maxHeight: max(1, content.height), color: editor.textColor ?? ink,
+          fontSize: editor.font?.pointSize ?? fontSize))
       undoKinds.append("text")
+      selectedMark = nil
       selectedText = texts.count - 1
     }
-    field.removeFromSuperview()
+    textEditor = nil
+    textEditorCenter = nil
+    editor.removeFromSuperview()
     window?.makeFirstResponder(self)
     needsDisplay = true
     showToolbar()
@@ -1515,7 +1498,7 @@ final class SelectionView: NSView, NSTextFieldDelegate {
   }
 
   override func mouseUp(with event: NSEvent) {
-    guard !captureInProgress else { return }
+    guard !captureInProgress, textEditor == nil else { return }
     let end = convert(event.locationInWindow, from: nil)
     if let candidate = windowCandidate {
       windowCandidate = nil
