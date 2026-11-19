@@ -894,25 +894,29 @@ final class SelectionView: NSView, NSTextViewDelegate {
   }
 
   private func layoutTextEditor(_ editor: NSTextView) {
-    guard let center = textEditorCenter, !selection.isEmpty, !editor.hasMarkedText() else { return }
+    guard let center = textEditorCenter, !selection.isEmpty else { return }
     let font = editor.font ?? .systemFont(ofSize: fontSize)
     let content = editor.string as NSString
     let paddingX = Self.textPaddingX
     let paddingY = Self.textPaddingY
     let minWidth = min(selection.width, max(60, ceil(font.pointSize * 3.2)))
     let contentWidth = ceil(content.size(withAttributes: [.font: font]).width)
-    let width = min(selection.width, max(minWidth, contentWidth + paddingX * 2))
+    let desiredWidth = min(selection.width, max(minWidth, contentWidth + paddingX * 2))
+    let width = editor.hasMarkedText() ? max(editor.frame.width, desiredWidth) : desiredWidth
     let lineHeight = ceil(font.ascender - font.descender + font.leading)
     let bounding = ((editor.string.isEmpty ? " " : editor.string) as NSString).boundingRect(
       with: CGSize(width: max(1, width - paddingX * 2), height: .greatestFiniteMagnitude),
       options: [.usesLineFragmentOrigin, .usesFontLeading],
       attributes: [.font: font, .paragraphStyle: centeredParagraph])
     let textHeight = max(lineHeight, ceil(bounding.height))
-    let height = min(selection.height, max(lineHeight + 12, textHeight + paddingY * 2))
+    let height =
+      editor.hasMarkedText() && editor.frame.height > 0
+      ? editor.frame.height : min(selection.height, max(lineHeight + 12, textHeight + paddingY * 2))
     let x = min(max(center.x - width / 2, selection.minX), selection.maxX - width)
     let y = min(max(center.y - height / 2, selection.minY), selection.maxY - height)
     let frame = CGRect(x: x, y: y, width: width, height: height)
     if editor.frame != frame { editor.frame = frame }
+    guard !editor.hasMarkedText() else { return }
     let inset = NSSize(
       width: min(paddingX, max(0, (width - 1) / 2)),
       height: min(max(0, (height - 1) / 2), max(paddingY, floor((height - textHeight) / 2))))
