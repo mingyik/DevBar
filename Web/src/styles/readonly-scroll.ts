@@ -49,6 +49,8 @@ export function installReadOnlyScrollbars(doc: Document): () => void {
   const scroll = (event: Event): void => {
     const owner = event.target === doc ? doc.scrollingElement : event.target;
     if (!(owner instanceof HTMLElement)) return;
+    // Wide Markdown tables show their own persistent scrollbar.
+    if (owner.classList.contains("table-wrap")) return;
     let record = records.get(owner);
     if (!record) {
       const vertical = doc.createElement("div");
