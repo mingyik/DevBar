@@ -74,7 +74,7 @@
   margin: 1.2em 0;
 }
 .prose li::marker {
-  color: var(--markdown-text-heading);
+  color: var(--markdown-text-body);
 }
 .prose strong {
   color: var(--markdown-text-strong);
