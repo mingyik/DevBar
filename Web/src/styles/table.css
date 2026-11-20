@@ -59,3 +59,15 @@
 .prose tbody tr:hover {
   background: var(--panel-card);
 }
+/* Wide tables keep a visible, draggable horizontal bar so overflow is discoverable. */
+.prose .table-wrap {
+  scrollbar-width: thin;
+  padding-bottom: 4px;
+}
+.prose .table-wrap::-webkit-scrollbar {
+  height: 6px;
+}
+.prose .table-wrap::-webkit-scrollbar-thumb {
+  background: var(--scroll-thumb);
+  border-radius: 3px;
+}
