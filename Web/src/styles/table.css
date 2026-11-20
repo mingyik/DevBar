@@ -48,6 +48,11 @@
   white-space: normal;
   overflow-wrap: anywhere;
 }
+.prose td.single-line-value,
+.prose td.single-line-value code {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
 .prose tbody tr:hover {
   background: var(--panel-card);
 }

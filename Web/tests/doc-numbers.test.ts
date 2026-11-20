@@ -5,6 +5,7 @@ it.each(
     ["007", "12345678901234567890"],
     ["-2", "+3.14", ""],
     ["1,234.50", "-0.5%"],
+    ["30.17% (35)", "—", "20.69% (24)"],
   ].map((cells) => ({ cells })),
 )("numeric columns only add layout hints %s", ({ cells }) =>
   expect(isNumericColumn(cells, false)).toBe(true),
@@ -12,6 +13,8 @@ it.each(
 it.each(
   [
     ["", " "],
+    ["-", "—"],
+    ["11/05", "11/06"],
     ["1", "word"],
     ["1e10", "2"],
     ["1,23", "4"],
