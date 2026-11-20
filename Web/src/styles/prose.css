@@ -62,7 +62,7 @@
   text-decoration-thickness: var(--stroke-strong);
 }
 .prose blockquote {
-  border-left: 2px solid var(--markdown-quote-border);
+  border-left: 4px solid var(--markdown-quote-border);
   color: var(--markdown-text-quote);
   padding-left: 0.9em;
   margin-left: 0;
@@ -70,7 +70,7 @@
 }
 .prose hr {
   border: 0;
-  border-top: var(--stroke-hairline) solid var(--markdown-line);
+  border-top: 4px solid var(--markdown-line);
   margin: 1.2em 0;
 }
 .prose li::marker {
