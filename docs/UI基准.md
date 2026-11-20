@@ -58,7 +58,8 @@
 
 | 系统 | 做法 |
 |---|---|
-| **macOS 26**（唯一支持的系统） | SwiftUI `.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 12, style: .continuous))`，上面只叠一层**很淡**的底色 `panel.glassTint`（白主题约白 24%、黑主题约黑 19%；即参考实现里 `baseFill × 0.35 / × 0.45`），再加 0.7pt 描边。**不再叠满 `panel.base`** |
+| **macOS 26** | SwiftUI `.glassEffect(.regular, in: RoundedRectangle(cornerRadius: 12, style: .continuous))`，上面只叠一层**很淡**的底色 `panel.glassTint`（白主题约白 24%、黑主题约黑 19%；即参考实现里 `baseFill × 0.35 / × 0.45`），再加 0.7pt 描边。**不再叠满 `panel.base`** |
+| **macOS 15** | 回退到 `NSVisualEffectView`（`.underWindowBackground`、`.behindWindow`、`state = .active`），仍叠 `panel.glassTint` 与 0.7pt 描边 |
 | 系统开启「降低透明度」 | 不用玻璃，用不透明的 `opaqueBackdrop` + `panel.base` |
 
 - 玻璃的外观（`appearance`）必须跟随 DevBar 的白 / 黑设置，而不是跟随系统，否则手动选白主题时材质仍是深色。

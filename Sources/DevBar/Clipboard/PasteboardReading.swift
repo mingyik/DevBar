@@ -19,6 +19,20 @@ struct PasteboardMetadata: Sendable {
   }
 }
 
+extension NSPasteboard {
+  /// `accessBehavior` 从 macOS 15.4 才可用；更早的 15.x 没有剪贴板隐私提示，按允许处理。
+  var devbarAccessBehavior: PasteboardMetadata.Access {
+    if #available(macOS 15.4, *) {
+      switch accessBehavior {
+      case .alwaysAllow: return .allow
+      case .alwaysDeny: return .deny
+      default: return .ask
+      }
+    }
+    return .allow
+  }
+}
+
 protocol PasteboardReading: Sendable {
   func metadata() -> PasteboardMetadata
   func read() -> [ClipboardPayload]
@@ -31,15 +45,9 @@ struct SystemPasteboardReader: PasteboardReading {
 
   func metadata() -> PasteboardMetadata {
     let board = NSPasteboard(name: name)
-    let access: PasteboardMetadata.Access
-    switch board.accessBehavior {
-    case .alwaysAllow: access = .allow
-    case .alwaysDeny: access = .deny
-    default: access = .ask
-    }
     return PasteboardMetadata(
       count: board.changeCount,
-      types: (board.types ?? []).map(\.rawValue), access: access)
+      types: (board.types ?? []).map(\.rawValue), access: board.devbarAccessBehavior)
   }
 
   static let imageTypes: [NSPasteboard.PasteboardType] = [

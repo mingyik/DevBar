@@ -464,11 +464,16 @@ struct PanelChrome: View {
       panelShape.fill(DesignTokens.opaqueBackdrop(scheme))
         .overlay(panelShape.fill(DesignTokens.panelBase(scheme)))
         .overlay(panelOutline(scheme))
-    } else {
+    } else if #available(macOS 26.0, *) {
       panelShape.fill(Color.clear)
         .glassEffect(.regular, in: panelShape)
         .environment(\.appearsActive, true)
         .materialActiveAppearance(.active)
+        .overlay(panelShape.fill(DesignTokens.panelGlassTint(scheme)))
+        .overlay(panelOutline(scheme))
+    } else {
+      panelShape.fill(Color.clear)
+        .background(LegacyPanelMaterial())
         .overlay(panelShape.fill(DesignTokens.panelGlassTint(scheme)))
         .overlay(panelOutline(scheme))
     }
@@ -489,6 +494,21 @@ struct PanelChrome: View {
       )
   }
 
+}
+
+/// macOS 15 的旧版材质回退；Liquid Glass 只在 macOS 26 及以上可用。
+private struct LegacyPanelMaterial: NSViewRepresentable {
+  func makeNSView(context: Context) -> NSVisualEffectView {
+    let view = NSVisualEffectView()
+    view.material = .underWindowBackground
+    view.blendingMode = .behindWindow
+    view.state = .active
+    return view
+  }
+
+  func updateNSView(_ view: NSVisualEffectView, context: Context) {
+    view.state = .active
+  }
 }
 
 private struct HistoryLimitRow: View {

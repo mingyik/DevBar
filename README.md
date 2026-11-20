@@ -77,7 +77,7 @@ macOS 菜单栏里的本地小工具：剪贴板历史、JSON、二维码、Mark
 
 ## 安装
 
-要求 **macOS 26 或更高版本**、Apple Silicon。
+要求 **macOS 15 或更高版本**、Apple Silicon。macOS 26 使用 Liquid Glass，macOS 15 回退到系统毛玻璃材质。
 
 解压分发包，把 `DevBar.app` 拖进“应用程序”。首次打开请右键选择“打开”。
 

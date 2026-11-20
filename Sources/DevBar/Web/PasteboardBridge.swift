@@ -16,9 +16,9 @@ enum PasteboardBridge {
     if types.contains(where: { concealed.contains($0.rawValue) }) {
       return #"{"status":"concealed"}"#
     }
-    switch board.accessBehavior {
-    case .alwaysDeny: return #"{"status":"denied"}"#
-    case .alwaysAllow: break
+    switch board.devbarAccessBehavior {
+    case .deny: return #"{"status":"denied"}"#
+    case .allow: break
     default: return #"{"status":"ask"}"#
     }
     guard types.contains(where: { $0 == .string }) else {
