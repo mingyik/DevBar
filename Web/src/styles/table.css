@@ -9,7 +9,8 @@
 .prose table {
   border-collapse: collapse;
   border: var(--stroke-hairline) solid var(--markdown-table-line);
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   table-layout: auto;
 }
 .prose th,
@@ -20,7 +21,8 @@
   white-space: normal;
   min-width: 0;
   max-width: min(28em, 65cqi);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 .prose th {
   text-align: left;
@@ -46,7 +48,8 @@
 }
 .prose td code {
   white-space: normal;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 .prose td.single-line-value,
 .prose td.single-line-value code {
