@@ -12,6 +12,8 @@ public enum PanelLayout: Sendable {
 
   public static let normal = CGSize(width: 480, height: 600)
   public static let large = CGSize(width: 640, height: 720)
+  /// Markdown 内容列，比旧的 640pt 宽 70pt。
+  public static let documentWidth: CGFloat = large.width + 70
   public static let sidebarWidth: CGFloat = 240
   public static let minSidebarWidth: CGFloat = 180
   public static let menuGap: CGFloat = 6
@@ -22,15 +24,17 @@ public enum PanelLayout: Sendable {
     enlarged: Bool,
     split: Bool,
     sidebar: Bool,
+    screenFrame: CGRect,
     visibleFrame: CGRect
   ) -> (panelSize: CGSize, sidebarWidth: CGFloat) {
-    let paneWidth = enlarged ? large.width : normal.width
+    let paneWidth = enlarged ? documentWidth : normal.width
     let desiredContentWidth = split ? paneWidth * 2 : paneWidth
     let desiredSidebarWidth: CGFloat = sidebar ? sidebarWidth : 0
-    let desiredHeight = enlarged ? floor(visibleFrame.height * 4 / 5) : normal.height
-    let clampedHeight = min(desiredHeight, max(0, visibleFrame.height))
+    // 4/5 以整块屏幕为基准，不扣菜单栏；高度仍受可用区域限制。
+    let desiredHeight = enlarged ? floor(screenFrame.height * 4 / 5) : normal.height
+    let clampedHeight = min(desiredHeight, max(0, visibleFrame.height.rounded(.down)))
     let totalDesiredWidth = desiredSidebarWidth + desiredContentWidth
-    let clampedWidth = min(totalDesiredWidth, max(0, visibleFrame.width))
+    let clampedWidth = min(totalDesiredWidth, max(0, visibleFrame.width.rounded(.down)))
     guard sidebar else {
       return (CGSize(width: clampedWidth, height: clampedHeight), 0)
     }
@@ -42,7 +46,10 @@ public enum PanelLayout: Sendable {
       let scaled = floor(clampedWidth * 0.28)
       actualSidebarWidth = min(clampedWidth, max(min(minSidebarWidth, clampedWidth), scaled))
     }
-    return (CGSize(width: clampedWidth, height: clampedHeight), actualSidebarWidth)
+    return (
+      CGSize(width: clampedWidth, height: clampedHeight),
+      actualSidebarWidth.rounded(.down)
+    )
   }
 
   /// Usable only when the anchor center is on a connected display and its bottom
@@ -55,12 +62,15 @@ public enum PanelLayout: Sendable {
   }
 
   public static func placement(
-    anchor: CGRect?, screens: [DisplaySlice], fallbackVisible: CGRect
-  ) -> (centerX: CGFloat, menuBottom: CGFloat, visible: CGRect) {
+    anchor: CGRect?, screens: [DisplaySlice], fallbackScreenFrame: CGRect,
+    fallbackVisible: CGRect
+  ) -> (centerX: CGFloat, menuBottom: CGFloat, screenFrame: CGRect, visible: CGRect) {
     if let anchor, let screen = menuBarScreen(anchor, screens: screens) {
-      return (anchor.midX, anchor.minY, screen.visibleFrame)
+      return (anchor.midX, anchor.minY, screen.frame, screen.visibleFrame)
     }
-    return (fallbackVisible.midX, fallbackVisible.maxY, fallbackVisible)
+    return (
+      fallbackVisible.midX, fallbackVisible.maxY, fallbackScreenFrame, fallbackVisible
+    )
   }
 
   /// 以图标中心对齐，改变尺寸时保持顶边；超出可见区域再向内收。
@@ -106,6 +116,25 @@ public enum PanelLayout: Sendable {
     }
     if result.maxY > visible.maxY {
       result.origin.y = visible.maxY - result.height
+    }
+    return integral(result, in: visible)
+  }
+
+  /// 最终窗口落在整数点上，避免半像素边缘。
+  private static func integral(_ rect: CGRect, in visible: CGRect) -> CGRect {
+    var result = CGRect(
+      x: rect.minX.rounded(), y: rect.minY.rounded(),
+      width: max(0, rect.width.rounded(.down)),
+      height: max(0, rect.height.rounded(.down)))
+    if result.width > visible.width { result.size.width = visible.width.rounded(.down) }
+    if result.height > visible.height { result.size.height = visible.height.rounded(.down) }
+    if result.minX < visible.minX { result.origin.x = visible.minX.rounded(.up) }
+    if result.maxX > visible.maxX {
+      result.origin.x = (visible.maxX - result.width).rounded(.down)
+    }
+    if result.minY < visible.minY { result.origin.y = visible.minY.rounded(.up) }
+    if result.maxY > visible.maxY {
+      result.origin.y = (visible.maxY - result.height).rounded(.down)
     }
     return result
   }

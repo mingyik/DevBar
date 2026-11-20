@@ -656,7 +656,7 @@ import Testing
 
     ```swift
     let layout = PanelLayout.documentPanelSize(
-      enlarged: false, split: true, sidebar: true, visibleFrame: frame)
+      enlarged: false, split: true, sidebar: true, screenFrame: frame, visibleFrame: frame)
     ```
     """
   let dirURL = URL(fileURLWithPath: outDir)

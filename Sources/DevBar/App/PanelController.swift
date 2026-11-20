@@ -516,17 +516,21 @@ final class PanelController {
     let mouseScreen =
       NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main ?? NSScreen.screens[0]
     let placed = PanelLayout.placement(
-      anchor: lastAnchor, screens: screens, fallbackVisible: mouseScreen.visibleFrame)
-    let layoutVisible =
-      [.doc, .json].contains(model.page) && windowUserMoved && panel.isVisible
-      ? panel.screen?.visibleFrame ?? placed.visible : placed.visible
+      anchor: lastAnchor, screens: screens,
+      fallbackScreenFrame: mouseScreen.frame,
+      fallbackVisible: mouseScreen.visibleFrame)
+    let moved = [.doc, .json].contains(model.page) && windowUserMoved && panel.isVisible
+    let layoutScreen = moved ? panel.screen : nil
+    let layoutVisible = layoutScreen?.visibleFrame ?? placed.visible
+    let layoutFrame = layoutScreen?.frame ?? placed.screenFrame
     var size = model.panelSize
     var sidebar: CGFloat = 0
     var documentContentWidthChanged = false
     if model.page == .doc, !model.dropActive {
       let layout = PanelLayout.documentPanelSize(
         enlarged: model.enlarged, split: model.documentSplit,
-        sidebar: model.documentSidebarVisible, visibleFrame: layoutVisible)
+        sidebar: model.documentSidebarVisible, screenFrame: layoutFrame,
+        visibleFrame: layoutVisible)
       size = layout.panelSize
       if model.documentSidebarWidth != layout.sidebarWidth {
         model.documentSidebarWidth = layout.sidebarWidth
