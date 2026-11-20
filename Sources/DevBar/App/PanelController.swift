@@ -202,8 +202,10 @@ final class PanelController {
     updateMaterial()
     reposition()
     if activateApplication {
+      // Raise above windows of other apps without pinning the level.
+      panel.orderFrontRegardless()
       panel.makeKeyAndOrderFront(nil)
-      NSApp.activate()
+      NSApp.activate(ignoringOtherApps: true)
     } else {
       panel.orderFrontRegardless()
     }

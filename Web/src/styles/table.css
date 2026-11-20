@@ -9,8 +9,7 @@
 .prose table {
   border-collapse: collapse;
   border: var(--stroke-hairline) solid var(--markdown-table-line);
-  width: max-content;
-  min-width: 100%;
+  width: 100%;
   table-layout: auto;
 }
 .prose th,
