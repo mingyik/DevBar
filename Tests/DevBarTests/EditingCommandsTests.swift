@@ -29,6 +29,19 @@ import Testing
   #expect(responder.actions == ["paste", "copy", "cut", "paste"])
 }
 
+@MainActor @Test func commandWClosesPanelLocally() {
+  _ = NSApplication.shared
+  let panel = DevBarPanel()
+  var closed = 0
+  panel.onClosePanel = { closed += 1 }
+  let event = NSEvent.keyEvent(
+    with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
+    windowNumber: panel.windowNumber, context: nil, characters: "w",
+    charactersIgnoringModifiers: "w", isARepeat: false, keyCode: 13)!
+  #expect(panel.performKeyEquivalent(with: event))
+  #expect(closed == 1)
+}
+
 @MainActor private final class ArrowConsumingResponder: NSResponder {
   var consumed = 0
   override var acceptsFirstResponder: Bool { true }

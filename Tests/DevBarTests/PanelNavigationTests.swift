@@ -301,7 +301,7 @@ import Testing
   #expect(qrReturnedToEdit)
 }
 
-@MainActor @Test func closeButtonClosesThePanelAndGlobalRDoesNotCycleTwice() throws {
+@MainActor @Test func commandRDoesNotCycleTwiceAndCommandWClosesThePanel() throws {
   _ = NSApplication.shared
   let controller = PanelController(theme: ThemeManager())
   controller.show(anchor: nil)
@@ -310,17 +310,20 @@ import Testing
   let panel = controller.panel
   panel.onCyclePage = { _ in cycles += 1 }
   panel.globalCycleOwnsR = { true }
-  for (key, code) in [("w", UInt16(13)), ("r", UInt16(15))] {
-    let event = try #require(
-      NSEvent.keyEvent(
-        with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
-        windowNumber: panel.windowNumber, context: nil, characters: key,
-        charactersIgnoringModifiers: key, isARepeat: false, keyCode: code))
-    _ = panel.performKeyEquivalent(with: event)
-  }
+  let eventR = try #require(
+    NSEvent.keyEvent(
+      with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
+      windowNumber: panel.windowNumber, context: nil, characters: "r",
+      charactersIgnoringModifiers: "r", isARepeat: false, keyCode: 15))
+  _ = panel.performKeyEquivalent(with: eventR)
   #expect(cycles == 0)
   #expect(panel.isVisible)
-  controller.model.onClosePanel?()
+  let eventW = try #require(
+    NSEvent.keyEvent(
+      with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
+      windowNumber: panel.windowNumber, context: nil, characters: "w",
+      charactersIgnoringModifiers: "w", isARepeat: false, keyCode: 13))
+  _ = panel.performKeyEquivalent(with: eventW)
   #expect(!panel.isVisible)
 }
 

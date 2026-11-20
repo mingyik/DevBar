@@ -6,6 +6,7 @@ final class DevBarPanel: NSPanel {
   var globalCycleOwnsR: (() -> Bool)?
   var onCyclePage: ((Bool) -> Void)?
   var onClipboardKey: ((UInt16) -> Bool)?
+  var onClosePanel: (() -> Void)?
 
   init() {
     super.init(
@@ -73,6 +74,13 @@ final class DevBarPanel: NSPanel {
       if globalCycleOwnsR?() != true {
         onCyclePage?(false)
       }
+      return true
+    }
+    if flags == .command,
+      event.charactersIgnoringModifiers?.lowercased() == "w"
+    {
+      // Agent apps have no Close menu item, so handle ⌘W while the panel is key.
+      onClosePanel?()
       return true
     }
     if flags.isEmpty, onClipboardKey?(event.keyCode) == true { return true }

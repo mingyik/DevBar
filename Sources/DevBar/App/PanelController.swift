@@ -130,6 +130,9 @@ final class PanelController {
       }
       dismiss()
     }
+    panel.onClosePanel = { [weak self] in
+      self?.model.onClosePanel?()
+    }
     panel.onDocumentMode = { [weak self] in
       guard let self, Self.supportsModeToggle(self.model.page) else { return false }
       if self.model.page == .doc {
