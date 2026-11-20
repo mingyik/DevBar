@@ -14,7 +14,7 @@ final class DevBarPanel: NSPanel {
       backing: .buffered,
       defer: false
     )
-    level = .normal
+    level = .floating
     collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
     hasShadow = true
     isOpaque = false
