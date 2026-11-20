@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -27,7 +29,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          printf '%s\n' "包含剪贴板历史、JSON、二维码、Markdown、区域截图和手动长图。要求 macOS 15 或更高版本、Apple Silicon；免费包为 ad-hoc 签名，首次打开请右键选择“打开”。" > release-notes.txt
+          previous=$(git describe --tags --abbrev=0 "$GITHUB_REF_NAME^" 2>/dev/null || true)
+          {
+            printf '## 更新内容\n\n'
+            if [ -n "$previous" ]; then
+              git log --max-count=30 --pretty=format:'- %s' "$previous..$GITHUB_REF_NAME"
+            else
+              git log --max-count=30 --pretty=format:'- %s' "$GITHUB_REF_NAME"
+            fi
+            printf '\n\n## 安装\n\n要求 macOS 15 或更高版本、Apple Silicon。免费包为 ad-hoc 签名，首次打开请右键选择“打开”。\n'
+          } > release-notes.txt
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release edit "$GITHUB_REF_NAME" --notes-file release-notes.txt
             gh release upload "$GITHUB_REF_NAME" build/DevBar-free-macOS-arm64.zip --clobber
