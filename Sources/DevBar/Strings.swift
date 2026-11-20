@@ -80,6 +80,7 @@ enum Strings {
   static let settingsTitle = "设置…"
   static let aboutTitle = "关于与开源许可"
   static let quit = "退出 DevBar"
+  static func appVersion(_ version: String) -> String { "版本 \(version)" }
   static let settingsPage = "设置"
   static let clipboardPlaceholder = "最近的剪贴板会列在这里。"
   static let toolsPlaceholder = "工具页稍后在这里打开。"

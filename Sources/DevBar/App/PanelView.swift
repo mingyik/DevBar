@@ -352,8 +352,16 @@ struct PanelView: View {
               }
             }
           }
-          Text(Strings.aboutBody).font(.system(size: 11)).foregroundStyle(
-            DesignTokens.textSecondary(scheme))
+          VStack(alignment: .leading, spacing: 6) {
+            Text(Strings.aboutBody)
+            if let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")
+              as? String
+            {
+              Text(Strings.appVersion(version))
+            }
+          }
+          .font(.system(size: 11))
+          .foregroundStyle(DesignTokens.textSecondary(scheme))
         }.foregroundStyle(DesignTokens.textPrimary(scheme))
           .frame(maxWidth: .infinity, alignment: .leading)
           .coordinateSpace(name: "page-order")
