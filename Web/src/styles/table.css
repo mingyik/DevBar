@@ -56,9 +56,6 @@
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.prose tbody tr:hover {
-  background: var(--panel-card);
-}
 /* Wide tables keep a visible, draggable horizontal bar so overflow is discoverable. */
 .prose .table-wrap {
   scrollbar-width: thin;
