@@ -137,14 +137,17 @@ struct PanelView: View {
       }
       Spacer(minLength: 8)
       if model.page == .doc {
+        ActionIcon(symbol: "eye", label: Strings.documentPreview, scheme: scheme) {
+          webHost.setDocumentDisplay("preview")
+        }
         Button {
-          webHost.cycleDocumentMode()
+          webHost.setDocumentDisplay(model.documentSplitButtonTarget)
         } label: {
           Group {
             if model.documentDisplay == "split" {
               Image(nsImage: AppIcons.documentEdit).resizable().frame(width: 16, height: 16)
             } else {
-              Image(systemName: model.documentDisplay == "source" ? "eye" : "rectangle.split.2x1")
+              Image(systemName: "rectangle.split.2x1")
                 .font(.system(size: 13))
             }
           }
@@ -152,15 +155,9 @@ struct PanelView: View {
           .frame(width: 24, height: 24)
         }
         .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
-        .help(
-          model.documentDisplay == "source"
-            ? Strings.documentPreview
-            : model.documentDisplay == "preview" ? Strings.documentSplit : Strings.documentEdit
-        )
+        .help(model.documentDisplay == "split" ? Strings.documentEdit : Strings.documentSplit)
         .accessibilityLabel(
-          model.documentDisplay == "source"
-            ? Strings.documentPreview
-            : model.documentDisplay == "preview" ? Strings.documentSplit : Strings.documentEdit)
+          model.documentDisplay == "split" ? Strings.documentEdit : Strings.documentSplit)
       }
       ActionIcon(symbol: "xmark", label: Strings.panelClose, scheme: scheme) {
         model.onClosePanel?()

@@ -79,6 +79,9 @@ final class PanelModel {
   var documentSidebarVisible = false
   var documentSplit = false
   var documentDisplay = "source"
+  var documentSplitButtonTarget: String {
+    documentDisplay == "split" ? "source" : "split"
+  }
   var documentSidebarPresentationWidth: CGFloat = 0
   var documentSidebarWidth: CGFloat = PanelLayout.sidebarWidth
   var documentContentWidth: CGFloat = PanelLayout.large.width

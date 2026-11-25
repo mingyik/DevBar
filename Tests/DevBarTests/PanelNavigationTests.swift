@@ -713,3 +713,23 @@ import Testing
     controller.dismiss()
   }
 }
+
+@MainActor @Test func devBarPanelUsesNormalActivatingWindowOrdering() {
+  _ = NSApplication.shared
+  let panel = DevBarPanel()
+  #expect(panel.level == .normal)
+  #expect(!panel.isFloatingPanel)
+  #expect(!panel.styleMask.contains(.nonactivatingPanel))
+  #expect(!panel.hidesOnDeactivate)
+}
+
+@MainActor @Test func documentSplitButtonTogglesBetweenSplitAndSource() {
+  let defaults = UserDefaults(suiteName: "devbar.doc.split.\(UUID())")!
+  let model = PanelModel(defaults: defaults)
+  model.documentDisplay = "source"
+  #expect(model.documentSplitButtonTarget == "split")
+  model.documentDisplay = "split"
+  #expect(model.documentSplitButtonTarget == "source")
+  model.documentDisplay = "preview"
+  #expect(model.documentSplitButtonTarget == "split")
+}
