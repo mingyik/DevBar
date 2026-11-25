@@ -33,9 +33,13 @@ jobs:
           {
             printf '## 更新内容\n\n'
             if [ -n "$previous" ]; then
-              git log --max-count=30 --pretty=format:'- %s' "$previous..$GITHUB_REF_NAME"
+              git log --max-count=30 --pretty=format:'- %s' \
+                --invert-grep --grep='^ci:' --grep='^release:' \
+                "$previous..$GITHUB_REF_NAME"
             else
-              git log --max-count=30 --pretty=format:'- %s' "$GITHUB_REF_NAME"
+              git log --max-count=30 --pretty=format:'- %s' \
+                --invert-grep --grep='^ci:' --grep='^release:' \
+                "$GITHUB_REF_NAME"
             fi
             printf '\n\n## 安装\n\n要求 macOS 15 或更高版本、Apple Silicon。免费包为 ad-hoc 签名，首次打开请右键选择“打开”。\n'
           } > release-notes.txt
