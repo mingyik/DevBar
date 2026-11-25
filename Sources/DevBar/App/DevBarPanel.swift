@@ -11,11 +11,12 @@ final class DevBarPanel: NSPanel {
   init() {
     super.init(
       contentRect: NSRect(x: 0, y: 0, width: 420, height: 560),
-      styleMask: [.nonactivatingPanel, .borderless, .fullSizeContentView],
+      styleMask: [.borderless, .fullSizeContentView],
       backing: .buffered,
       defer: false
     )
     level = .normal
+    isFloatingPanel = false
     collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
     hasShadow = true
     isOpaque = false
