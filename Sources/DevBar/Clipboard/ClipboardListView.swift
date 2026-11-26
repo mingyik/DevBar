@@ -3,10 +3,30 @@ import DevBarCore
 import KeyboardShortcuts
 import SwiftUI
 
+enum ClipboardListScroll {
+  static func anchor(
+    index: Int,
+    rowHeight: CGFloat = ClipboardRowLayout.rowHeight,
+    spacing: CGFloat = ClipboardRowLayout.rowSpacing,
+    topPadding: CGFloat = ClipboardRowLayout.verticalPadding,
+    offset: CGFloat,
+    viewport: CGFloat
+  ) -> UnitPoint? {
+    guard index >= 0, viewport > 0 else { return nil }
+    let rowTop = topPadding + CGFloat(index) * (rowHeight + spacing)
+    let rowBottom = rowTop + rowHeight
+    if rowTop < offset { return .top }
+    if rowBottom > offset + viewport { return .bottom }
+    return nil
+  }
+}
+
 struct ClipboardListView: View {
   @Bindable var controller: ClipboardController
   let scheme: ColorScheme
   @State private var cycleShortcut = KeyboardShortcuts.getShortcut(for: .cycleOlder)?.description
+  @State private var scrollOffset: CGFloat = 0
+  @State private var viewportHeight: CGFloat = 0
   var body: some View {
     VStack(spacing: 0) {
       authorization
@@ -16,9 +36,13 @@ struct ClipboardListView: View {
         ScrollViewReader { proxy in
           ReadOnlyScrollView(
             scheme: scheme, contentTrailingInset: 6, indicatorTrailingInset: -1,
-            indicatorWidth: 2
+            indicatorWidth: 2,
+            onViewportChange: { offset, viewport in
+              scrollOffset = offset
+              viewportHeight = viewport
+            }
           ) {
-            LazyVStack(spacing: 8) {
+            LazyVStack(spacing: ClipboardRowLayout.rowSpacing) {
               ForEach(Array(controller.items.enumerated()), id: \.element.id) { index, item in
                 ClipboardRow(controller: controller, item: item, index: index, scheme: scheme)
                   .id(item.id)
@@ -26,20 +50,13 @@ struct ClipboardListView: View {
             }
             .padding(.leading, 2)
             .padding(.trailing, 0)
-            .padding(.vertical, 2)
+            .padding(.vertical, ClipboardRowLayout.verticalPadding)
           }
           .onAppear {
-            if controller.items.indices.contains(controller.focusedIndex) {
-              proxy.scrollTo(controller.items[controller.focusedIndex].id, anchor: .top)
-            }
-          }
-          .onChange(of: controller.items.first?.id) { _, id in
-            if let id { proxy.scrollTo(id, anchor: .top) }
+            scrollIntoViewIfNeeded(index: controller.focusedIndex, proxy: proxy)
           }
           .onChange(of: controller.focusedIndex) { _, index in
-            if controller.items.indices.contains(index) {
-              proxy.scrollTo(controller.items[index].id, anchor: .top)
-            }
+            scrollIntoViewIfNeeded(index: index, proxy: proxy)
           }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -55,6 +72,15 @@ struct ClipboardListView: View {
     .onDisappear {
       if let id = controller.hoverID { controller.setHovered(id, inside: false) }
     }
+  }
+
+  private func scrollIntoViewIfNeeded(index: Int, proxy: ScrollViewProxy) {
+    guard controller.items.indices.contains(index) else { return }
+    guard
+      let anchor = ClipboardListScroll.anchor(
+        index: index, offset: scrollOffset, viewport: viewportHeight)
+    else { return }
+    proxy.scrollTo(controller.items[index].id, anchor: anchor)
   }
 
   private var emptyState: some View {
@@ -116,6 +142,9 @@ private enum ClipboardRowLayout {
   static let panelLeadingInset: CGFloat = 8
   static let rowCornerRadius: CGFloat = DesignTokens.radiusLarge - panelLeadingInset
   static let innerCornerRadius: CGFloat = max(4, rowCornerRadius - 4)
+  static let rowHeight: CGFloat = 56
+  static let rowSpacing: CGFloat = 8
+  static let verticalPadding: CGFloat = 2
 }
 
 private struct ClipboardRow: View {
@@ -129,7 +158,7 @@ private struct ClipboardRow: View {
   private var mono: Bool {
     item.preview.contains("\n") && ["{", ";", "=>", "</"].contains(where: item.preview.contains)
   }
-  private var selected: Bool { controller.focusedIndex == index }
+  private var selected: Bool { controller.focusedItemID == item.id }
   private var payloads: [ClipboardPayload] { controller.originals[item.id] ?? [] }
 
   var body: some View {
@@ -188,7 +217,7 @@ private struct ClipboardRow: View {
       }
       ClipTagChip(tag: cardContent.tag, scheme: scheme)
     }
-    .padding(.horizontal, 10).frame(height: 56)
+    .padding(.horizontal, 10).frame(height: ClipboardRowLayout.rowHeight)
     .background {
       ZStack {
         rowShape.fill(DesignTokens.panelCard(scheme))

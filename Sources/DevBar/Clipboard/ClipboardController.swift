@@ -34,6 +34,7 @@ final class ClipboardController {
   private var pasteTarget: pid_t?
   private(set) var isDirectPasteAuthorized = false
   var currentIndex: Int { cycler.currentIndex }
+  var focusedItemID: UUID? { items.indices.contains(focusedIndex) ? items[focusedIndex].id : nil }
 
   init(
     theme: ThemeManager, directory: URL? = nil,
@@ -102,6 +103,8 @@ final class ClipboardController {
 
   func reload() async {
     guard let store else { return }
+    let selectedID = items.indices.contains(currentIndex) ? items[currentIndex].id : nil
+    let focusedID = focusedItemID
     reloadGeneration += 1
     let generation = reloadGeneration
     let updated = await store.items
@@ -138,8 +141,13 @@ final class ClipboardController {
     previewTexts = texts
     thumbnails = images
     needsVisualCacheReload = !retainVisualCaches
-    cycler.select(cycler.currentIndex, count: items.count)
-    focusedIndex = min(focusedIndex, max(items.count - 1, 0))
+    let restoredSelected =
+      selectedID.flatMap { id in updated.firstIndex { $0.id == id } }
+      ?? min(cycler.currentIndex, max(updated.count - 1, 0))
+    cycler.select(restoredSelected, count: items.count)
+    focusedIndex =
+      focusedID.flatMap { id in updated.firstIndex { $0.id == id } }
+      ?? min(focusedIndex, max(items.count - 1, 0))
   }
 
   func restoreVisualCaches() async {
@@ -408,6 +416,7 @@ final class ClipboardController {
   func remove(_ id: UUID) async {
     guard let store else { return }
     let selected = items.indices.contains(currentIndex) ? items[currentIndex].id : nil
+    let focused = focusedItemID
     do {
       try await store.remove(id)
       reloadGeneration += 1
@@ -430,7 +439,10 @@ final class ClipboardController {
           updated.firstIndex { $0.id == id }
         } ?? min(cycler.currentIndex, max(updated.count - 1, 0))
       cycler.select(selectedIndex, count: updated.count)
-      focusedIndex = min(focusedIndex, max(updated.count - 1, 0))
+      focusedIndex =
+        focused.flatMap { id in
+          updated.firstIndex { $0.id == id }
+        } ?? min(focusedIndex, max(updated.count - 1, 0))
     } catch { message = Strings.historyWriteFailed }
   }
 

@@ -450,3 +450,38 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
   #expect(controller.focusedIndex == 0)
   #expect(Strings.clipboardEmptyShortcut("⇧⌘V") == "⇧⌘V 快速切换历史")
 }
+
+@Test func clipboardListScrollOnlyMovesWhenRowLeavesViewport() {
+  #expect(ClipboardListScroll.anchor(index: 0, offset: 0, viewport: 300) == nil)
+  #expect(ClipboardListScroll.anchor(index: 3, offset: 0, viewport: 300) == nil)
+  #expect(ClipboardListScroll.anchor(index: 5, offset: 0, viewport: 300) == .bottom)
+  #expect(ClipboardListScroll.anchor(index: 1, offset: 140, viewport: 300) == .top)
+  #expect(ClipboardListScroll.anchor(index: 3, offset: 140, viewport: 300) == nil)
+  #expect(ClipboardListScroll.anchor(index: 0, offset: 0, viewport: 0) == nil)
+}
+
+@MainActor @Test func clipboardRemovalPreservesFocusedItemByID() async throws {
+  _ = NSApplication.shared
+  let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: root) }
+  let defaults = UserDefaults(suiteName: "devbar-focus-id-test-\(UUID())")!
+  let controller = ClipboardController(
+    theme: ThemeManager(defaults: defaults), directory: root, startMonitoring: false,
+    defaults: defaults)
+  for index in 0..<4 {
+    let payloads = [
+      ClipboardPayload(
+        type: NSPasteboard.PasteboardType.string.rawValue,
+        data: Data("row \(index)".utf8))
+    ]
+    await controller.record(ClipboardCapture(payloads: payloads)!, source: nil)
+  }
+  let targetID = controller.items[2].id
+  let topID = controller.items[0].id
+  controller.focusedIndex = 2
+  #expect(controller.focusedItemID == targetID)
+
+  await controller.remove(topID)
+  #expect(controller.focusedItemID == targetID)
+  #expect(controller.focusedIndex == 1)
+}

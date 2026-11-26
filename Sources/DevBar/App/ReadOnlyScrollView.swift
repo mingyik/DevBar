@@ -9,6 +9,7 @@ struct ReadOnlyScrollView<Content: View>: View {
   var indicatorWidth: CGFloat = 3
   var indicatorOpacity: Double = 1
   var flashOnAppear = false
+  var onViewportChange: ((_ offset: CGFloat, _ viewport: CGFloat) -> Void)? = nil
   @ViewBuilder let content: () -> Content
   @State private var metrics = Metrics()
   @State private var visible = false
@@ -29,6 +30,7 @@ struct ReadOnlyScrollView<Content: View>: View {
           offset: geometry.contentOffset.y + geometry.contentInsets.top)
       } action: { old, new in
         metrics = new
+        onViewportChange?(new.offset, new.viewport)
         let scrolled = abs(new.offset - old.offset) > 0.1
         let appeared = flashOnAppear && old.content <= old.viewport && new.content > new.viewport
         if scrolled || appeared {
