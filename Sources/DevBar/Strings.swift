@@ -9,6 +9,7 @@ enum Strings {
   static let captureViewportMarker = "当前滚动位置"
   static let captureRecoveryMarker = "滚回这里"
   static let panelClose = "关闭窗口"
+  static let clipboardClear = "清除"
   static let documentPreview = "预览"
   static let documentSplit = "编辑并预览"
   static let documentEdit = "编辑"

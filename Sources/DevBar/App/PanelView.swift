@@ -136,6 +136,12 @@ struct PanelView: View {
         }.buttonStyle(.plain).onHover { titleHovered = $0 }
       }
       Spacer(minLength: 8)
+      if model.page == .clipboard {
+        ActionIcon(symbol: "eraser", label: Strings.clipboardClear, scheme: scheme) {
+          Task { await clipboard.clear() }
+        }
+        .disabled(clipboard.items.isEmpty)
+      }
       if model.page == .doc {
         ActionIcon(symbol: "eye", label: Strings.documentPreview, scheme: scheme) {
           webHost.setDocumentDisplay("preview")

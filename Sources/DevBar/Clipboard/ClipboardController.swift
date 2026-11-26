@@ -437,6 +437,8 @@ final class ClipboardController {
   func clear() async {
     do {
       try await store?.clear()
+      copyFeedback?.cancel()
+      copiedID = nil
       await reload()
       cycler.reset()
     } catch { message = Strings.historyWriteFailed }

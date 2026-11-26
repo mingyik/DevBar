@@ -414,3 +414,38 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
   #expect(controller.items.count == 1)
   #expect(controller.items[0].kind == .files)
 }
+
+@MainActor @Test func clipboardClearRemovesAllItemsAndResetsState() async throws {
+  _ = NSApplication.shared
+  let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: root) }
+  let defaults = UserDefaults(suiteName: "devbar-clear-test-\(UUID())")!
+  let controller = ClipboardController(
+    theme: ThemeManager(defaults: defaults), directory: root, startMonitoring: false,
+    defaults: defaults)
+  for index in 0..<3 {
+    let payloads = [
+      ClipboardPayload(
+        type: NSPasteboard.PasteboardType.string.rawValue,
+        data: Data("entry \(index)".utf8))
+    ]
+    await controller.record(ClipboardCapture(payloads: payloads)!, source: nil)
+  }
+  let board = NSPasteboard.withUniqueName()
+  defer { board.releaseGlobally() }
+  controller.select(1, board: board)
+  controller.setHovered(controller.items[0].id, inside: true)
+  #expect(controller.items.count == 3)
+  #expect(controller.copiedID != nil)
+  #expect(controller.hoverID != nil)
+
+  await controller.clear()
+  #expect(controller.items.isEmpty)
+  #expect(controller.originals.isEmpty)
+  #expect(controller.previewTexts.isEmpty)
+  #expect(controller.thumbnails.isEmpty)
+  #expect(controller.copiedID == nil)
+  #expect(controller.hoverID == nil)
+  #expect(controller.currentIndex == 0)
+  #expect(controller.focusedIndex == 0)
+}
