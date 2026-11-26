@@ -733,3 +733,13 @@ import Testing
   model.documentDisplay = "preview"
   #expect(model.documentSplitButtonTarget == "split")
 }
+
+@MainActor @Test func pageTitlesAndSwitchTooltipFollowUnifiedCopy() {
+  #expect(PanelModel.Page.clipboard.title == "Paste")
+  #expect(PanelModel.Page.json.title == "JSON")
+  #expect(PanelModel.Page.qr.title == "QR")
+  #expect(PanelModel.Page.doc.title == "Markdown")
+  #expect(Strings.switchNextPage("⌘R") == "切换到下一页 · ⌘R")
+  #expect(Strings.switchNextPage("") == "切换到下一页")
+  #expect(Strings.switchNextPage(nil) == "切换到下一页")
+}

@@ -20,8 +20,8 @@ struct PanelView: View {
   @State private var pageDragOffset = CGSize.zero
   @GestureState private var pageDragActive = false
   @State private var screenCaptureAllowed = CGPreflightScreenCaptureAccess()
-  @State private var titleHovered = false
   @State private var titleShortcut: String?
+  @State private var cycleShortcut: String?
 
   var body: some View {
     let scheme = theme.effective
@@ -88,6 +88,7 @@ struct PanelView: View {
   }
 
   private func refreshTitleShortcut() {
+    cycleShortcut = KeyboardShortcuts.getShortcut(for: .togglePanel)?.description
     guard model.page != .settings else {
       titleShortcut = nil
       return
@@ -103,6 +104,7 @@ struct PanelView: View {
     HStack(spacing: 8) {
       if model.page == .doc {
         sidebarButton(scheme)
+          .padding(.leading, -4)
       }
       if model.page == .settings {
         Button {
@@ -114,7 +116,11 @@ struct PanelView: View {
             Image(systemName: "chevron.left").devbarIconColor(scheme)
           }.font(.system(size: 13))
             .foregroundStyle(DesignTokens.textPrimary(scheme))
-        }.buttonStyle(.plain)
+            .padding(.horizontal, 6)
+            .frame(height: 24)
+        }
+        .buttonStyle(DevBarToolbarIconButtonStyle(scheme: scheme))
+        .padding(.leading, -6)
       } else {
         Button {
           model.cyclePage()
@@ -123,17 +129,18 @@ struct PanelView: View {
             Text(model.page.title)
               .font(.system(size: 15, weight: .semibold))
               .foregroundStyle(DesignTokens.textPrimary(scheme))
-              .overlay(alignment: .bottom) {
-                if titleHovered {
-                  Rectangle().fill(DesignTokens.textPrimary(scheme)).frame(height: 0.7)
-                }
-              }
             if let titleShortcut {
               Text(titleShortcut).font(.system(size: 11))
                 .foregroundStyle(DesignTokens.textTertiary(scheme))
             }
-          }.lineLimit(1)
-        }.buttonStyle(.plain).onHover { titleHovered = $0 }
+          }
+          .lineLimit(1)
+          .padding(.horizontal, 6)
+          .frame(height: 26)
+        }
+        .buttonStyle(DevBarToolbarIconButtonStyle(scheme: scheme))
+        .padding(.leading, model.page == .doc ? -4 : -6)
+        .help(Strings.switchNextPage(cycleShortcut))
       }
       Spacer(minLength: 8)
       if model.page == .clipboard {
@@ -146,24 +153,13 @@ struct PanelView: View {
         ActionIcon(symbol: "eye", label: Strings.documentPreview, scheme: scheme) {
           webHost.setDocumentDisplay("preview")
         }
-        Button {
+        ActionIcon(
+          symbol: model.documentDisplay == "split" ? "square.and.pencil" : "rectangle.split.2x1",
+          label: model.documentDisplay == "split" ? Strings.documentEdit : Strings.documentSplit,
+          scheme: scheme
+        ) {
           webHost.setDocumentDisplay(model.documentSplitButtonTarget)
-        } label: {
-          Group {
-            if model.documentDisplay == "split" {
-              Image(nsImage: AppIcons.documentEdit).resizable().frame(width: 16, height: 16)
-            } else {
-              Image(systemName: "rectangle.split.2x1")
-                .font(.system(size: 13))
-            }
-          }
-          .devbarIconColor(scheme)
-          .frame(width: 24, height: 24)
         }
-        .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
-        .help(model.documentDisplay == "split" ? Strings.documentEdit : Strings.documentSplit)
-        .accessibilityLabel(
-          model.documentDisplay == "split" ? Strings.documentEdit : Strings.documentSplit)
       }
       ActionIcon(symbol: "xmark", label: Strings.panelClose, scheme: scheme) {
         model.onClosePanel?()
@@ -172,15 +168,9 @@ struct PanelView: View {
   }
 
   private func sidebarButton(_ scheme: ColorScheme) -> some View {
-    Button(action: { model.onToggleDocumentSidebar?() }) {
-      Image(systemName: "sidebar.left").devbarIconColor(scheme)
-        .font(.system(size: 13, weight: .regular))
-        .frame(width: 24, height: 24)
-        .foregroundStyle(DesignTokens.textSecondary(scheme))
+    ActionIcon(symbol: "sidebar.left", label: Strings.documentSidebar, scheme: scheme) {
+      model.onToggleDocumentSidebar?()
     }
-    .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
-    .help(Strings.documentSidebar)
-    .accessibilityLabel(Strings.documentSidebar)
   }
 
   @ViewBuilder
@@ -585,9 +575,8 @@ private struct ActionIcon: View {
       Image(systemName: symbol).devbarIconColor(scheme)
         .font(.system(size: 13, weight: .regular))
         .frame(width: 24, height: 24)
-        .foregroundStyle(DesignTokens.textSecondary(scheme))
     }
-    .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
+    .buttonStyle(DevBarToolbarIconButtonStyle(scheme: scheme))
     .help(label)
     .accessibilityLabel(label)
   }

@@ -46,8 +46,14 @@ enum Strings {
   static let autoImport = "内容为空时带入剪贴板"
   static let result = "结果"
   static let copy = "复制"
-  static let pageJSON = "Json"
-  static let pageQR = "QrCode"
+  static let pageJSON = "JSON"
+  static let pageQR = "QR"
+  static func switchNextPage(_ shortcut: String?) -> String {
+    if let shortcut, !shortcut.isEmpty {
+      return "切换到下一页 · \(shortcut)"
+    }
+    return "切换到下一页"
+  }
   static let reorderPages = "拖动调整页面顺序"
   static let pageCycleSwitchHelp = "参与 ⌘R 页面切换；关闭后仍可使用此页面快捷键，至少保留一个开启"
   static let pageShortcuts = "页面快捷键"
