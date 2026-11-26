@@ -38,6 +38,7 @@ final class PanelController {
   private var previewGeneration = UUID()
   private var previewPointerInside = false
   private var previewHideTask: Task<Void, Never>?
+  private let previewScheduler = ClipboardHoverPreviewScheduler()
   private let logger = Logger(subsystem: "local.devbar.app", category: "panel")
   private let signposter = OSSignposter(subsystem: "local.devbar.app", category: "panel")
 
@@ -88,7 +89,7 @@ final class PanelController {
       try await webHost.relocateStorage(to: destination)
     }
     clipboard.onHoverPreview = { [weak self] id in
-      self?.showClipboardPreview(id)
+      self?.scheduleClipboardPreview(id)
     }
     webHost.onToast = { text in
       model.toast = text
@@ -283,6 +284,32 @@ final class PanelController {
     }
   }
 
+  private func scheduleClipboardPreview(_ id: UUID?) {
+    guard panel.isVisible, model.page == .clipboard, !clipboard.isDragging else {
+      previewScheduler.cancel()
+      previewHideTask?.cancel()
+      hideClipboardPreview()
+      return
+    }
+    guard let id else {
+      previewScheduler.cancel()
+      if clipboardPreview?.isVisible == true {
+        schedulePreviewHide()
+      }
+      return
+    }
+    previewHideTask?.cancel()
+    if clipboardPreviewItemID == id, clipboardPreview?.isVisible == true {
+      previewScheduler.cancel()
+      return
+    }
+    let visible = clipboardPreview?.isVisible == true
+    previewScheduler.schedule(id: id, isPreviewVisible: visible) { [weak self] targetID in
+      guard let self, self.clipboard.hoverID == targetID else { return }
+      self.showClipboardPreview(targetID)
+    }
+  }
+
   private func showClipboardPreview(_ id: UUID?) {
     guard panel.isVisible, model.page == .clipboard, !clipboard.isDragging else {
       previewHideTask?.cancel()
@@ -327,6 +354,7 @@ final class PanelController {
         guard let self else { return }
         self.previewPointerInside = inside
         if inside {
+          self.previewScheduler.cancel()
           self.previewHideTask?.cancel()
         } else {
           self.schedulePreviewHide()
@@ -436,6 +464,7 @@ final class PanelController {
   }
 
   private func hideClipboardPreview() {
+    previewScheduler.cancel()
     previewLoadTask?.cancel()
     previewLoadTask = nil
     previewGeneration = UUID()

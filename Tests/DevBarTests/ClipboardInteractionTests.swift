@@ -485,3 +485,74 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
   #expect(controller.focusedItemID == targetID)
   #expect(controller.focusedIndex == 1)
 }
+
+@MainActor @Test func clipboardHoverPreviewSchedulerDebouncesRapidSweepAndCancel() async {
+  @MainActor final class Clock: Sendable {
+    var delays: [Duration] = []
+    var continuations: [(id: UUID, continuation: CheckedContinuation<Void, any Error>)] = []
+    var cancelled: Set<UUID> = []
+    func record(_ delay: Duration) { delays.append(delay) }
+    func enqueue(id: UUID, _ continuation: CheckedContinuation<Void, any Error>) {
+      if cancelled.remove(id) != nil {
+        continuation.resume(throwing: CancellationError())
+      } else {
+        continuations.append((id, continuation))
+      }
+    }
+    func cancel(id: UUID) {
+      if let index = continuations.firstIndex(where: { $0.id == id }) {
+        let entry = continuations.remove(at: index)
+        entry.continuation.resume(throwing: CancellationError())
+      } else {
+        cancelled.insert(id)
+      }
+    }
+    func resumeLast() {
+      guard !continuations.isEmpty else { return }
+      continuations.removeLast().continuation.resume()
+    }
+  }
+  let clock = Clock()
+  let initialDelay = Duration.milliseconds(180)
+  let switchDelay = Duration.milliseconds(90)
+  let scheduler = ClipboardHoverPreviewScheduler(
+    initialDelay: initialDelay, switchDelay: switchDelay
+  ) { delay in
+    let token = UUID()
+    await MainActor.run { clock.record(delay) }
+    try await withTaskCancellationHandler {
+      try await withCheckedThrowingContinuation { continuation in
+        Task { @MainActor in clock.enqueue(id: token, continuation) }
+      }
+    } onCancel: {
+      Task { @MainActor in clock.cancel(id: token) }
+    }
+  }
+
+  var fired: [UUID] = []
+  let first = UUID()
+  let second = UUID()
+  let third = UUID()
+
+  scheduler.schedule(id: first, isPreviewVisible: false) { fired.append($0) }
+  scheduler.schedule(id: second, isPreviewVisible: false) { fired.append($0) }
+  while clock.continuations.isEmpty { await Task.yield() }
+  #expect(fired.isEmpty)
+  clock.resumeLast()
+  while fired.isEmpty { await Task.yield() }
+  #expect(fired == [second])
+  #expect(clock.delays.last == initialDelay)
+
+  scheduler.schedule(id: third, isPreviewVisible: true) { fired.append($0) }
+  while clock.continuations.isEmpty { await Task.yield() }
+  scheduler.cancel()
+  await Task.yield()
+  #expect(fired == [second])
+
+  scheduler.schedule(id: third, isPreviewVisible: true) { fired.append($0) }
+  while clock.continuations.isEmpty { await Task.yield() }
+  clock.resumeLast()
+  while fired.count < 2 { await Task.yield() }
+  #expect(fired == [second, third])
+  #expect(clock.delays.last == switchDelay)
+}

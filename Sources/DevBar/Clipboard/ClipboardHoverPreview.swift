@@ -16,6 +16,49 @@ enum ClipboardPreviewMedia: Equatable, Sendable {
   case webImage(Data, mime: String)
 }
 
+@MainActor
+final class ClipboardHoverPreviewScheduler {
+  private let initialDelay: Duration
+  private let switchDelay: Duration
+  private let sleep: @Sendable (Duration) async throws -> Void
+  private var task: Task<Void, Never>?
+  private(set) var pendingID: UUID?
+
+  init(
+    initialDelay: Duration = .milliseconds(180),
+    switchDelay: Duration = .milliseconds(90),
+    sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+  ) {
+    self.initialDelay = initialDelay
+    self.switchDelay = switchDelay
+    self.sleep = sleep
+  }
+
+  func schedule(
+    id: UUID,
+    isPreviewVisible: Bool,
+    onFire: @escaping @MainActor (UUID) -> Void
+  ) {
+    task?.cancel()
+    pendingID = id
+    let delay = isPreviewVisible ? switchDelay : initialDelay
+    let sleep = self.sleep
+    task = Task { @MainActor [weak self] in
+      do { try await sleep(delay) } catch { return }
+      guard !Task.isCancelled, let self, self.pendingID == id else { return }
+      self.pendingID = nil
+      self.task = nil
+      onFire(id)
+    }
+  }
+
+  func cancel() {
+    task?.cancel()
+    task = nil
+    pendingID = nil
+  }
+}
+
 @MainActor @Observable
 final class ClipboardHoverPreviewState {
   private(set) var item: ClipItem?
