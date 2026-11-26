@@ -2,6 +2,18 @@ import AppKit
 import SwiftUI
 
 @MainActor final class ClipboardCard {
+  enum VerticalEdge: Equatable {
+    case bottom
+    case top
+  }
+
+  struct LockedAnchor: Equatable {
+    let centerX: CGFloat
+    let edgeY: CGFloat
+    let edge: VerticalEdge
+    let visible: NSRect
+  }
+
   /// 每次展示后的停留时间；切换条目会重新计时。
   private static let visibleDuration = Duration.milliseconds(2000)
   let panel = NSPanel(
@@ -14,12 +26,14 @@ import SwiftUI
   private let theme: ThemeManager
   private var pointer: NSPoint?
   private var caret: NSRect?
+  private var lockedAnchor: LockedAnchor?
   private var locationTask: Task<Void, Never>?
   private var locationGeneration = 0
   private var locationTarget: pid_t?
   private var clickMonitor: Any?
   private let focusedProcess: () -> pid_t?
   private let caretBounds: (pid_t) async -> CGRect?
+  private let reduceMotion: () -> Bool
   private var dismissal: Task<Void, Never>?
   private var shakeTask: Task<Void, Never>?
   private(set) var isAuthorizationNoticeVisible = false
@@ -33,11 +47,15 @@ import SwiftUI
       await Task.detached(priority: .userInitiated) {
         ClipboardCaretLocator.bounds(for: target)
       }.value
+    },
+    reduceMotion: @escaping () -> Bool = {
+      NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
   ) {
     self.theme = theme
     self.focusedProcess = focusedProcess
     self.caretBounds = caretBounds
+    self.reduceMotion = reduceMotion
     panel.level = .popUpMenu
     panel.hidesOnDeactivate = false
     panel.ignoresMouseEvents = true
@@ -79,6 +97,14 @@ import SwiftUI
     }
     return frame(pointer: pointer, size: size, visible: visible)
   }
+  static func anchoredFrame(anchor: LockedAnchor, size: NSSize) -> NSRect {
+    let x = min(
+      max(anchor.centerX - size.width / 2, anchor.visible.minX),
+      anchor.visible.maxX - size.width)
+    let rawY = anchor.edge == .bottom ? anchor.edgeY : anchor.edgeY - size.height
+    let y = min(max(rawY, anchor.visible.minY), anchor.visible.maxY - size.height)
+    return NSRect(x: x, y: y, width: size.width, height: size.height)
+  }
   func show(index: Int, count: Int, content: ClipCardContent, boundary: Bool, target: pid_t? = nil)
   {
     show(
@@ -100,6 +126,7 @@ import SwiftUI
     if first {
       pointer = NSEvent.mouseLocation
       caret = nil
+      lockedAnchor = nil
     }
     let image = DragCardImage.make(
       title: title, subtitle: subtitle, fileCount: fileCount, thumbnail: thumbnail, swatch: swatch,
@@ -132,24 +159,39 @@ import SwiftUI
     }
   }
 
-  private func positionCard(size requestedSize: NSSize? = nil) {
-    let anchor = pointer ?? NSEvent.mouseLocation
+  private func positionCard(size requestedSize: NSSize? = nil, forceRelocate: Bool = false) {
     let size = requestedSize ?? panel.frame.size
+    if !forceRelocate, let lockedAnchor {
+      panel.setFrame(Self.anchoredFrame(anchor: lockedAnchor, size: size), display: true)
+      return
+    }
+    let anchor = pointer ?? NSEvent.mouseLocation
     if let caret,
       let screen = NSScreen.screens.first(where: {
         $0.frame.contains(NSPoint(x: caret.midX, y: caret.midY))
       })
     {
-      panel.setFrame(
-        Self.caretFrame(caret: caret, size: size, visible: screen.visibleFrame), display: true
-      )
+      let visible = screen.visibleFrame
+      let targetFrame = Self.caretFrame(caret: caret, size: size, visible: visible)
+      let edge: VerticalEdge = targetFrame.minY >= caret.maxY ? .bottom : .top
+      lockedAnchor = LockedAnchor(
+        centerX: targetFrame.midX,
+        edgeY: edge == .bottom ? targetFrame.minY : targetFrame.maxY,
+        edge: edge,
+        visible: visible)
+      panel.setFrame(targetFrame, display: true)
     } else if let screen = NSScreen.screens.first(where: { $0.frame.contains(anchor) }) {
-      panel.setFrame(
-        Self.frame(pointer: anchor, size: size, visible: screen.visibleFrame), display: true)
+      let visible = screen.visibleFrame
+      let targetFrame = Self.frame(pointer: anchor, size: size, visible: visible)
+      lockedAnchor = LockedAnchor(
+        centerX: targetFrame.midX, edgeY: targetFrame.minY, edge: .bottom, visible: visible)
+      panel.setFrame(targetFrame, display: true)
     } else if let screen = NSScreen.main ?? NSScreen.screens.first {
-      panel.setFrame(
-        Self.fallbackFrame(pointer: anchor, size: size, visible: screen.visibleFrame),
-        display: true)
+      let visible = screen.visibleFrame
+      let targetFrame = Self.fallbackFrame(pointer: anchor, size: size, visible: visible)
+      lockedAnchor = LockedAnchor(
+        centerX: targetFrame.midX, edgeY: targetFrame.minY, edge: .bottom, visible: visible)
+      panel.setFrame(targetFrame, display: true)
     }
   }
 
@@ -164,6 +206,7 @@ import SwiftUI
       Task { @MainActor in
         guard let self, self.panel.isVisible, !self.isAuthorizationNoticeVisible else { return }
         self.pointer = NSEvent.mouseLocation
+        self.lockedAnchor = nil
       }
     }
     locationTask = Task { [weak self] in
@@ -197,19 +240,21 @@ import SwiftUI
           $0.frame.contains(NSPoint(x: converted.midX, y: converted.midY))
         })
       else {
-        caret = nil
-        shakeTask?.cancel()
-        positionCard()
+        if caret != nil || lockedAnchor == nil {
+          caret = nil
+          shakeTask?.cancel()
+          positionCard(forceRelocate: true)
+        }
         return
       }
       guard caret != converted else { return }
       caret = converted
       shakeTask?.cancel()
-      positionCard()
-    } else {
+      positionCard(forceRelocate: true)
+    } else if caret != nil || lockedAnchor == nil {
       caret = nil
       shakeTask?.cancel()
-      positionCard()
+      positionCard(forceRelocate: true)
     }
   }
 
@@ -260,6 +305,7 @@ import SwiftUI
     panel.orderOut(nil)
     pointer = nil
     caret = nil
+    lockedAnchor = nil
     locationGeneration += 1
     locationTask?.cancel()
     locationTask = nil
@@ -293,6 +339,16 @@ import SwiftUI
     return NSRect(x: x, y: y, width: size.width, height: size.height)
   }
   private func shake() {
+    if reduceMotion() {
+      shakeTask = Task { [weak self] in
+        guard !Task.isCancelled, let self else { return }
+        self.panel.alphaValue = 0.82
+        try? await Task.sleep(for: .milliseconds(120))
+        guard !Task.isCancelled else { return }
+        self.panel.alphaValue = 1
+      }
+      return
+    }
     let origin = panel.frame.origin
     shakeTask = Task { [weak self] in
       for offset in [4.0, -4, 4, -4, 4, -4, 0] {
