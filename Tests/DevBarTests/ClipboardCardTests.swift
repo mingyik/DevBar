@@ -242,4 +242,74 @@ struct ClipboardCardTests {
     #expect(card.panel.frame.origin == originAfterBoundary)
     card.dismiss()
   }
+
+  @Test @MainActor func clipboardCardPointerNearTopLocksTopEdgeAndGrowsDownward() {
+    _ = NSApplication.shared
+    guard let screen = NSScreen.screens.first else { return }
+    let visible = screen.visibleFrame
+    let nearTopPointer = NSPoint(x: visible.midX, y: visible.maxY - 12)
+    let card = ClipboardCard(
+      theme: ThemeManager(), focusedProcess: { 1001 }, caretBounds: { _ in nil },
+      reduceMotion: { true }, mouseLocation: { nearTopPointer })
+    card.show(
+      index: 0, count: 2, title: "短文本", subtitle: "3 字符", thumbnail: nil, swatch: nil,
+      fileCount: 0, boundary: false)
+    let initialFrame = card.panel.frame
+    #expect(initialFrame.maxY <= nearTopPointer.y)
+    #expect(visible.contains(initialFrame))
+
+    card.show(
+      index: 1, count: 2, title: "第一行很长很长\n第二行也很长很长", subtitle: "16 字符",
+      thumbnail: NSImage(size: NSSize(width: 60, height: 60)), swatch: nil,
+      fileCount: 0, boundary: false, multilineContent: true)
+    let expandedFrame = card.panel.frame
+    #expect(abs(expandedFrame.maxY - initialFrame.maxY) < 0.5)
+    #expect(expandedFrame.minY <= initialFrame.minY)
+    #expect(visible.contains(expandedFrame))
+    card.dismiss()
+  }
+
+  @Test @MainActor
+  func clipboardReloadPreservesSelectionMadeDuringAsyncReloadAndDirectPasteMatchesCard()
+    async throws
+  {
+    _ = NSApplication.shared
+    let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let fileURL = root.appending(path: "sample.txt")
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    try Data("file".utf8).write(to: fileURL)
+
+    let defaults = UserDefaults(suiteName: "devbar-reload-race-test-\(UUID())")!
+    let controller = ClipboardController(
+      theme: ThemeManager(defaults: defaults), directory: root.appending(path: "store"),
+      startMonitoring: false, defaults: defaults)
+    let textPayloads = [
+      ClipboardPayload(
+        type: NSPasteboard.PasteboardType.string.rawValue, data: Data("plain text".utf8))
+    ]
+    let filePayloads = [
+      ClipboardPayload(
+        type: NSPasteboard.PasteboardType.fileURL.rawValue,
+        data: Data(fileURL.absoluteString.utf8))
+    ]
+    await controller.record(ClipboardCapture(payloads: textPayloads)!, source: nil)
+    await controller.record(ClipboardCapture(payloads: filePayloads)!, source: nil)
+    #expect(controller.items.count == 2)
+    #expect(controller.items[0].kind == .files)
+    #expect(controller.items[1].kind == .text)
+
+    let board = NSPasteboard.withUniqueName()
+    defer { board.releaseGlobally() }
+    let reloadTask = Task { await controller.reload() }
+    controller.cycle(older: true, board: board)
+    await reloadTask.value
+
+    let expectedID = controller.items[1].id
+    #expect(controller.items[controller.currentIndex].id == expectedID)
+    let pasteTarget = try #require(controller.directPasteItem())
+    #expect(pasteTarget.id == expectedID)
+    #expect(pasteTarget.kind == .text)
+    controller.card.dismiss()
+  }
 }

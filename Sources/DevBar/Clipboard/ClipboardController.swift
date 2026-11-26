@@ -21,7 +21,14 @@ final class ClipboardController {
   private(set) var hoverID: UUID?
   private(set) var isDragging = false
   var onHoverPreview: ((UUID?) -> Void)?
-  var focusedIndex = 0
+  var focusedIndex = 0 {
+    didSet {
+      guard !updatingFocusedIndex else { return }
+      trackedFocusedID = items.indices.contains(focusedIndex) ? items[focusedIndex].id : nil
+    }
+  }
+  private var trackedFocusedID: UUID?
+  private var updatingFocusedIndex = false
   var copiedID: UUID?
   var message = ""
   private var store: ClipboardStore?
@@ -32,6 +39,8 @@ final class ClipboardController {
   private var visualReloadTask: Task<Void, Never>?
   private(set) var lastCycleMilliseconds = 0.0
   private var pasteTarget: pid_t?
+  @ObservationIgnored private(set) var displayedCardItem:
+    (id: UUID, kind: ClipItem.Kind, payloads: [ClipboardPayload])?
   private(set) var isDirectPasteAuthorized = false
   var currentIndex: Int { cycler.currentIndex }
   var focusedItemID: UUID? { items.indices.contains(focusedIndex) ? items[focusedIndex].id : nil }
@@ -57,7 +66,10 @@ final class ClipboardController {
     monitor.onMemoryRejected = { [weak self] in self?.message = Strings.insufficientMemory }
     card.onMove = { [weak self] older in self?.cycle(older: older) }
     card.onConfirm = { [weak self] in self?.pasteSelection() }
-    card.onDismiss = { [weak self] in self?.pasteTarget = nil }
+    card.onDismiss = { [weak self] in
+      self?.pasteTarget = nil
+      self?.displayedCardItem = nil
+    }
     monitor.onCapture = { [weak self] capture, source in await self?.record(capture, source: source)
     }
     Task { [weak self] in
@@ -97,14 +109,17 @@ final class ClipboardController {
       }
       await reload()
       cycler.reset()
-      focusedIndex = 0
     } catch { message = Strings.historyWriteFailed }
+  }
+
+  private func applyFocusedIndex(_ index: Int) {
+    updatingFocusedIndex = true
+    focusedIndex = index
+    updatingFocusedIndex = false
   }
 
   func reload() async {
     guard let store else { return }
-    let selectedID = items.indices.contains(currentIndex) ? items[currentIndex].id : nil
-    let focusedID = focusedItemID
     reloadGeneration += 1
     let generation = reloadGeneration
     let updated = await store.items
@@ -132,6 +147,8 @@ final class ClipboardController {
       return result
     }.value
     guard generation == reloadGeneration else { return }
+    let selectedID = items.indices.contains(currentIndex) ? items[currentIndex].id : nil
+    let focusedID = trackedFocusedID
     if let hoverID, !updated.contains(where: { $0.id == hoverID }) {
       self.hoverID = nil
       onHoverPreview?(nil)
@@ -145,9 +162,14 @@ final class ClipboardController {
       selectedID.flatMap { id in updated.firstIndex { $0.id == id } }
       ?? min(cycler.currentIndex, max(updated.count - 1, 0))
     cycler.select(restoredSelected, count: items.count)
-    focusedIndex =
-      focusedID.flatMap { id in updated.firstIndex { $0.id == id } }
-      ?? min(focusedIndex, max(items.count - 1, 0))
+    if let focusedID, let restoredFocused = updated.firstIndex(where: { $0.id == focusedID }) {
+      applyFocusedIndex(restoredFocused)
+    } else {
+      applyFocusedIndex(min(focusedIndex, max(items.count - 1, 0)))
+      if focusedID != nil {
+        trackedFocusedID = items.indices.contains(focusedIndex) ? items[focusedIndex].id : nil
+      }
+    }
   }
 
   func restoreVisualCaches() async {
@@ -240,6 +262,7 @@ final class ClipboardController {
     select(cycler.currentIndex, board: board)
     let item = items[cycler.currentIndex]
     let payloads = originals[item.id] ?? []
+    displayedCardItem = (id: item.id, kind: item.kind, payloads: payloads)
     let content = ClipCardContent.make(
       item: item, payloads: payloads, thumbnail: thumbnails[item.id])
     card.show(
@@ -290,18 +313,24 @@ final class ClipboardController {
     return role as? String
   }
 
+  func directPasteItem() -> (id: UUID, kind: ClipItem.Kind, payloads: [ClipboardPayload])? {
+    if let displayedCardItem {
+      return displayedCardItem
+    }
+    guard items.indices.contains(cycler.currentIndex) else { return nil }
+    let item = items[cycler.currentIndex]
+    return (id: item.id, kind: item.kind, payloads: originals[item.id] ?? [])
+  }
+
   private func pasteSelection() {
     guard let target = pasteTarget,
       target != ProcessInfo.processInfo.processIdentifier,
-      NSWorkspace.shared.frontmostApplication?.processIdentifier == target
+      NSWorkspace.shared.frontmostApplication?.processIdentifier == target,
+      let targetItem = directPasteItem()
     else { return }
-    let selectedPayloads =
-      items.indices.contains(cycler.currentIndex)
-      ? originals[items[cycler.currentIndex].id] ?? [] : []
-    let isFile =
-      items.indices.contains(cycler.currentIndex) && items[cycler.currentIndex].kind == .files
-    let isImage =
-      items.indices.contains(cycler.currentIndex) && items[cycler.currentIndex].kind == .image
+    let selectedPayloads = targetItem.payloads
+    let isFile = targetItem.kind == .files
+    let isImage = targetItem.kind == .image
     let isTrusted = AXIsProcessTrusted()
     isDirectPasteAuthorized = isTrusted
     let initialFrontmost = NSWorkspace.shared.frontmostApplication
@@ -426,6 +455,7 @@ final class ClipboardController {
         onHoverPreview?(nil)
       }
       if copiedID == id { copiedID = nil }
+      if displayedCardItem?.id == id { displayedCardItem = nil }
       originals[id] = nil
       previewTexts[id] = nil
       thumbnails[id] = nil
@@ -439,10 +469,14 @@ final class ClipboardController {
           updated.firstIndex { $0.id == id }
         } ?? min(cycler.currentIndex, max(updated.count - 1, 0))
       cycler.select(selectedIndex, count: updated.count)
-      focusedIndex =
-        focused.flatMap { id in
-          updated.firstIndex { $0.id == id }
-        } ?? min(focusedIndex, max(updated.count - 1, 0))
+      if let focused, let restoredFocused = updated.firstIndex(where: { $0.id == focused }) {
+        applyFocusedIndex(restoredFocused)
+      } else {
+        applyFocusedIndex(min(focusedIndex, max(updated.count - 1, 0)))
+        if trackedFocusedID != nil {
+          trackedFocusedID = items.indices.contains(focusedIndex) ? items[focusedIndex].id : nil
+        }
+      }
     } catch { message = Strings.historyWriteFailed }
   }
 
@@ -451,8 +485,11 @@ final class ClipboardController {
       try await store?.clear()
       copyFeedback?.cancel()
       copiedID = nil
+      displayedCardItem = nil
+      trackedFocusedID = nil
       await reload()
       cycler.reset()
+      applyFocusedIndex(0)
     } catch { message = Strings.historyWriteFailed }
   }
 }

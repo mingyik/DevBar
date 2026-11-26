@@ -34,6 +34,7 @@ import SwiftUI
   private let focusedProcess: () -> pid_t?
   private let caretBounds: (pid_t) async -> CGRect?
   private let reduceMotion: () -> Bool
+  private let mouseLocation: () -> NSPoint
   private var dismissal: Task<Void, Never>?
   private var shakeTask: Task<Void, Never>?
   private(set) var isAuthorizationNoticeVisible = false
@@ -50,12 +51,14 @@ import SwiftUI
     },
     reduceMotion: @escaping () -> Bool = {
       NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-    }
+    },
+    mouseLocation: @escaping () -> NSPoint = { NSEvent.mouseLocation }
   ) {
     self.theme = theme
     self.focusedProcess = focusedProcess
     self.caretBounds = caretBounds
     self.reduceMotion = reduceMotion
+    self.mouseLocation = mouseLocation
     panel.level = .popUpMenu
     panel.hidesOnDeactivate = false
     panel.ignoresMouseEvents = true
@@ -76,8 +79,12 @@ import SwiftUI
     }
   }
   static func frame(pointer: NSPoint, size: NSSize, visible: NSRect) -> NSRect {
+    let gap: CGFloat = 26
     let x = min(max(pointer.x - size.width / 2, visible.minX), visible.maxX - size.width)
-    let y = min(max(pointer.y + 36 - 10, visible.minY), visible.maxY - size.height)
+    let above = pointer.y + gap
+    let below = pointer.y - gap - size.height
+    let rawY = above + size.height <= visible.maxY ? above : below
+    let y = min(max(rawY, visible.minY), visible.maxY - size.height)
     return NSRect(x: x, y: y, width: size.width, height: size.height)
   }
   static func caretFrame(caret: NSRect, size: NSSize, visible: NSRect) -> NSRect {
@@ -124,7 +131,7 @@ import SwiftUI
     isAuthorizationNoticeVisible = false
     let first = !panel.isVisible
     if first {
-      pointer = NSEvent.mouseLocation
+      pointer = mouseLocation()
       caret = nil
       lockedAnchor = nil
     }
@@ -165,7 +172,7 @@ import SwiftUI
       panel.setFrame(Self.anchoredFrame(anchor: lockedAnchor, size: size), display: true)
       return
     }
-    let anchor = pointer ?? NSEvent.mouseLocation
+    let anchor = pointer ?? mouseLocation()
     if let caret,
       let screen = NSScreen.screens.first(where: {
         $0.frame.contains(NSPoint(x: caret.midX, y: caret.midY))
@@ -173,7 +180,8 @@ import SwiftUI
     {
       let visible = screen.visibleFrame
       let targetFrame = Self.caretFrame(caret: caret, size: size, visible: visible)
-      let edge: VerticalEdge = targetFrame.minY >= caret.maxY ? .bottom : .top
+      let edge: VerticalEdge =
+        targetFrame.minY >= caret.maxY && targetFrame.maxY < visible.maxY - 1 ? .bottom : .top
       lockedAnchor = LockedAnchor(
         centerX: targetFrame.midX,
         edgeY: edge == .bottom ? targetFrame.minY : targetFrame.maxY,
@@ -183,14 +191,23 @@ import SwiftUI
     } else if let screen = NSScreen.screens.first(where: { $0.frame.contains(anchor) }) {
       let visible = screen.visibleFrame
       let targetFrame = Self.frame(pointer: anchor, size: size, visible: visible)
+      let edge: VerticalEdge =
+        targetFrame.minY >= anchor.y && targetFrame.maxY < visible.maxY - 1 ? .bottom : .top
       lockedAnchor = LockedAnchor(
-        centerX: targetFrame.midX, edgeY: targetFrame.minY, edge: .bottom, visible: visible)
+        centerX: targetFrame.midX,
+        edgeY: edge == .bottom ? targetFrame.minY : targetFrame.maxY,
+        edge: edge,
+        visible: visible)
       panel.setFrame(targetFrame, display: true)
     } else if let screen = NSScreen.main ?? NSScreen.screens.first {
       let visible = screen.visibleFrame
       let targetFrame = Self.fallbackFrame(pointer: anchor, size: size, visible: visible)
+      let edge: VerticalEdge = targetFrame.maxY >= visible.maxY - 1 ? .top : .bottom
       lockedAnchor = LockedAnchor(
-        centerX: targetFrame.midX, edgeY: targetFrame.minY, edge: .bottom, visible: visible)
+        centerX: targetFrame.midX,
+        edgeY: edge == .bottom ? targetFrame.minY : targetFrame.maxY,
+        edge: edge,
+        visible: visible)
       panel.setFrame(targetFrame, display: true)
     }
   }

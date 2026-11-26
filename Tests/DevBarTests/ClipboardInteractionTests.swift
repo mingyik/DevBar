@@ -556,3 +556,34 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
   #expect(fired == [second, third])
   #expect(clock.delays.last == switchDelay)
 }
+
+@MainActor @Test func clipboardInsertAtTopPreservesExplicitlyFocusedItemByID() async throws {
+  _ = NSApplication.shared
+  let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: root) }
+  let defaults = UserDefaults(suiteName: "devbar-insert-focus-test-\(UUID())")!
+  let controller = ClipboardController(
+    theme: ThemeManager(defaults: defaults), directory: root, startMonitoring: false,
+    defaults: defaults)
+  for index in 0..<3 {
+    let payloads = [
+      ClipboardPayload(
+        type: NSPasteboard.PasteboardType.string.rawValue,
+        data: Data("item \(index)".utf8))
+    ]
+    await controller.record(ClipboardCapture(payloads: payloads)!, source: nil)
+  }
+  let targetID = controller.items[1].id
+  controller.focusedIndex = 1
+  #expect(controller.focusedItemID == targetID)
+
+  let inserted = [
+    ClipboardPayload(
+      type: NSPasteboard.PasteboardType.string.rawValue,
+      data: Data("brand new".utf8))
+  ]
+  await controller.record(ClipboardCapture(payloads: inserted)!, source: nil)
+  #expect(controller.currentIndex == 0)
+  #expect(controller.focusedItemID == targetID)
+  #expect(controller.focusedIndex == 2)
+}
