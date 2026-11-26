@@ -111,6 +111,13 @@ struct ClipboardListView: View {
   }
 }
 
+private enum ClipboardRowLayout {
+  /// Main column has 10pt horizontal padding, list expands by -4pt, stack pads 2pt on leading = 8pt.
+  static let panelLeadingInset: CGFloat = 8
+  static let rowCornerRadius: CGFloat = DesignTokens.radiusLarge - panelLeadingInset
+  static let innerCornerRadius: CGFloat = max(4, rowCornerRadius - 4)
+}
+
 private struct ClipboardRow: View {
   @Bindable var controller: ClipboardController
   let item: ClipItem
@@ -126,29 +133,30 @@ private struct ClipboardRow: View {
   private var payloads: [ClipboardPayload] { controller.originals[item.id] ?? [] }
 
   var body: some View {
-    let rowShape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+    let rowShape = RoundedRectangle(
+      cornerRadius: ClipboardRowLayout.rowCornerRadius, style: .continuous)
+    let innerShape = RoundedRectangle(
+      cornerRadius: ClipboardRowLayout.innerCornerRadius, style: .continuous)
     let activeHover = hovered && !dragging
     let activeSelect = selected && !dragging
     HStack(spacing: 8) {
       HStack(spacing: 8) {
         if let color = ClipboardColor.parse(item.preview) {
-          let swatchShape = RoundedRectangle(cornerRadius: 4, style: .continuous)
-          swatchShape
+          innerShape
             .fill(
               Color(  // devbar:allow-color
                 .sRGB, red: color.red, green: color.green, blue: color.blue, opacity: color.alpha)
             )
             .overlay {
-              swatchShape.strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: 0.5)
+              innerShape.strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: 0.5)
             }
             .frame(width: 16, height: 16)
         }
         if let image = controller.thumbnails[item.id] {
-          let thumbShape = RoundedRectangle(cornerRadius: 6, style: .continuous)
           Image(nsImage: image).resizable().scaledToFill().frame(width: 32, height: 32)
-            .clipShape(thumbShape)
+            .clipShape(innerShape)
             .overlay {
-              thumbShape.strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: 0.5)
+              innerShape.strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: 0.5)
             }
         }
         Text(item.preview)
@@ -196,9 +204,9 @@ private struct ClipboardRow: View {
           lineWidth: DesignTokens.strokeStrong
         )
         .allowsHitTesting(false)
-      } else {
+      } else if activeHover {
         rowShape.strokeBorder(
-          DesignTokens.lineBorder(scheme).opacity(activeHover ? 1.35 : 0.6),
+          DesignTokens.lineBorder(scheme).opacity(1.35),
           lineWidth: DesignTokens.strokeHairline
         )
         .allowsHitTesting(false)
@@ -233,12 +241,16 @@ struct ClipTagChip: View {
       .lineLimit(1).fixedSize()
       .padding(.horizontal, 5).frame(height: 16)
       .background {
-        RoundedRectangle(cornerRadius: 4, style: .continuous)
-          .fill(DesignTokens.panelControl(scheme))
-          .overlay {
-            RoundedRectangle(cornerRadius: 4, style: .continuous)
-              .strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline)
-          }
+        RoundedRectangle(
+          cornerRadius: ClipboardRowLayout.innerCornerRadius, style: .continuous
+        )
+        .fill(DesignTokens.panelControl(scheme))
+        .overlay {
+          RoundedRectangle(
+            cornerRadius: ClipboardRowLayout.innerCornerRadius, style: .continuous
+          )
+          .strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline)
+        }
       }
   }
 }

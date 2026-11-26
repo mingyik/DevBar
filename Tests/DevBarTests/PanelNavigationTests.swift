@@ -740,6 +740,6 @@ import Testing
   #expect(PanelModel.Page.qr.title == "QR")
   #expect(PanelModel.Page.doc.title == "Markdown")
   #expect(Strings.switchNextPage("⌘R") == "切换到下一页 · ⌘R")
-  #expect(Strings.switchNextPage("") == "切换到下一页")
-  #expect(Strings.switchNextPage(nil) == "切换到下一页")
+  #expect(Strings.switchNextPage("") == "切换到下一页 · ⌘R（面板内）")
+  #expect(Strings.switchNextPage(nil) == "切换到下一页 · ⌘R（面板内）")
 }

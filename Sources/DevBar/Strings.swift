@@ -52,7 +52,7 @@ enum Strings {
     if let shortcut, !shortcut.isEmpty {
       return "切换到下一页 · \(shortcut)"
     }
-    return "切换到下一页"
+    return "切换到下一页 · ⌘R（面板内）"
   }
   static let reorderPages = "拖动调整页面顺序"
   static let pageCycleSwitchHelp = "参与 ⌘R 页面切换；关闭后仍可使用此页面快捷键，至少保留一个开启"
