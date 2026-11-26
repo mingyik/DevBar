@@ -18,7 +18,7 @@ struct ClipboardListView: View {
             scheme: scheme, contentTrailingInset: 6, indicatorTrailingInset: -1,
             indicatorWidth: 2
           ) {
-            LazyVStack(spacing: 10) {
+            LazyVStack(spacing: 8) {
               ForEach(Array(controller.items.enumerated()), id: \.element.id) { index, item in
                 ClipboardRow(controller: controller, item: item, index: index, scheme: scheme)
                   .id(item.id)
@@ -106,19 +106,29 @@ private struct ClipboardRow: View {
 
   var body: some View {
     let rowShape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+    let activeHover = hovered && !dragging
+    let activeSelect = selected && !dragging
     HStack(spacing: 8) {
       HStack(spacing: 8) {
         if let color = ClipboardColor.parse(item.preview) {
-          RoundedRectangle(cornerRadius: 4)
+          let swatchShape = RoundedRectangle(cornerRadius: 4, style: .continuous)
+          swatchShape
             .fill(
               Color(  // devbar:allow-color
                 .sRGB, red: color.red, green: color.green, blue: color.blue, opacity: color.alpha)
             )
+            .overlay {
+              swatchShape.strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: 0.5)
+            }
             .frame(width: 16, height: 16)
         }
         if let image = controller.thumbnails[item.id] {
+          let thumbShape = RoundedRectangle(cornerRadius: 6, style: .continuous)
           Image(nsImage: image).resizable().scaledToFill().frame(width: 32, height: 32)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(thumbShape)
+            .overlay {
+              thumbShape.strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: 0.5)
+            }
         }
         Text(item.preview)
           .font(.system(size: 13, design: mono ? .monospaced : .default))
@@ -149,36 +159,34 @@ private struct ClipboardRow: View {
       }
       ClipTagChip(tag: cardContent.tag, scheme: scheme)
     }
-    .padding(.horizontal, 8).frame(height: 56)
+    .padding(.horizontal, 10).frame(height: 56)
     .background {
       ZStack {
-        if hovered && !dragging {
-          let glow = Color.blue  // devbar:allow-color
-          rowShape.stroke(glow.opacity(0.4), lineWidth: 1.2)
-            .blur(radius: 2.5)
-            .shadow(color: glow.opacity(0.3), radius: 5)
-            .allowsHitTesting(false)
+        rowShape.fill(DesignTokens.panelCard(scheme))
+        if activeSelect || activeHover {
+          rowShape.fill(DesignTokens.panelControl(scheme))
         }
-        rowShape.fill(
-          selected ? DesignTokens.panelControl(scheme) : DesignTokens.panelCard(scheme)
-        )
       }
     }
-    .overlay(alignment: .leading) {
-      if selected && !dragging {
-        GeometryReader { geometry in
-          HStack(spacing: 0) {
-            Rectangle().fill(Color.blue).frame(width: 4)  // devbar:allow-color
-            Spacer(minLength: 0)
-          }
-          .frame(width: geometry.size.width, height: geometry.size.height)
-          .clipShape(rowShape)
-        }
+    .overlay {
+      if activeSelect {
+        rowShape.strokeBorder(
+          DesignTokens.selectionBorder(scheme).opacity(activeHover ? 0.9 : 0.72),
+          lineWidth: DesignTokens.strokeStrong
+        )
+        .allowsHitTesting(false)
+      } else {
+        rowShape.strokeBorder(
+          DesignTokens.lineBorder(scheme).opacity(activeHover ? 1.35 : 0.6),
+          lineWidth: DesignTokens.strokeHairline
+        )
         .allowsHitTesting(false)
       }
     }
     .opacity(dragging ? 0 : 1)
     .animation(reduceMotion || dragging ? nil : .easeOut(duration: 0.16), value: dragging)
+    .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: activeHover)
+    .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: activeSelect)
     .contentShape(Rectangle()).onTapGesture { controller.select(index) }
     .onHover { inside in
       hovered = inside
