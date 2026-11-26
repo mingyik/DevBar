@@ -45,11 +45,6 @@ struct ClipboardListView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipped()
       }
-      if !controller.message.isEmpty {
-        Text(controller.message).font(.system(size: 11))
-          .foregroundStyle(DesignTokens.textTertiary(scheme)).lineLimit(1)
-          .frame(maxWidth: .infinity, alignment: .leading)
-      }
     }
     .onAppear {
       cycleShortcut = KeyboardShortcuts.getShortcut(for: .cycleOlder)?.description
