@@ -214,9 +214,11 @@ private struct ClipboardRow: View {
       if controller.copiedID == item.id {
         Image(systemName: "checkmark").font(.system(size: 11))
           .foregroundStyle(DesignTokens.textPrimary(scheme))
+          .transition(reduceMotion ? .identity : .opacity.combined(with: .scale(scale: 0.7)))
       }
       ClipTagChip(tag: cardContent.tag, scheme: scheme)
     }
+    .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: controller.copiedID == item.id)
     .padding(.horizontal, 10).frame(height: ClipboardRowLayout.rowHeight)
     .background {
       ZStack {

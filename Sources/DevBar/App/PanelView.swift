@@ -570,10 +570,12 @@ private struct ActionIcon: View {
   let label: String
   let scheme: ColorScheme
   let action: () -> Void
+  @Environment(\.accessibilityReduceMotion) private var reduceMotion
   var body: some View {
     Button(action: action) {
       Image(systemName: symbol).devbarIconColor(scheme)
         .font(.system(size: 13, weight: .regular))
+        .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
         .frame(width: 24, height: 24)
     }
     .buttonStyle(DevBarToolbarIconButtonStyle(scheme: scheme))
