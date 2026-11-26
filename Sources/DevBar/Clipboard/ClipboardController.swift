@@ -405,29 +405,40 @@ final class ClipboardController {
     guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 9, keyDown: true),
       let up = CGEvent(keyboardEventSource: nil, virtualKey: 9, keyDown: false)
     else { return }
+    var expectedChangeCount = targetItem.pasteboardChangeCount
     if action == .filePaths {
-      guard NSWorkspace.shared.frontmostApplication?.processIdentifier == target,
-        let paths = Self.filePaths(payloads: selectedPayloads)
-      else { return }
-      board.clearContents()
-      guard board.setString(paths, forType: .string) else { return }
-      if board.name == .general { monitor.markSelfWrite(board.changeCount) }
-    } else if action == .imageFilePath {
-      guard let item = ClipboardDragFile(payloads: selectedPayloads)?.imagePasteboardItem(),
-        NSWorkspace.shared.frontmostApplication?.processIdentifier == target
-      else { return }
-      board.clearContents()
-      guard board.writeObjects([item]) else { return }
-      if board.name == .general { monitor.markSelfWrite(board.changeCount) }
-    }
-    guard NSWorkspace.shared.frontmostApplication?.processIdentifier == target else { return }
-    if action == .original {
-      guard board.name == targetItem.pasteboardName,
+      guard let paths = Self.filePaths(payloads: selectedPayloads),
+        NSWorkspace.shared.frontmostApplication?.processIdentifier == target,
+        board.name == targetItem.pasteboardName,
         board.changeCount == targetItem.pasteboardChangeCount
       else {
         card.dismiss()
         return
       }
+      board.clearContents()
+      guard board.setString(paths, forType: .string) else { return }
+      expectedChangeCount = board.changeCount
+      if board.name == .general { monitor.markSelfWrite(expectedChangeCount) }
+    } else if action == .imageFilePath {
+      guard let item = ClipboardDragFile(payloads: selectedPayloads)?.imagePasteboardItem(),
+        NSWorkspace.shared.frontmostApplication?.processIdentifier == target,
+        board.name == targetItem.pasteboardName,
+        board.changeCount == targetItem.pasteboardChangeCount
+      else {
+        card.dismiss()
+        return
+      }
+      board.clearContents()
+      guard board.writeObjects([item]) else { return }
+      expectedChangeCount = board.changeCount
+      if board.name == .general { monitor.markSelfWrite(expectedChangeCount) }
+    }
+    guard NSWorkspace.shared.frontmostApplication?.processIdentifier == target,
+      board.name == targetItem.pasteboardName,
+      board.changeCount == expectedChangeCount
+    else {
+      card.dismiss()
+      return
     }
     down.flags = .maskCommand
     up.flags = .maskCommand
