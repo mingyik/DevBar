@@ -1,17 +1,17 @@
 import AppKit
 import DevBarCore
+import KeyboardShortcuts
 import SwiftUI
 
 struct ClipboardListView: View {
   @Bindable var controller: ClipboardController
   let scheme: ColorScheme
+  @State private var cycleShortcut = KeyboardShortcuts.getShortcut(for: .cycleOlder)?.description
   var body: some View {
     VStack(spacing: 0) {
       authorization
       if controller.items.isEmpty {
-        Text(Strings.clipboardEmpty).font(.system(size: 13))
-          .foregroundStyle(DesignTokens.textSecondary(scheme)).lineLimit(1)
-          .frame(maxWidth: .infinity, maxHeight: .infinity)
+        emptyState
       } else {
         ScrollViewReader { proxy in
           ReadOnlyScrollView(
@@ -51,9 +51,35 @@ struct ClipboardListView: View {
           .frame(maxWidth: .infinity, alignment: .leading)
       }
     }
+    .onAppear {
+      cycleShortcut = KeyboardShortcuts.getShortcut(for: .cycleOlder)?.description
+    }
+    .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)) { _ in
+      cycleShortcut = KeyboardShortcuts.getShortcut(for: .cycleOlder)?.description
+    }
     .onDisappear {
       if let id = controller.hoverID { controller.setHovered(id, inside: false) }
     }
+  }
+
+  private var emptyState: some View {
+    VStack(spacing: 8) {
+      Image(systemName: "clipboard")
+        .font(.system(size: 24, weight: .light))
+        .foregroundStyle(DesignTokens.textTertiary(scheme).opacity(0.65))
+      Text(Strings.clipboardEmpty)
+        .font(.system(size: 13))
+        .foregroundStyle(DesignTokens.textSecondary(scheme))
+        .lineLimit(1)
+      if let cycleShortcut, !cycleShortcut.isEmpty {
+        Text(Strings.clipboardEmptyShortcut(cycleShortcut))
+          .font(.system(size: 11))
+          .foregroundStyle(DesignTokens.textTertiary(scheme))
+          .lineLimit(1)
+      }
+    }
+    .padding(.bottom, 16)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
   }
 
   @ViewBuilder private var authorization: some View {

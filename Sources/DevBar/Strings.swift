@@ -63,6 +63,7 @@ enum Strings {
   static let clipboardImage = "图片"
   static let clipboardRichText = "富文本"
   static let clipboardEmpty = "复制点什么，这里会出现"
+  static func clipboardEmptyShortcut(_ shortcut: String) -> String { "\(shortcut) 快速切换历史" }
   static let clipboardAsk = "允许读取后才能记录剪贴板"
   static let clipboardDenied = "未获准读取剪贴板"
   static let clipboardPending = "有新内容，点击记录"

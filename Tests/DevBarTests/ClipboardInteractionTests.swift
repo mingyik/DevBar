@@ -448,4 +448,5 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
   #expect(controller.hoverID == nil)
   #expect(controller.currentIndex == 0)
   #expect(controller.focusedIndex == 0)
+  #expect(Strings.clipboardEmptyShortcut("⇧⌘V") == "⇧⌘V 快速切换历史")
 }
