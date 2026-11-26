@@ -8,6 +8,14 @@ import UniformTypeIdentifiers
 
 @MainActor @Observable
 final class ClipboardController {
+  struct DisplayedCardSnapshot {
+    let id: UUID
+    let kind: ClipItem.Kind
+    let payloads: [ClipboardPayload]
+    let pasteboardChangeCount: Int
+    let pasteboardName: NSPasteboard.Name
+  }
+
   private var authorizationPrompt: DirectPasteAuthorizationPrompt?
   let monitor: ClipboardMonitor
   let card: ClipboardCard
@@ -39,8 +47,8 @@ final class ClipboardController {
   private var visualReloadTask: Task<Void, Never>?
   private(set) var lastCycleMilliseconds = 0.0
   private var pasteTarget: pid_t?
-  @ObservationIgnored private(set) var displayedCardItem:
-    (id: UUID, kind: ClipItem.Kind, payloads: [ClipboardPayload])?
+  @ObservationIgnored private(set) var displayedCardItem: DisplayedCardSnapshot?
+  @ObservationIgnored var onReloadSuspended: (@MainActor () async -> Void)?
   private(set) var isDirectPasteAuthorized = false
   var currentIndex: Int { cycler.currentIndex }
   var focusedItemID: UUID? { items.indices.contains(focusedIndex) ? items[focusedIndex].id : nil }
@@ -107,6 +115,11 @@ final class ClipboardController {
         message = Strings.imageTooLarge
         return
       }
+      if card.panel.isVisible {
+        card.dismiss()
+      } else {
+        displayedCardItem = nil
+      }
       await reload()
       cycler.reset()
     } catch { message = Strings.historyWriteFailed }
@@ -146,12 +159,18 @@ final class ClipboardController {
       }
       return result
     }.value
+    if let onReloadSuspended {
+      await onReloadSuspended()
+    }
     guard generation == reloadGeneration else { return }
     let selectedID = items.indices.contains(currentIndex) ? items[currentIndex].id : nil
     let focusedID = trackedFocusedID
     if let hoverID, !updated.contains(where: { $0.id == hoverID }) {
       self.hoverID = nil
       onHoverPreview?(nil)
+    }
+    if let displayedID = displayedCardItem?.id, !updated.contains(where: { $0.id == displayedID }) {
+      card.dismiss()
     }
     items = updated
     originals = payloads
@@ -198,22 +217,25 @@ final class ClipboardController {
     needsVisualCacheReload = true
   }
 
-  func select(_ index: Int, board: NSPasteboard = .general) {
+  @discardableResult
+  func select(_ index: Int, board: NSPasteboard = .general) -> Bool {
     if needsVisualCacheReload {
-      guard items.indices.contains(index) else { return }
+      guard items.indices.contains(index) else { return false }
       let id = items[index].id
       Task {
         await ensureVisualCaches()
         if let current = items.firstIndex(where: { $0.id == id }) { select(current, board: board) }
       }
-      return
+      return false
     }
-    guard items.indices.contains(index), let payloads = originals[items[index].id] else { return }
+    guard items.indices.contains(index), let payloads = originals[items[index].id] else {
+      return false
+    }
     let entries = Self.pasteboardItems(payloads: payloads)
     board.clearContents()
     guard board.writeObjects(entries) else {
       message = Strings.historyWriteFailed
-      return
+      return false
     }
     if board.name == .general { monitor.markSelfWrite(board.changeCount) }
     cycler.select(index, count: items.count)
@@ -225,6 +247,7 @@ final class ClipboardController {
       guard !Task.isCancelled else { return }
       self?.copiedID = nil
     }
+    return true
   }
 
   static func pasteboardItems(payloads: [ClipboardPayload]) -> [NSPasteboardItem] {
@@ -259,10 +282,15 @@ final class ClipboardController {
     }
     let started = ContinuousClock.now
     let boundary = cycler.move(older: older, count: items.count)
-    select(cycler.currentIndex, board: board)
+    guard select(cycler.currentIndex, board: board) else {
+      card.dismiss()
+      return
+    }
     let item = items[cycler.currentIndex]
     let payloads = originals[item.id] ?? []
-    displayedCardItem = (id: item.id, kind: item.kind, payloads: payloads)
+    displayedCardItem = DisplayedCardSnapshot(
+      id: item.id, kind: item.kind, payloads: payloads,
+      pasteboardChangeCount: board.changeCount, pasteboardName: board.name)
     let content = ClipCardContent.make(
       item: item, payloads: payloads, thumbnail: thumbnails[item.id])
     card.show(
@@ -313,21 +341,24 @@ final class ClipboardController {
     return role as? String
   }
 
-  func directPasteItem() -> (id: UUID, kind: ClipItem.Kind, payloads: [ClipboardPayload])? {
-    if let displayedCardItem {
-      return displayedCardItem
-    }
-    guard items.indices.contains(cycler.currentIndex) else { return nil }
-    let item = items[cycler.currentIndex]
-    return (id: item.id, kind: item.kind, payloads: originals[item.id] ?? [])
+  func directPasteItem(board: NSPasteboard = .general) -> DisplayedCardSnapshot? {
+    guard let snapshot = displayedCardItem,
+      items.contains(where: { $0.id == snapshot.id }),
+      board.name == snapshot.pasteboardName,
+      board.changeCount == snapshot.pasteboardChangeCount
+    else { return nil }
+    return snapshot
   }
 
-  private func pasteSelection() {
+  private func pasteSelection(board: NSPasteboard = .general) {
     guard let target = pasteTarget,
       target != ProcessInfo.processInfo.processIdentifier,
       NSWorkspace.shared.frontmostApplication?.processIdentifier == target,
-      let targetItem = directPasteItem()
-    else { return }
+      let targetItem = directPasteItem(board: board)
+    else {
+      card.dismiss()
+      return
+    }
     let selectedPayloads = targetItem.payloads
     let isFile = targetItem.kind == .files
     let isImage = targetItem.kind == .image
@@ -364,8 +395,13 @@ final class ClipboardController {
       return
     }
     guard action != .none,
-      NSWorkspace.shared.frontmostApplication?.processIdentifier == target
-    else { return }
+      NSWorkspace.shared.frontmostApplication?.processIdentifier == target,
+      board.name == targetItem.pasteboardName,
+      board.changeCount == targetItem.pasteboardChangeCount
+    else {
+      card.dismiss()
+      return
+    }
     guard let down = CGEvent(keyboardEventSource: nil, virtualKey: 9, keyDown: true),
       let up = CGEvent(keyboardEventSource: nil, virtualKey: 9, keyDown: false)
     else { return }
@@ -373,20 +409,26 @@ final class ClipboardController {
       guard NSWorkspace.shared.frontmostApplication?.processIdentifier == target,
         let paths = Self.filePaths(payloads: selectedPayloads)
       else { return }
-      let board = NSPasteboard.general
       board.clearContents()
       guard board.setString(paths, forType: .string) else { return }
-      monitor.markSelfWrite(board.changeCount)
+      if board.name == .general { monitor.markSelfWrite(board.changeCount) }
     } else if action == .imageFilePath {
       guard let item = ClipboardDragFile(payloads: selectedPayloads)?.imagePasteboardItem(),
         NSWorkspace.shared.frontmostApplication?.processIdentifier == target
       else { return }
-      let board = NSPasteboard.general
       board.clearContents()
       guard board.writeObjects([item]) else { return }
-      monitor.markSelfWrite(board.changeCount)
+      if board.name == .general { monitor.markSelfWrite(board.changeCount) }
     }
     guard NSWorkspace.shared.frontmostApplication?.processIdentifier == target else { return }
+    if action == .original {
+      guard board.name == targetItem.pasteboardName,
+        board.changeCount == targetItem.pasteboardChangeCount
+      else {
+        card.dismiss()
+        return
+      }
+    }
     down.flags = .maskCommand
     up.flags = .maskCommand
     down.postToPid(target)
@@ -444,18 +486,18 @@ final class ClipboardController {
 
   func remove(_ id: UUID) async {
     guard let store else { return }
-    let selected = items.indices.contains(currentIndex) ? items[currentIndex].id : nil
-    let focused = focusedItemID
     do {
       try await store.remove(id)
       reloadGeneration += 1
       let updated = await store.items
+      let selected = items.indices.contains(currentIndex) ? items[currentIndex].id : nil
+      let focused = trackedFocusedID
       if hoverID == id {
         hoverID = nil
         onHoverPreview?(nil)
       }
       if copiedID == id { copiedID = nil }
-      if displayedCardItem?.id == id { displayedCardItem = nil }
+      if displayedCardItem?.id == id { card.dismiss() }
       originals[id] = nil
       previewTexts[id] = nil
       thumbnails[id] = nil
@@ -485,7 +527,7 @@ final class ClipboardController {
       try await store?.clear()
       copyFeedback?.cancel()
       copiedID = nil
-      displayedCardItem = nil
+      card.dismiss()
       trackedFocusedID = nil
       await reload()
       cycler.reset()

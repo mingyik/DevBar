@@ -298,18 +298,105 @@ struct ClipboardCardTests {
     #expect(controller.items.count == 2)
     #expect(controller.items[0].kind == .files)
     #expect(controller.items[1].kind == .text)
+    let expectedTextID = controller.items[1].id
+
+    @MainActor final class ReloadGate {
+      var suspended = false
+      var waitSuspended: CheckedContinuation<Void, Never>?
+      var releaseReload: CheckedContinuation<Void, Never>?
+
+      func pauseReload() async {
+        suspended = true
+        waitSuspended?.resume()
+        waitSuspended = nil
+        await withCheckedContinuation { continuation in
+          releaseReload = continuation
+        }
+      }
+
+      func waitUntilSuspended() async {
+        if suspended { return }
+        await withCheckedContinuation { continuation in
+          waitSuspended = continuation
+        }
+      }
+
+      func resumeReload() {
+        releaseReload?.resume()
+        releaseReload = nil
+      }
+    }
+
+    let gate = ReloadGate()
+    controller.onReloadSuspended = { await gate.pauseReload() }
 
     let board = NSPasteboard.withUniqueName()
     defer { board.releaseGlobally() }
     let reloadTask = Task { await controller.reload() }
+    await gate.waitUntilSuspended()
     controller.cycle(older: true, board: board)
+    gate.resumeReload()
     await reloadTask.value
+    controller.onReloadSuspended = nil
 
-    let expectedID = controller.items[1].id
-    #expect(controller.items[controller.currentIndex].id == expectedID)
-    let pasteTarget = try #require(controller.directPasteItem())
-    #expect(pasteTarget.id == expectedID)
+    #expect(controller.items[controller.currentIndex].id == expectedTextID)
+    let pasteTarget = try #require(controller.directPasteItem(board: board))
+    #expect(pasteTarget.id == expectedTextID)
     #expect(pasteTarget.kind == .text)
+    #expect(
+      pasteTarget.payloads.first.flatMap { String(data: $0.data, encoding: .utf8) } == "plain text")
+    #expect(board.string(forType: .string) == "plain text")
     controller.card.dismiss()
+  }
+
+  @Test @MainActor
+  func clipboardDirectPasteCancelsWhenPasteboardChangesOrCardItemInvalidates() async throws {
+    _ = NSApplication.shared
+    let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let defaults = UserDefaults(suiteName: "devbar-paste-guard-test-\(UUID())")!
+    let controller = ClipboardController(
+      theme: ThemeManager(defaults: defaults), directory: root, startMonitoring: false,
+      defaults: defaults)
+    for text in ["older text", "newer text"] {
+      let payloads = [
+        ClipboardPayload(
+          type: NSPasteboard.PasteboardType.string.rawValue, data: Data(text.utf8))
+      ]
+      await controller.record(ClipboardCapture(payloads: payloads)!, source: nil)
+    }
+
+    let board = NSPasteboard.withUniqueName()
+    defer { board.releaseGlobally() }
+
+    // 1. External pasteboard overwrite before Enter cancels direct paste instead of pasting B.
+    controller.cycle(older: true, board: board)
+    #expect(controller.card.panel.isVisible)
+    #expect(controller.directPasteItem(board: board)?.id == controller.items[1].id)
+    board.clearContents()
+    board.setString("external overwrite", forType: .string)
+    #expect(controller.directPasteItem(board: board) == nil)
+    controller.card.dismiss()
+
+    // 2. Deleting the displayed item dismisses the card and never falls back to another entry.
+    controller.cycle(older: true, board: board)
+    let displayedID = try #require(controller.displayedCardItem?.id)
+    #expect(controller.card.panel.isVisible)
+    await controller.remove(displayedID)
+    #expect(!controller.card.panel.isVisible)
+    #expect(controller.displayedCardItem == nil)
+    #expect(controller.directPasteItem(board: board) == nil)
+
+    // 3. New capture arriving while the card is visible dismisses the card and cancels paste.
+    controller.cycle(older: true, board: board)
+    #expect(controller.card.panel.isVisible)
+    let externalPayloads = [
+      ClipboardPayload(
+        type: NSPasteboard.PasteboardType.string.rawValue, data: Data("brand new".utf8))
+    ]
+    await controller.record(ClipboardCapture(payloads: externalPayloads)!, source: nil)
+    #expect(!controller.card.panel.isVisible)
+    #expect(controller.displayedCardItem == nil)
+    #expect(controller.directPasteItem(board: board) == nil)
   }
 }
