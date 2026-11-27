@@ -440,38 +440,38 @@ button:disabled {
   bottom: 0;
 }
 #tools .source .cm-content {
-  padding: 12px 84px 16px 2px;
+  padding: 12px 20px 56px 2px;
 }
 #tools .preview {
-  padding: 12px 84px 16px 12px;
+  padding: 12px 22px 56px 12px;
 }
 #qr .source .cm-content {
-  padding: 12px 60px 16px 12px;
+  padding: 12px 22px 56px 12px;
 }
 #qr .preview {
-  padding: 16px 60px 16px 16px;
+  padding: 16px 16px 56px;
 }
 #tools .page-info,
 #qr .page-info {
   left: 12px;
   right: auto;
-  bottom: 12px;
+  bottom: 20px;
 }
 #tools .page-info {
-  max-width: calc(100% - 104px);
+  max-width: calc(100% - 210px);
 }
 #qr .page-info {
-  max-width: calc(100% - 68px);
+  max-width: calc(100% - 96px);
 }
 #tools .page-toolbar,
 #qr .page-toolbar,
 #doc .doc-floating-actions {
   left: auto;
   right: 12px;
-  bottom: 14px;
+  bottom: 12px;
   width: auto;
   height: auto;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   gap: 4px;
   padding: 4px;
@@ -485,11 +485,6 @@ button:disabled {
     inset 0 0.5px 0 var(--panel-raised);
   transition: border-color 140ms ease-out;
 }
-#tools .page-toolbar {
-  align-items: stretch;
-  gap: 0;
-  padding: 6px 4px;
-}
 #tools .page-toolbar::before,
 #tools .page-fixed,
 #qr .page-toolbar::before,
@@ -498,17 +493,17 @@ button:disabled {
 }
 #tools .page-actions,
 #qr .page-actions {
-  flex-direction: column;
-  align-items: stretch;
+  flex-direction: row;
+  align-items: center;
   height: auto;
   gap: 4px;
   overflow: visible;
 }
 #tools .page-toolbar .pill {
-  width: 100%;
+  width: auto;
   min-width: 48px;
   height: 28px;
-  padding: 0 8px;
+  padding: 0 11px;
   border-radius: 999px;
   background: transparent;
   border-color: transparent;
