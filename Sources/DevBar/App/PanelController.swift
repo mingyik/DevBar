@@ -599,8 +599,14 @@ final class PanelController {
       && (([.doc, .json].contains(model.page) && windowUserMoved)
         || (anchorTrailingEdge && model.page == .doc))
     let layoutScreen = keepTrailingEdge ? panel.screen : nil
-    let layoutVisible = layoutScreen?.visibleFrame ?? placed.visible
+    var layoutVisible = layoutScreen?.visibleFrame ?? placed.visible
     let layoutFrame = layoutScreen?.frame ?? placed.screenFrame
+    if keepTrailingEdge, anchorTrailingEdge {
+      let availableWidth = panel.frame.maxX - layoutVisible.minX
+      if availableWidth > 0 {
+        layoutVisible.size.width = min(layoutVisible.width, availableWidth)
+      }
+    }
     var size = model.panelSize
     var sidebar: CGFloat = 0
     var documentContentWidthChanged = false
@@ -693,7 +699,7 @@ final class PanelController {
     documentMode = resolved
     model.documentDisplay = resolved
     model.documentSplit = resolved == "split"
-    if changed { reposition(animated: true, anchorTrailingEdge: true) }
+    if changed { reposition(animated: false, anchorTrailingEdge: true) }
   }
 
   private func toggleDocumentSidebar() {

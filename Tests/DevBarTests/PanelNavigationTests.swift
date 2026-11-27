@@ -588,13 +588,25 @@ import Testing
   }
   let webView = controller.webHost.webView
   controller.webHost.importFile(text: "# Single window", name: "note.md", document: true)
-  controller.webHost.setDocumentDisplay("split")
-  for _ in 0..<100 {
-    if controller.model.documentSplit { break }
-    try await Task.sleep(for: .milliseconds(50))
+  let visible = try #require(controller.panel.screen?.visibleFrame)
+  var initialFrame = controller.panel.frame
+  initialFrame.size.width = min(initialFrame.width, floor(visible.width * 0.6))
+  initialFrame.origin.x = visible.minX
+  controller.panel.setFrame(initialFrame, display: true)
+  for mode in ["split", "preview", "source", "split"] {
+    controller.webHost.setDocumentDisplay(mode)
+    for _ in 0..<100 {
+      if controller.model.documentDisplay == mode { break }
+      try await Task.sleep(for: .milliseconds(20))
+    }
+    #expect(controller.model.documentDisplay == mode)
+    #expect(controller.model.documentSplit == (mode == "split"))
+    for _ in 0..<15 {
+      #expect(abs(controller.panel.frame.maxX - initialFrame.maxX) < 1)
+      #expect(abs(controller.panel.frame.minY - initialFrame.minY) < 1)
+      try await Task.sleep(for: .milliseconds(20))
+    }
   }
-  #expect(controller.model.documentSplit)
-  #expect(controller.model.documentDisplay == "split")
   for _ in 0..<2 {
     controller.model.onToggleDocumentSidebar?()
     for _ in 0..<15 {
