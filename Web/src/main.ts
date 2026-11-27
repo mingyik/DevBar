@@ -103,6 +103,10 @@ const bridge = {
         await transitions.catch(() => {});
         if (current === "doc") doc.clear();
         break;
+      case "doc.exportImage":
+        await transitions.catch(() => {});
+        if (current === "doc") await doc.export();
+        break;
       case "doc.import": {
         const admission = await post("input.check", {
           bytes: new TextEncoder().encode(
@@ -218,6 +222,9 @@ async function start(): Promise<void> {
   if (reply.settings && typeof reply.settings === "object") {
     const settings = reply.settings as Record<string, unknown>;
     autoImport = settings.autoImport !== false;
+    if (typeof settings.documentSolidReading === "boolean") {
+      doc.setSolidReading(settings.documentSolidReading);
+    }
   }
 }
 async function show(page: Page): Promise<void> {

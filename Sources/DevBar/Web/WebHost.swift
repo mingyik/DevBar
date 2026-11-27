@@ -12,6 +12,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   private(set) var generation = 0
   private(set) var panelVisible = false
   var autoImport = false
+  var documentSolidReading = false
   var onClipboardWrite: ((Int) -> Void)?
   var onToast: ((String) -> Void)?
   var onPreviewExportSaved: ((String) -> Void)?
@@ -24,6 +25,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   var onDocumentLink: ((String) async -> Bool)?
   var onDocumentModeShortcut: (() -> Void)?
   var onDocumentDirty: ((Bool) -> Void)?
+  var onToggleDocumentSolidReading: (() -> Bool)?
 
   private let previewImage = PreviewImage()
   private let theme: ThemeManager
@@ -144,6 +146,8 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   func saveCurrentDocument() { send(type: "doc.triggerSave", payload: [:]) }
 
   func clearDocument() { send(type: "doc.clear", payload: [:]) }
+
+  func exportDocumentImage() { send(type: "doc.exportImage", payload: [:]) }
 
   func clearJSON() { send(type: "json.clear", payload: [:]) }
 
@@ -387,6 +391,10 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
         onDocumentDirty?(dirty)
       }
       return "{}"
+    case "doc.toggleReading":
+      let solid = onToggleDocumentSolidReading?() ?? false
+      documentSolidReading = solid
+      return #"{"solid":\#(solid)}"#
     case "state.save":
       if let screen = payload["screen"]?.stringValue, let state = payload["state"] {
         let saved = await store.save(screen: screen, json: state.canonical())
@@ -429,7 +437,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     let themeName = theme.effective == .dark ? "dark" : "light"
     let mode = theme.mode.rawValue
     return """
-      {"theme":"\(themeName)","mode":"\(mode)","panelSize":"normal","settings":{"autoImport":\(autoImport)}}
+      {"theme":"\(themeName)","mode":"\(mode)","panelSize":"normal","settings":{"autoImport":\(autoImport),"documentSolidReading":\(documentSolidReading)}}
       """
   }
 

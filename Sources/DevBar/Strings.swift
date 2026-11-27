@@ -15,6 +15,7 @@ enum Strings {
   static let documentEdit = "编辑"
   static let documentSolidReading = "纯色阅读"
   static let documentGlassReading = "玻璃背景"
+  static let documentExportImage = "截全预览图"
   static let documentUnsavedIndicator = "有未保存修改"
   static let historyLimitTitle = "历史记录上限"
   static let historyLimitPlaceholder = "3-30"

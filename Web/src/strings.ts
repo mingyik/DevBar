@@ -13,6 +13,8 @@ export const strings = {
   modeSplit: "分栏",
   modeEdit: "编辑",
   exportImage: "截全预览图",
+  solidReading: "纯色阅读",
+  glassReading: "玻璃背景",
   escape: "转义",
   unescape: "反转义",
   encode: "编码",

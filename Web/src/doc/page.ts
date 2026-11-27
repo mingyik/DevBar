@@ -62,7 +62,8 @@ export class DocPage {
   private toggle: HTMLButtonElement;
   private previewButton: HTMLButtonElement;
   private splitButton: HTMLButtonElement;
-  private exportButton: HTMLButtonElement;
+  private readingButton: HTMLButtonElement;
+  private solidReading = false;
   private lastReportedDirty: boolean | null = null;
   private previewActions = element(
     "div",
@@ -90,13 +91,13 @@ export class DocPage {
     this.splitButton = iconButton("split", () => {
       this.setDisplayMode(this.display === "split" ? "source" : "split");
     });
-    this.exportButton = iconButton("exportImage", () => {
-      void this.export();
+    this.readingButton = iconButton("solidReading", () => {
+      void this.toggleSolidReading();
     });
     this.previewActions.append(
       this.previewButton,
       this.splitButton,
-      this.exportButton,
+      this.readingButton,
     );
     shell.content.append(this.previewActions);
     shell.preview.classList.add("prose");
@@ -294,10 +295,18 @@ export class DocPage {
       this.splitButton,
       this.display === "split" ? strings.modeEdit : strings.modeSplit,
     );
-    this.previewActions.hidden = !this.previewAllowed;
-    this.exportButton.hidden =
-      this.display === "source" || !this.previewAllowed;
-    setButtonLabel(this.exportButton, strings.exportImage);
+    this.previewButton.hidden = !this.previewAllowed;
+    this.splitButton.hidden = !this.previewAllowed;
+    setIcon(
+      this.readingButton,
+      this.solidReading ? "glassReading" : "solidReading",
+    );
+    setButtonLabel(
+      this.readingButton,
+      this.solidReading ? strings.glassReading : strings.solidReading,
+    );
+    this.readingButton.setAttribute("aria-pressed", String(this.solidReading));
+    this.previewActions.hidden = false;
     const dirty = this.dirty();
     if (dirty !== this.lastReportedDirty) {
       this.lastReportedDirty = dirty;
@@ -412,6 +421,16 @@ export class DocPage {
     this.shell.replace("", "devbar.clear");
     this.locked = false;
     this.setMode("markdown");
+  }
+  setSolidReading(solid: boolean) {
+    this.solidReading = solid;
+    this.updateControls();
+  }
+  private async toggleSolidReading() {
+    const reply = await post("doc.toggleReading", {});
+    if (typeof reply.solid === "boolean") {
+      this.setSolidReading(reply.solid);
+    }
   }
   togglePreview() {
     this.cycleDisplayMode();

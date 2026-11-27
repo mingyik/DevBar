@@ -171,16 +171,13 @@ struct PanelView: View {
         }
       }
       if model.page == .doc {
-        ActionIcon(
-          symbol: model.documentSolidReading ? "circle.dashed" : "circle.lefthalf.filled",
-          label: model.documentSolidReading
-            ? Strings.documentGlassReading : Strings.documentSolidReading,
-          scheme: scheme
-        ) {
-          model.documentSolidReading.toggle()
-        }
         ActionIcon(symbol: "eraser", label: Strings.clipboardClear, scheme: scheme) {
           webHost.clearDocument()
+        }
+        ActionIcon(
+          symbol: "viewfinder.rectangular", label: Strings.documentExportImage, scheme: scheme
+        ) {
+          webHost.exportDocumentImage()
         }
       }
       ActionIcon(symbol: "xmark", label: Strings.panelClose, scheme: scheme) {

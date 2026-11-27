@@ -560,8 +560,7 @@ import Testing
   #expect(restoredSplit)
 
   // 6. Export in split mode preserves split mode.
-  _ = try await host.webView.evaluateJavaScript(
-    "document.querySelector('#doc .icon-exportImage')?.click(); true")
+  host.exportDocumentImage()
   try? await Task.sleep(for: .milliseconds(100))
   #expect(
     (try? await host.webView.evaluateJavaScript(
@@ -620,16 +619,17 @@ import Testing
       const toolbar = content.querySelector('.page-toolbar');
       const preview = previewActions.querySelector('.icon-preview');
       const split = previewActions.querySelector('.icon-split');
-      const image = previewActions.querySelector('.icon-exportImage');
+      const reading = previewActions.querySelector('.icon-solidReading');
       return content.classList.contains('split') && editorActions === null
         && content.querySelector('.icon-save') === null
         && content.querySelector('.icon-clear') === null
-        && preview !== null && split !== null && image !== null
+        && content.querySelector('.icon-exportImage') === null
+        && preview !== null && split !== null && reading !== null
         && split.dataset.icon === 'edit'
         && getComputedStyle(toolbar).display === 'none'
         && getComputedStyle(content.querySelector('.file-label')).display === 'none'
-        && getComputedStyle(image).display === 'flex'
-        && getComputedStyle(image).justifyContent === 'center'
+        && getComputedStyle(reading).display === 'flex'
+        && getComputedStyle(reading).justifyContent === 'center'
         && getComputedStyle(content.querySelector('.preview')).bottom === '0px';
     })()
     """)
