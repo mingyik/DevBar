@@ -591,22 +591,52 @@ import Testing
   let visible = try #require(controller.panel.screen?.visibleFrame)
   var initialFrame = controller.panel.frame
   initialFrame.size.width = min(initialFrame.width, floor(visible.width * 0.6))
-  initialFrame.origin.x = visible.minX
-  controller.panel.setFrame(initialFrame, display: true)
-  for mode in ["split", "preview", "source", "split"] {
-    controller.webHost.setDocumentDisplay(mode)
-    for _ in 0..<100 {
-      if controller.model.documentDisplay == mode { break }
-      try await Task.sleep(for: .milliseconds(20))
-    }
-    #expect(controller.model.documentDisplay == mode)
-    #expect(controller.model.documentSplit == (mode == "split"))
-    for _ in 0..<15 {
-      #expect(abs(controller.panel.frame.maxX - initialFrame.maxX) < 1)
-      #expect(abs(controller.panel.frame.minY - initialFrame.minY) < 1)
-      try await Task.sleep(for: .milliseconds(20))
+  func toolbarCornerOnScreen() async throws -> CGPoint {
+    let result = try await webView.evaluateJavaScript(
+      """
+      (() => {
+        const rect = document.querySelector('#doc .doc-floating-actions').getBoundingClientRect();
+        return [rect.right, rect.bottom];
+      })()
+      """)
+    let coordinates = try #require(result as? [Double])
+    try #require(coordinates.count == 2)
+    let webFrame = controller.panel.convertToScreen(webView.convert(webView.bounds, to: nil))
+    return CGPoint(x: webFrame.minX + coordinates[0], y: webFrame.maxY - coordinates[1])
+  }
+  func clickModeButton(_ selector: String) async throws {
+    _ = try await webView.evaluateJavaScript(
+      "document.querySelector('#doc .doc-floating-actions .\(selector)').click()")
+  }
+  for originX in [visible.maxX - initialFrame.width, visible.minX] {
+    initialFrame.origin.x = originX
+    controller.panel.setFrame(initialFrame, display: true)
+    try await Task.sleep(for: .milliseconds(100))
+    let toolbarCorner = try await toolbarCornerOnScreen()
+    for (button, mode) in [
+      ("icon-split", "split"), ("icon-preview", "preview"), ("icon-preview", "source"),
+    ] {
+      try await clickModeButton(button)
+      for _ in 0..<100 {
+        if controller.model.documentDisplay == mode { break }
+        try await Task.sleep(for: .milliseconds(20))
+      }
+      #expect(controller.model.documentDisplay == mode)
+      #expect(controller.model.documentSplit == (mode == "split"))
+      for _ in 0..<10 {
+        let current = try await toolbarCornerOnScreen()
+        #expect(abs(current.x - toolbarCorner.x) < 1)
+        #expect(abs(current.y - toolbarCorner.y) < 1)
+        try await Task.sleep(for: .milliseconds(20))
+      }
     }
   }
+  try await clickModeButton("icon-split")
+  for _ in 0..<100 {
+    if controller.model.documentSplit { break }
+    try await Task.sleep(for: .milliseconds(20))
+  }
+  #expect(controller.model.documentSplit)
   for _ in 0..<2 {
     controller.model.onToggleDocumentSidebar?()
     for _ in 0..<15 {
