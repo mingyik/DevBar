@@ -100,6 +100,28 @@ final class DocumentSession {
     defaults.set(recent.map(\.path), forKey: Self.recentKey)
   }
 
+  func removeRecent(_ target: URL) {
+    let standardized = target.standardizedFileURL.path
+    let remaining = recent.filter { $0.standardizedFileURL.path != standardized }
+    guard remaining != recent else { return }
+    recent = remaining
+    defaults.set(recent.map(\.path), forKey: Self.recentKey)
+  }
+
+  func removeDraft(id: String) {
+    drafts.removeAll { $0.id == id }
+  }
+
+  func clearSidebarEntries() {
+    if !recent.isEmpty {
+      recent = []
+      defaults.set([String](), forKey: Self.recentKey)
+    }
+    if !drafts.isEmpty {
+      drafts = []
+    }
+  }
+
   func resolveDocumentLink(_ href: String) -> URL? {
     guard let url, let link = URLComponents(string: href),
       link.scheme == nil, link.host == nil, !link.path.isEmpty,

@@ -111,3 +111,47 @@ import Testing
   #expect(session.resolveDocumentLink("%2Ftmp/private.md") == nil)
   #expect(session.resolveDocumentLink("docs/手册.pdf")?.lastPathComponent == "手册.pdf")
 }
+
+@MainActor
+@Test func documentSessionRemovesIndividualEntriesAndClearsSidebar() throws {
+  let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: directory) }
+  let first = directory.appending(path: "a.md").standardizedFileURL
+  let second = directory.appending(path: "b.md").standardizedFileURL
+  try Data("# A".utf8).write(to: first)
+  try Data("# B".utf8).write(to: second)
+  let suite = "devbar.sidebar.clear.\(UUID().uuidString)"
+  let defaults = UserDefaults(suiteName: suite)!
+  defer { defaults.removePersistentDomain(forName: suite) }
+
+  let session = DocumentSession(defaults: defaults)
+  session.adopt(
+    OpenedDocument(
+      id: "doc-a", url: first, text: "# A", fileName: "a.md",
+      mode: .markdown, hadBOM: false, newline: "\n"))
+  session.adopt(
+    OpenedDocument(
+      id: "doc-b", url: second, text: "# B", fileName: "b.md",
+      mode: .markdown, hadBOM: false, newline: "\n"))
+  let draft = session.stashDraft(["text": "# B edited", "savedText": "# B", "fileName": "b.md"])
+  #expect(draft != nil)
+  #expect(session.recent == [second, first])
+  #expect(session.drafts.count == 1)
+
+  session.removeRecent(first)
+  #expect(session.recent == [second])
+  #expect(defaults.stringArray(forKey: "recentDocumentPaths") == [second.path])
+
+  if let draft {
+    session.removeDraft(id: draft.id)
+  }
+  #expect(session.drafts.isEmpty)
+
+  _ = session.stashDraft(["text": "# B edited again", "savedText": "# B", "fileName": "b.md"])
+  #expect(session.drafts.count == 1)
+  session.clearSidebarEntries()
+  #expect(session.recent.isEmpty)
+  #expect(session.drafts.isEmpty)
+  #expect(defaults.stringArray(forKey: "recentDocumentPaths") == [])
+}

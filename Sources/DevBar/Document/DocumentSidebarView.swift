@@ -21,7 +21,7 @@ struct DocumentSidebarView: View {
         draftList
       }
       Spacer(minLength: 12)
-      chooseFileButton
+      footerActions
     }
     .padding(.horizontal, 10)
     .padding(.top, 12)
@@ -39,6 +39,15 @@ struct DocumentSidebarView: View {
       .frame(height: 24, alignment: .leading)
   }
 
+  private var footerActions: some View {
+    HStack(spacing: 8) {
+      chooseFileButton
+      Spacer(minLength: 8)
+      clearSidebarButton
+    }
+    .padding(.horizontal, 4)
+  }
+
   private var chooseFileButton: some View {
     Button(action: onPick) {
       Image(systemName: "folder").devbarIconColor(scheme)
@@ -48,7 +57,20 @@ struct DocumentSidebarView: View {
     .buttonStyle(DevBarToolbarIconButtonStyle(scheme: scheme))
     .help(Strings.documentChooseFile)
     .accessibilityLabel(Strings.documentChooseFile)
-    .padding(.leading, 8)
+  }
+
+  private var clearSidebarButton: some View {
+    Button {
+      session.clearSidebarEntries()
+    } label: {
+      Image(systemName: "eraser").devbarIconColor(scheme)
+        .font(.system(size: 13))
+        .frame(width: 24, height: 24)
+    }
+    .buttonStyle(DevBarToolbarIconButtonStyle(scheme: scheme))
+    .disabled(session.recentEntries.isEmpty && session.drafts.isEmpty)
+    .help(Strings.clipboardClear)
+    .accessibilityLabel(Strings.clipboardClear)
   }
 
   private var recentList: some View {
@@ -58,7 +80,8 @@ struct DocumentSidebarView: View {
         DocumentRecentRow(
           url: entry.url, missing: !entry.exists, scheme: scheme,
           selected: session.url?.path == entry.url.path,
-          onOpen: { onOpen(entry.url) })
+          onOpen: { onOpen(entry.url) },
+          onDelete: { session.removeRecent(entry.url) })
       }
     }
     .padding(.bottom, session.recentEntries.isEmpty ? 0 : 8)
@@ -79,7 +102,8 @@ struct DocumentSidebarView: View {
           DocumentDraftRow(
             draft: draft, scheme: scheme,
             selected: session.documentID == draft.id,
-            onOpen: { onOpenDraft(draft.id) })
+            onOpen: { onOpenDraft(draft.id) },
+            onDelete: { session.removeDraft(id: draft.id) })
         }
       }
       .padding(.vertical, 2)
@@ -94,38 +118,47 @@ private struct DocumentRecentRow: View {
   let scheme: ColorScheme
   let selected: Bool
   let onOpen: () -> Void
+  let onDelete: () -> Void
   @State private var hovered = false
 
   var body: some View {
-    Button(action: onOpen) {
-      HStack(spacing: 6) {
-        Image(systemName: "doc.text").devbarIconColor(scheme)
-          .font(.system(size: 12))
-          .foregroundStyle(DesignTokens.textTertiary(scheme))
-          .frame(width: 16)
-        Text(url.deletingPathExtension().lastPathComponent)
-          .font(.system(size: 13))
-          .foregroundStyle(
-            missing ? DesignTokens.textTertiary(scheme) : DesignTokens.textPrimary(scheme)
-          )
-          .lineLimit(1)
-          .truncationMode(.middle)
-          .frame(maxWidth: .infinity, alignment: .leading)
+    HStack(spacing: 6) {
+      Button(action: onOpen) {
+        HStack(spacing: 6) {
+          Image(systemName: "doc.text").devbarIconColor(scheme)
+            .font(.system(size: 12))
+            .foregroundStyle(DesignTokens.textTertiary(scheme))
+            .frame(width: 16)
+          Text(url.deletingPathExtension().lastPathComponent)
+            .font(.system(size: 13))
+            .foregroundStyle(
+              missing ? DesignTokens.textTertiary(scheme) : DesignTokens.textPrimary(scheme)
+            )
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxHeight: .infinity)
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      if hovered {
+        DocumentSidebarDeleteButton(scheme: scheme, action: onDelete)
+      } else {
         DocumentTypeBadge(label: documentTypeLabel(url.pathExtension), scheme: scheme)
       }
-      .padding(.horizontal, 6)
-      .frame(height: 32)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background {
-        RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
-          .fill(
-            selected
-              ? DesignTokens.panelControl(scheme)
-              : DesignTokens.panelControl(scheme).opacity(hovered ? 0.45 : 0)
-          )
-      }
     }
-    .buttonStyle(.plain)
+    .padding(.horizontal, 6)
+    .frame(height: 32)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background {
+      RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
+        .fill(
+          selected
+            ? DesignTokens.panelControl(scheme)
+            : DesignTokens.panelControl(scheme).opacity(hovered ? 0.45 : 0)
+        )
+    }
     .onHover { hovered = $0 }
     .help(url.path)
     .accessibilityLabel(url.lastPathComponent)
@@ -137,39 +170,64 @@ private struct DocumentDraftRow: View {
   let scheme: ColorScheme
   let selected: Bool
   let onOpen: () -> Void
+  let onDelete: () -> Void
   @State private var hovered = false
 
   var body: some View {
-    Button(action: onOpen) {
-      HStack(spacing: 6) {
-        Image(systemName: "doc.text").devbarIconColor(scheme)
-          .font(.system(size: 12))
-          .foregroundStyle(DesignTokens.textTertiary(scheme))
-          .frame(width: 16)
-        Text(draft.title)
-          .font(.system(size: 13))
-          .foregroundStyle(DesignTokens.textPrimary(scheme))
-          .lineLimit(1)
-          .truncationMode(.tail)
-          .frame(maxWidth: .infinity, alignment: .leading)
+    HStack(spacing: 6) {
+      Button(action: onOpen) {
+        HStack(spacing: 6) {
+          Image(systemName: "doc.text").devbarIconColor(scheme)
+            .font(.system(size: 12))
+            .foregroundStyle(DesignTokens.textTertiary(scheme))
+            .frame(width: 16)
+          Text(draft.title)
+            .font(.system(size: 13))
+            .foregroundStyle(DesignTokens.textPrimary(scheme))
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxHeight: .infinity)
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      if hovered {
+        DocumentSidebarDeleteButton(scheme: scheme, action: onDelete)
+      } else {
         DocumentTypeBadge(label: draft.typeTag, scheme: scheme)
       }
-      .padding(.horizontal, 6)
-      .frame(height: 32)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background {
-        RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
-          .fill(
-            selected
-              ? DesignTokens.panelControl(scheme)
-              : DesignTokens.panelControl(scheme).opacity(hovered ? 0.45 : 0)
-          )
-      }
     }
-    .buttonStyle(.plain)
+    .padding(.horizontal, 6)
+    .frame(height: 32)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background {
+      RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
+        .fill(
+          selected
+            ? DesignTokens.panelControl(scheme)
+            : DesignTokens.panelControl(scheme).opacity(hovered ? 0.45 : 0)
+        )
+    }
     .onHover { hovered = $0 }
     .help(draft.fileName ?? Strings.documentUntitled)
     .accessibilityLabel("\(draft.title), \(draft.typeTag)")
+  }
+}
+
+private struct DocumentSidebarDeleteButton: View {
+  let scheme: ColorScheme
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      Image(systemName: "trash").devbarIconColor(scheme)
+        .font(.system(size: 11))
+        .frame(width: 22, height: 22)
+    }
+    .buttonStyle(DevBarToolbarIconButtonStyle(scheme: scheme))
+    .help(Strings.deleteItem)
+    .accessibilityLabel(Strings.deleteItem)
   }
 }
 
