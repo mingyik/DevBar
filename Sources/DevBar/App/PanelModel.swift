@@ -49,11 +49,15 @@ final class PanelModel {
   private(set) var settingsOrigin: Page = .clipboard
   static let autoImportKey = "autoImport.manual"
   static let documentSolidReadingKey = "documentSolidReading"
+  static let jsonSolidReadingKey = "jsonSolidReading"
   private(set) var settingsGroup = "general"
   private(set) var settingsOpenGeneration = 0
   var autoImport: Bool { didSet { defaults.set(autoImport, forKey: Self.autoImportKey) } }
   var documentSolidReading: Bool {
     didSet { defaults.set(documentSolidReading, forKey: Self.documentSolidReadingKey) }
+  }
+  var jsonSolidReading: Bool {
+    didSet { defaults.set(jsonSolidReading, forKey: Self.jsonSolidReadingKey) }
   }
   @ObservationIgnored var onClosePanel: (() -> Void)?
   private var jsonEnlarged = true
@@ -130,6 +134,7 @@ final class PanelModel {
     }
     autoImport = defaults.object(forKey: Self.autoImportKey) as? Bool ?? false
     documentSolidReading = defaults.object(forKey: Self.documentSolidReadingKey) as? Bool ?? false
+    jsonSolidReading = defaults.object(forKey: Self.jsonSolidReadingKey) as? Bool ?? false
     let raw = defaults.string(forKey: "lastContentPage") ?? ""
     let stored: Page = raw == "encode" ? .json : Page(rawValue: raw) ?? .clipboard
     if raw == "encode" { defaults.set("json", forKey: "lastContentPage") }

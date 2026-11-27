@@ -44,7 +44,8 @@ struct PanelView: View {
     .background {
       PanelChrome(
         theme: theme, scheme: scheme,
-        solidSurface: model.page == .doc && model.documentSolidReading)
+        solidSurface: (model.page == .doc && model.documentSolidReading)
+          || (model.page == .json && model.jsonSolidReading))
     }
     .clipShape(panelShape)
     .environment(\.colorScheme, scheme)
@@ -163,6 +164,14 @@ struct PanelView: View {
       if model.page == .json {
         ActionIcon(symbol: "eraser", label: Strings.clipboardClear, scheme: scheme) {
           webHost.clearJSON()
+        }
+        ActionIcon(
+          symbol: model.jsonSolidReading ? "circle.dashed" : "circle.lefthalf.filled",
+          label: model.jsonSolidReading
+            ? Strings.documentGlassReading : Strings.documentSolidReading,
+          scheme: scheme
+        ) {
+          model.jsonSolidReading.toggle()
         }
       }
       if model.page == .qr {
