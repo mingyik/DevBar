@@ -880,3 +880,44 @@ import Testing
   }
   #expect(try String(contentsOf: fileB, encoding: .utf8) == "# Updated File B\n")
 }
+
+@MainActor @Test func externalOpenMarkdownDefaultsToPreviewMode() async throws {
+  _ = NSApplication.shared
+  let webRoot = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    .appending(path: "Web/dist")
+  let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: directory) }
+  let mdFile = directory.appending(path: "external.md")
+  try Data("# External Preview\n".utf8).write(to: mdFile)
+
+  let defaults = UserDefaults(suiteName: "devbar.external.preview.\(UUID())")!
+  let controller = PanelController(theme: ThemeManager(defaults: defaults), webRoot: webRoot)
+  let status = StatusItemController()
+  let coordinator = FileDropCoordinator(panel: controller, status: status)
+  controller.model.prepareToOpen(page: .clipboard)
+  controller.show(anchor: nil, activateApplication: false)
+  defer { controller.dismiss() }
+  for _ in 0..<100 {
+    if (try? await controller.webHost.webView.evaluateJavaScript("!!window.__devbar")) as? Bool
+      == true
+    {
+      break
+    }
+    try await Task.sleep(for: .milliseconds(50))
+  }
+
+  coordinator.receive([mdFile])
+  for _ in 0..<100 {
+    if controller.model.page == .doc && controller.model.documentDisplay == "preview"
+      && controller.documents.url?.standardizedFileURL == mdFile.standardizedFileURL
+    {
+      break
+    }
+    try await Task.sleep(for: .milliseconds(25))
+  }
+  #expect(controller.model.page == .doc)
+  #expect(controller.model.documentDisplay == "preview")
+  #expect(!controller.model.documentSplit)
+}

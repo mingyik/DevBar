@@ -54,7 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     panel.webHost.acceptsFiles = { [weak self] in
       self?.panel.model.page == .json || self?.panel.model.page == .doc
     }
-    panel.webHost.receivedFiles = { [weak fileDrop] urls in fileDrop?.receive(urls, dragged: true) }
+    panel.webHost.receivedFiles = { [weak fileDrop] urls in fileDrop?.receive(urls) }
     statusItem.installFileDrop(fileDrop)
     ShortcutActions.register(panel: panel, status: statusItem)
     terminalYield.start()

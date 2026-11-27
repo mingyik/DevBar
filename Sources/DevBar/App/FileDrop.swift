@@ -44,7 +44,7 @@ import UniformTypeIdentifiers
     panel.model.dropActive = false
     if wasActive { panel.model.page = origin }
   }
-  func receive(_ urls: [URL], document: Bool? = nil, dragged: Bool = false) {
+  func receive(_ urls: [URL], document: Bool? = nil, previewMarkdown: Bool = true) {
     guard MemoryBudget.allows(bytes: 0) else {
       panel.model.dropActive = false
       panel.model.toast = Strings.insufficientMemory
@@ -64,7 +64,7 @@ import UniformTypeIdentifiers
         fileName: first.lastPathComponent, sniff: FileDropReader.sniff(first))
       if case .doc = route {
         if urls.count > 1 { panel.model.toast = Strings.fileDropFirst }
-        Task { await panel.openDocument(first, previewMarkdown: dragged) }
+        Task { await panel.openDocument(first, previewMarkdown: previewMarkdown) }
         return
       }
     }
@@ -119,7 +119,7 @@ import UniformTypeIdentifiers
   override func draggingExited(_ sender: (any NSDraggingInfo)?) { coordinator?.exited() }
   override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool { true }
   override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
-    coordinator?.receive(urls(sender), dragged: true)
+    coordinator?.receive(urls(sender))
     return true
   }
 }
@@ -151,7 +151,7 @@ import UniformTypeIdentifiers
         }
         if let data, let url = URL(dataRepresentation: data, relativeTo: nil) { urls.append(url) }
       }
-      coordinator?.receive(urls, document: document, dragged: true)
+      coordinator?.receive(urls, document: document)
     }
     return !providers.isEmpty
   }
