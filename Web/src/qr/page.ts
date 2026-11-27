@@ -20,20 +20,13 @@ export class QRPage {
       void this.togglePreview();
     });
     setButtonLabel(this.toggle, strings.preview);
-    shell.actions.append(this.toggle);
     const copy = iconButton("copy", () => {
       void this.copy().then(() => {
         setIcon(copy, "copied");
         setTimeout(() => setIcon(copy, "copy"), 1000);
       });
     });
-    shell.fixed.append(
-      copy,
-      iconButton("clear", () => {
-        this.edit();
-        shell.replace("");
-      }),
-    );
+    shell.actions.append(this.toggle, copy);
     shell.onChange = (update) => {
       this.png = "";
       this.edit();
@@ -43,6 +36,10 @@ export class QRPage {
         });
       }
     };
+  }
+  clear(): void {
+    this.edit();
+    if (this.shell.text !== "") this.shell.replace("");
   }
   private edit(): void {
     this.previewGate.invalidate();

@@ -91,6 +91,14 @@ const bridge = {
         await transitions.catch(() => {});
         if (current === "doc") await doc.save();
         break;
+      case "json.clear":
+        await transitions.catch(() => {});
+        if (current === "json") json.clear();
+        break;
+      case "qr.clear":
+        await transitions.catch(() => {});
+        if (current === "qr") qr.clear();
+        break;
       case "doc.import": {
         const admission = await post("input.check", {
           bytes: new TextEncoder().encode(

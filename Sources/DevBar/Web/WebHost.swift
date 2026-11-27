@@ -142,6 +142,10 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
 
   func saveCurrentDocument() { send(type: "doc.triggerSave", payload: [:]) }
 
+  func clearJSON() { send(type: "json.clear", payload: [:]) }
+
+  func clearQR() { send(type: "qr.clear", payload: [:]) }
+
   func setDocumentDisplay(_ mode: String) {
     send(type: "doc.display", payload: ["mode": .string(mode)])
   }

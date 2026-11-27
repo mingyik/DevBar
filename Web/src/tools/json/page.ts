@@ -66,9 +66,7 @@ export class JsonPage {
     this.escapeButton = pill(strings.escape, () => {
       void this.convert(actionLabels(shell.text, this.encoding).escape);
     });
-    this.escapeButton.style.minWidth = "72px";
     this.codecButton = pill(strings.encode, () => this.codec());
-    this.codecButton.style.minWidth = "60px";
     this.cancelButton = pill(strings.cancel, () => {
       this.cancel();
       this.cancelButton.hidden = true;
@@ -81,13 +79,12 @@ export class JsonPage {
       this.codecButton,
       this.cancelButton,
     );
-    const clear = iconButton("clear", () => {
-      shell.showPreview(false);
-      shell.replace("");
-    });
-    shell.fixed.append(clear);
     shell.onChange = () => this.changed();
     this.changed();
+  }
+  clear(): void {
+    this.shell.showPreview(false);
+    if (this.shell.text !== "") this.shell.replace("");
   }
   setEncoding(value: Encoding): void {
     this.encoding = value;

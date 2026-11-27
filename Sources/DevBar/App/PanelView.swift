@@ -149,6 +149,16 @@ struct PanelView: View {
         }
         .disabled(clipboard.items.isEmpty)
       }
+      if model.page == .json {
+        ActionIcon(symbol: "eraser", label: Strings.clipboardClear, scheme: scheme) {
+          webHost.clearJSON()
+        }
+      }
+      if model.page == .qr {
+        ActionIcon(symbol: "eraser", label: Strings.clipboardClear, scheme: scheme) {
+          webHost.clearQR()
+        }
+      }
       if model.page == .doc {
         ActionIcon(symbol: "eye", label: Strings.documentPreview, scheme: scheme) {
           webHost.setDocumentDisplay("preview")
