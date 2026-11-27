@@ -580,7 +580,9 @@ final class PanelController {
   }
 
   private func reposition(
-    animated: Bool = true, avoidDocumentContentReflow: Bool = false
+    animated: Bool = true,
+    avoidDocumentContentReflow: Bool = false,
+    anchorTrailingEdge: Bool = false
   ) {
     let screens = NSScreen.screens.map {
       PanelLayout.DisplaySlice(frame: $0.frame, visibleFrame: $0.visibleFrame)
@@ -592,8 +594,11 @@ final class PanelController {
       anchor: lastAnchor, screens: screens,
       fallbackScreenFrame: mouseScreen.frame,
       fallbackVisible: mouseScreen.visibleFrame)
-    let moved = [.doc, .json].contains(model.page) && windowUserMoved && panel.isVisible
-    let layoutScreen = moved ? panel.screen : nil
+    let keepTrailingEdge =
+      panel.isVisible
+      && (([.doc, .json].contains(model.page) && windowUserMoved)
+        || (anchorTrailingEdge && model.page == .doc))
+    let layoutScreen = keepTrailingEdge ? panel.screen : nil
     let layoutVisible = layoutScreen?.visibleFrame ?? placed.visible
     let layoutFrame = layoutScreen?.frame ?? placed.screenFrame
     var size = model.panelSize
@@ -616,7 +621,7 @@ final class PanelController {
       size.height = floor(layoutVisible.height * 4 / 5)
     }
     let frame: CGRect
-    if [.doc, .json].contains(model.page), windowUserMoved, panel.isVisible {
+    if keepTrailingEdge {
       frame = PanelLayout.clamp(
         CGRect(
           x: panel.frame.maxX - size.width,
@@ -688,14 +693,14 @@ final class PanelController {
     documentMode = resolved
     model.documentDisplay = resolved
     model.documentSplit = resolved == "split"
-    if changed { reposition(animated: true) }
+    if changed { reposition(animated: true, anchorTrailingEdge: true) }
   }
 
   private func toggleDocumentSidebar() {
     guard panel.isVisible, model.page == .doc else { return }
     documents.pruneMissingRecent()
     model.documentSidebarVisible.toggle()
-    reposition(animated: true, avoidDocumentContentReflow: true)
+    reposition(animated: true, avoidDocumentContentReflow: true, anchorTrailingEdge: true)
   }
 
   private func openDocumentLink(_ href: String) async -> Bool {
