@@ -8,6 +8,7 @@ import {
 } from "../editor/page-shell";
 import { post } from "../bridge/client";
 import { strings } from "../strings";
+import { shouldAutoPreviewQRPaste } from "./paste";
 export class QRPage {
   readonly shell: PageShell;
   private png = "";
@@ -32,9 +33,14 @@ export class QRPage {
         shell.replace("");
       }),
     );
-    shell.onChange = () => {
+    shell.onChange = (update) => {
       this.png = "";
       this.edit();
+      if (update && shouldAutoPreviewQRPaste(update)) {
+        void this.renderPreview().then((shown) => {
+          if (shown) this.shell.onStateChange();
+        });
+      }
     };
   }
   private edit(): void {

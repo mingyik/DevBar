@@ -2,7 +2,7 @@ import captureSymbol from "../assets/icons/capture.png";
 import clearSymbol from "../assets/icons/clear.png";
 import copySymbol from "../assets/icons/copy.png";
 import saveSymbol from "../assets/icons/save.svg";
-import { EditorView } from "@codemirror/view";
+import { EditorView, type ViewUpdate } from "@codemirror/view";
 import { StateEffect, type Extension } from "@codemirror/state";
 import {
   createEditor,
@@ -91,7 +91,7 @@ export class PageShell {
   fileDirty = false;
   mode: "source" | "preview" = "source";
   private readonly extensions: Extension[];
-  onChange: () => void = () => {};
+  onChange: (update?: ViewUpdate) => void = () => {};
   onStateChange: () => void = () => {};
   revision = 0;
   readonly root: HTMLElement;
@@ -117,7 +117,7 @@ export class PageShell {
         if (update.docChanged) {
           this.revision++;
           this.updateInfo();
-          this.onChange();
+          this.onChange(update);
           this.onStateChange();
         }
       }),
