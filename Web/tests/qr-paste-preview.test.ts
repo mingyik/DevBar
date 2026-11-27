@@ -1,6 +1,9 @@
 import { EditorSelection, EditorState } from "@codemirror/state";
 import { expect, it } from "vitest";
-import { shouldAutoPreviewQRPaste } from "../src/qr/paste";
+import {
+  QRPreviewRequestGate,
+  shouldAutoPreviewQRPaste,
+} from "../src/qr/paste";
 
 function applyPaste(
   doc: string,
@@ -73,4 +76,20 @@ it("stays in editor on partial paste, manual typing, or empty paste", () => {
       ),
     ),
   ).toBe(false);
+});
+
+it("invalidates stale QR preview requests on newer request, edit return, or page release", () => {
+  const gate = new QRPreviewRequestGate();
+  const pasteToken = gate.begin();
+  const manualToken = gate.begin();
+  expect(gate.isCurrent(pasteToken)).toBe(false);
+  expect(gate.isCurrent(manualToken)).toBe(true);
+
+  gate.invalidate();
+  expect(gate.isCurrent(manualToken)).toBe(false);
+
+  const nextToken = gate.begin();
+  expect(gate.isCurrent(nextToken)).toBe(true);
+  gate.invalidate();
+  expect(gate.isCurrent(nextToken)).toBe(false);
 });

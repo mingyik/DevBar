@@ -17,3 +17,20 @@ export function shouldAutoPreviewQRPaste(update: PasteUpdate): boolean {
   const { ranges, main } = update.startState.selection;
   return ranges.length === 1 && main.from === 0 && main.to === previousLength;
 }
+
+export class QRPreviewRequestGate {
+  private token = 0;
+
+  begin(): number {
+    this.token += 1;
+    return this.token;
+  }
+
+  invalidate(): void {
+    this.token += 1;
+  }
+
+  isCurrent(token: number): boolean {
+    return token === this.token;
+  }
+}

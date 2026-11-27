@@ -8,11 +8,12 @@ import {
 } from "../editor/page-shell";
 import { post } from "../bridge/client";
 import { strings } from "../strings";
-import { shouldAutoPreviewQRPaste } from "./paste";
+import { QRPreviewRequestGate, shouldAutoPreviewQRPaste } from "./paste";
 export class QRPage {
   readonly shell: PageShell;
   private png = "";
   private readonly toggle: HTMLButtonElement;
+  private readonly previewGate = new QRPreviewRequestGate();
   constructor(shell: PageShell) {
     this.shell = shell;
     this.toggle = iconButton("preview", () => {
@@ -44,6 +45,7 @@ export class QRPage {
     };
   }
   private edit(): void {
+    this.previewGate.invalidate();
     this.shell.showPreview(false);
     setIcon(this.toggle, "preview");
     setButtonLabel(this.toggle, strings.preview);
@@ -65,11 +67,13 @@ export class QRPage {
       await this.renderPreview();
   }
   releaseMemory(): void {
+    this.previewGate.invalidate();
     this.png = "";
     this.shell.preview.replaceChildren();
     this.shell.preview.classList.remove("qr-preview");
   }
   private async renderPreview(): Promise<boolean> {
+    const token = this.previewGate.begin();
     if (this.shell.text === "") {
       this.png = "";
       this.shell.preview.replaceChildren();
@@ -86,7 +90,8 @@ export class QRPage {
     }
     const revision = this.shell.revision;
     const reply = await post("qr.show", { text: this.shell.text });
-    if (revision !== this.shell.revision) return false;
+    if (!this.previewGate.isCurrent(token) || revision !== this.shell.revision)
+      return false;
     if (reply.status !== "shown" || typeof reply.pngBase64 !== "string") {
       this.shell.updateInfo(
         reply.status === "tooLarge"
