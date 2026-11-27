@@ -184,7 +184,7 @@ struct PanelView: View {
           webHost.clearDocument()
         }
         ActionIcon(
-          symbol: "viewfinder.rectangular", label: Strings.documentExportImage, scheme: scheme
+          symbol: "photo", label: Strings.documentExportImage, scheme: scheme
         ) {
           webHost.exportDocumentImage()
         }

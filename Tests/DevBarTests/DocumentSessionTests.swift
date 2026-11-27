@@ -155,3 +155,12 @@ import Testing
   #expect(session.drafts.isEmpty)
   #expect(defaults.stringArray(forKey: "recentDocumentPaths") == [])
 }
+
+@Test func documentSidebarHoverZoneOnlyShowsDeleteInTrailingPortion() {
+  #expect(!DocumentSidebarHoverZone.showsDelete(localX: 0, width: 200))
+  #expect(!DocumentSidebarHoverZone.showsDelete(localX: 129, width: 200))
+  #expect(DocumentSidebarHoverZone.showsDelete(localX: 130, width: 200))
+  #expect(DocumentSidebarHoverZone.showsDelete(localX: 200, width: 200))
+  #expect(!DocumentSidebarHoverZone.showsDelete(localX: 201, width: 200))
+  #expect(!DocumentSidebarHoverZone.showsDelete(localX: 100, width: 0))
+}

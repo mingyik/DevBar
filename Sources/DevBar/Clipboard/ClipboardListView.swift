@@ -153,8 +153,8 @@ private enum ClipboardRowLayout {
   static let rowHeight: CGFloat = 56
   static let rowSpacing: CGFloat = 8
   static let verticalPadding: CGFloat = 2
-  static let deleteActionWidth: CGFloat = 48
-  static let deleteActionGap: CGFloat = 6
+  static let deleteActionWidth: CGFloat = 36
+  static let deleteActionGap: CGFloat = 4
   static let revealOffset: CGFloat = deleteActionWidth + deleteActionGap
 }
 
@@ -189,15 +189,9 @@ private struct ClipboardRow: View {
       } label: {
         Image(systemName: "trash")
           .font(.system(size: 14, weight: .regular))
-          .foregroundStyle(DesignTokens.textPrimary(scheme))
+          .foregroundStyle(Color(nsColor: .systemRed))  // devbar:allow-color
           .frame(width: ClipboardRowLayout.deleteActionWidth, height: ClipboardRowLayout.rowHeight)
-          .background {
-            rowShape.fill(DesignTokens.panelControl(scheme))
-          }
-          .overlay {
-            rowShape.strokeBorder(
-              DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline)
-          }
+          .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
       .help(Strings.deleteItem)

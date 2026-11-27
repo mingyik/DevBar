@@ -1,6 +1,14 @@
 import DevBarCore
 import SwiftUI
 
+enum DocumentSidebarHoverZone {
+  /// Show the trailing delete icon only when the pointer hovers over the trailing portion of the row.
+  static func showsDelete(localX: CGFloat, width: CGFloat) -> Bool {
+    guard width > 0 else { return false }
+    return localX >= width * 0.65 && localX <= width
+  }
+}
+
 struct DocumentSidebarView: View {
   let theme: ThemeManager
   @Bindable var session: DocumentSession
@@ -63,7 +71,7 @@ struct DocumentSidebarView: View {
     Button {
       session.clearSidebarEntries()
     } label: {
-      Image(systemName: "eraser").devbarIconColor(scheme)
+      Image(systemName: "trash").devbarIconColor(scheme)
         .font(.system(size: 13))
         .frame(width: 24, height: 24)
     }
@@ -120,6 +128,8 @@ private struct DocumentRecentRow: View {
   let onOpen: () -> Void
   let onDelete: () -> Void
   @State private var hovered = false
+  @State private var deleteZoneHovered = false
+  @State private var rowWidth: CGFloat = 0
 
   var body: some View {
     HStack(spacing: 6) {
@@ -142,8 +152,8 @@ private struct DocumentRecentRow: View {
         .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
-      if hovered {
-        DocumentSidebarDeleteButton(scheme: scheme, action: onDelete)
+      if deleteZoneHovered {
+        DocumentSidebarDeleteButton(action: onDelete)
       } else {
         DocumentTypeBadge(label: documentTypeLabel(url.pathExtension), scheme: scheme)
       }
@@ -152,14 +162,28 @@ private struct DocumentRecentRow: View {
     .frame(height: 32)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background {
-      RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
-        .fill(
-          selected
-            ? DesignTokens.panelControl(scheme)
-            : DesignTokens.panelControl(scheme).opacity(hovered ? 0.45 : 0)
-        )
+      GeometryReader { proxy in
+        RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
+          .fill(
+            selected
+              ? DesignTokens.panelControl(scheme)
+              : DesignTokens.panelControl(scheme).opacity(hovered ? 0.45 : 0)
+          )
+          .onAppear { rowWidth = proxy.size.width }
+          .onChange(of: proxy.size.width) { _, width in rowWidth = width }
+      }
     }
-    .onHover { hovered = $0 }
+    .onContinuousHover(coordinateSpace: .local) { phase in
+      switch phase {
+      case .active(let location):
+        hovered = true
+        deleteZoneHovered = DocumentSidebarHoverZone.showsDelete(
+          localX: location.x, width: rowWidth)
+      case .ended:
+        hovered = false
+        deleteZoneHovered = false
+      }
+    }
     .help(url.path)
     .accessibilityLabel(url.lastPathComponent)
   }
@@ -172,6 +196,8 @@ private struct DocumentDraftRow: View {
   let onOpen: () -> Void
   let onDelete: () -> Void
   @State private var hovered = false
+  @State private var deleteZoneHovered = false
+  @State private var rowWidth: CGFloat = 0
 
   var body: some View {
     HStack(spacing: 6) {
@@ -192,8 +218,8 @@ private struct DocumentDraftRow: View {
         .contentShape(Rectangle())
       }
       .buttonStyle(.plain)
-      if hovered {
-        DocumentSidebarDeleteButton(scheme: scheme, action: onDelete)
+      if deleteZoneHovered {
+        DocumentSidebarDeleteButton(action: onDelete)
       } else {
         DocumentTypeBadge(label: draft.typeTag, scheme: scheme)
       }
@@ -202,30 +228,45 @@ private struct DocumentDraftRow: View {
     .frame(height: 32)
     .frame(maxWidth: .infinity, alignment: .leading)
     .background {
-      RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
-        .fill(
-          selected
-            ? DesignTokens.panelControl(scheme)
-            : DesignTokens.panelControl(scheme).opacity(hovered ? 0.45 : 0)
-        )
+      GeometryReader { proxy in
+        RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
+          .fill(
+            selected
+              ? DesignTokens.panelControl(scheme)
+              : DesignTokens.panelControl(scheme).opacity(hovered ? 0.45 : 0)
+          )
+          .onAppear { rowWidth = proxy.size.width }
+          .onChange(of: proxy.size.width) { _, width in rowWidth = width }
+      }
     }
-    .onHover { hovered = $0 }
+    .onContinuousHover(coordinateSpace: .local) { phase in
+      switch phase {
+      case .active(let location):
+        hovered = true
+        deleteZoneHovered = DocumentSidebarHoverZone.showsDelete(
+          localX: location.x, width: rowWidth)
+      case .ended:
+        hovered = false
+        deleteZoneHovered = false
+      }
+    }
     .help(draft.fileName ?? Strings.documentUntitled)
     .accessibilityLabel("\(draft.title), \(draft.typeTag)")
   }
 }
 
 private struct DocumentSidebarDeleteButton: View {
-  let scheme: ColorScheme
   let action: () -> Void
 
   var body: some View {
     Button(action: action) {
-      Image(systemName: "trash").devbarIconColor(scheme)
-        .font(.system(size: 11))
-        .frame(width: 22, height: 22)
+      Image(systemName: "trash")
+        .font(.system(size: 12, weight: .regular))
+        .foregroundStyle(Color(nsColor: .systemRed))  // devbar:allow-color
+        .frame(width: 24, height: 24)
+        .contentShape(Rectangle())
     }
-    .buttonStyle(DevBarToolbarIconButtonStyle(scheme: scheme))
+    .buttonStyle(.plain)
     .help(Strings.deleteItem)
     .accessibilityLabel(Strings.deleteItem)
   }
