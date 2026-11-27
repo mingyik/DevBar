@@ -42,30 +42,46 @@ final class PanelController {
   private let logger = Logger(subsystem: "local.devbar.app", category: "panel")
   private let signposter = OSSignposter(subsystem: "local.devbar.app", category: "panel")
 
-  init(theme: ThemeManager, webRoot: URL? = nil) {
+  init(
+    theme: ThemeManager,
+    webRoot: URL? = nil,
+    defaults: UserDefaults? = nil,
+    clipboardDirectory: URL? = nil,
+    clipboardReader: (any PasteboardReading)? = nil,
+    startClipboardMonitoring: Bool? = nil,
+    screenStateStore: ScreenStateStore = ScreenStateStore()
+  ) {
     #if DEBUG
-      let model = PanelModel(defaults: SelfCheckEnvironment.defaults)
-      let clipboard = ClipboardController(
-        theme: theme,
-        directory: SelfCheckEnvironment.stateDirectory?.deletingLastPathComponent().appending(
-          path: "clipboard"),
-        reader: SelfCheckEnvironment.isActive
-          ? SelfCheckPasteboardReader() as any PasteboardReading : SystemPasteboardReader(),
-        startMonitoring: !SelfCheckEnvironment.isActive, defaults: SelfCheckEnvironment.defaults)
+      let resolvedDefaults = defaults ?? SelfCheckEnvironment.defaults
+      let resolvedClipboardDirectory =
+        clipboardDirectory
+        ?? SelfCheckEnvironment.stateDirectory?.deletingLastPathComponent().appending(
+          path: "clipboard")
+      let resolvedClipboardReader: any PasteboardReading =
+        clipboardReader
+        ?? (SelfCheckEnvironment.isActive
+          ? SelfCheckPasteboardReader() as any PasteboardReading : SystemPasteboardReader())
+      let resolvedMonitoring = startClipboardMonitoring ?? !SelfCheckEnvironment.isActive
     #else
-      let model = PanelModel()
-      let clipboard = ClipboardController(theme: theme)
+      let resolvedDefaults = defaults ?? .standard
+      let resolvedClipboardDirectory = clipboardDirectory
+      let resolvedClipboardReader: any PasteboardReading =
+        clipboardReader ?? SystemPasteboardReader()
+      let resolvedMonitoring = startClipboardMonitoring ?? true
     #endif
-    let webHost = WebHost(theme: theme, webRoot: webRoot)
+    let model = PanelModel(defaults: resolvedDefaults)
+    let clipboard = ClipboardController(
+      theme: theme,
+      directory: resolvedClipboardDirectory,
+      reader: resolvedClipboardReader,
+      startMonitoring: resolvedMonitoring,
+      defaults: resolvedDefaults)
+    let webHost = WebHost(theme: theme, webRoot: webRoot, store: screenStateStore)
     self.clipboard = clipboard
     self.model = model
     self.theme = theme
     self.webHost = webHost
-    #if DEBUG
-      documents = DocumentSession(defaults: SelfCheckEnvironment.defaults)
-    #else
-      documents = DocumentSession()
-    #endif
+    documents = DocumentSession(defaults: resolvedDefaults)
     panel = DevBarPanel()
     host = NSHostingView(
       rootView: PanelView(

@@ -1,4 +1,5 @@
 import AppKit
+import DevBarCore
 import Testing
 
 @testable import DevBar
@@ -776,8 +777,23 @@ import Testing
   let originalB = "# Original File B\n"
   try Data(originalB.utf8).write(to: fileB)
 
-  let defaults = UserDefaults(suiteName: "devbar.save-race.\(UUID())")!
-  let controller = PanelController(theme: ThemeManager(defaults: defaults), webRoot: webRoot)
+  let suiteName = "devbar.save-race.\(UUID())"
+  let defaults = UserDefaults(suiteName: suiteName)!
+  defer { defaults.removePersistentDomain(forName: suiteName) }
+  struct EmptyPasteboardReader: PasteboardReading {
+    func metadata() -> PasteboardMetadata {
+      PasteboardMetadata(count: 0, types: [], access: .allow)
+    }
+    func read() -> [ClipboardPayload] { [] }
+  }
+  let controller = PanelController(
+    theme: ThemeManager(defaults: defaults),
+    webRoot: webRoot,
+    defaults: defaults,
+    clipboardDirectory: tempDir.appending(path: "clipboard"),
+    clipboardReader: EmptyPasteboardReader(),
+    startClipboardMonitoring: false,
+    screenStateStore: ScreenStateStore(directory: tempDir.appending(path: "state")))
   controller.model.prepareToOpen(page: .doc)
   controller.show(anchor: nil, activateApplication: false)
   defer { controller.dismiss() }
