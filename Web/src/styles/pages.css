@@ -475,34 +475,20 @@ button:disabled {
   align-items: center;
   gap: 4px;
   padding: 4px;
-  background: var(--panel-base);
-  backdrop-filter: blur(20px) saturate(165%);
-  -webkit-backdrop-filter: blur(20px) saturate(165%);
+  border-radius: 999px;
+  background: var(--panel-glassTint);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
   border: var(--stroke-hairline) solid var(--line-border);
   box-shadow:
-    0 8px 24px -6px var(--line-divider),
+    0 4px 16px -4px var(--line-divider),
     inset 0 0.5px 0 var(--panel-raised);
-  opacity: 0.94;
-  transition:
-    opacity 140ms ease-out,
-    border-color 140ms ease-out;
+  transition: border-color 140ms ease-out;
 }
 #tools .page-toolbar {
   align-items: stretch;
   gap: 0;
-  border-radius: 14px;
-}
-#qr .page-toolbar,
-#doc .doc-floating-actions {
-  border-radius: 999px;
-}
-#tools .page-toolbar:hover,
-#tools .page-toolbar:focus-within,
-#qr .page-toolbar:hover,
-#qr .page-toolbar:focus-within,
-#doc .doc-floating-actions:hover,
-#doc .doc-floating-actions:focus-within {
-  opacity: 1;
+  padding: 6px 4px;
 }
 #tools .page-toolbar::before,
 #tools .page-fixed,
@@ -520,10 +506,10 @@ button:disabled {
 }
 #tools .page-toolbar .pill {
   width: 100%;
-  min-width: 58px;
+  min-width: 48px;
   height: 28px;
-  padding: 0 10px;
-  border-radius: 10px;
+  padding: 0 8px;
+  border-radius: 999px;
   background: transparent;
   border-color: transparent;
   font-size: 12px;
