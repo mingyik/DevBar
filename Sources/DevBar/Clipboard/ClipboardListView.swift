@@ -78,6 +78,7 @@ struct ClipboardListView: View {
     }
     .onDisappear {
       revealedDeleteID = nil
+      if let id = controller.hoveredRowID { controller.setRowHovered(id, inside: false) }
       if let id = controller.hoverID { controller.setHovered(id, inside: false) }
     }
   }
@@ -165,7 +166,6 @@ private struct ClipboardRow: View {
   let scheme: ColorScheme
   @Binding var revealedDeleteID: UUID?
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
-  @State private var hovered = false
   @State private var dragging = false
   private var mono: Bool {
     item.preview.contains("\n") && ["{", ";", "=>", "</"].contains(where: item.preview.contains)
@@ -179,7 +179,7 @@ private struct ClipboardRow: View {
       cornerRadius: ClipboardRowLayout.rowCornerRadius, style: .continuous)
     let innerShape = RoundedRectangle(
       cornerRadius: ClipboardRowLayout.innerCornerRadius, style: .continuous)
-    let activeHover = hovered && !dragging
+    let activeHover = controller.hoveredRowID == item.id && !dragging
     let activeSelect = selected && !dragging
     ZStack(alignment: .trailing) {
       Button {
@@ -281,7 +281,7 @@ private struct ClipboardRow: View {
             Task { await controller.remove(item.id) }
           },
           onHover: { inside in
-            hovered = inside
+            controller.setRowHovered(item.id, inside: inside)
           },
           onPreviewHover: { allowPreview in
             controller.setHovered(item.id, inside: allowPreview && !dragging && !revealed)
@@ -301,11 +301,11 @@ private struct ClipboardRow: View {
       reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.86), value: revealed
     )
     .animation(reduceMotion || dragging ? nil : .easeOut(duration: 0.16), value: dragging)
-    .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: activeHover)
     .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: activeSelect)
     .onAppear { if dragging { dragging = false } }
     .onDisappear {
       if revealed { revealedDeleteID = nil }
+      controller.setRowHovered(item.id, inside: false)
       controller.setHovered(item.id, inside: false)
     }
   }

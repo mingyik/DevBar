@@ -26,6 +26,7 @@ final class ClipboardController {
   private(set) var thumbnails: [UUID: NSImage] = [:]
   private(set) var cycler = ClipboardCycler()
   private(set) var needsVisualCacheReload = false
+  private(set) var hoveredRowID: UUID?
   private(set) var hoverID: UUID?
   private(set) var isDragging = false
   var onHoverPreview: ((UUID?) -> Void)?
@@ -165,6 +166,9 @@ final class ClipboardController {
     guard generation == reloadGeneration else { return }
     let selectedID = items.indices.contains(currentIndex) ? items[currentIndex].id : nil
     let focusedID = trackedFocusedID
+    if let hoveredRowID, !updated.contains(where: { $0.id == hoveredRowID }) {
+      self.hoveredRowID = nil
+    }
     if let hoverID, !updated.contains(where: { $0.id == hoverID }) {
       self.hoverID = nil
       onHoverPreview?(nil)
@@ -461,8 +465,18 @@ final class ClipboardController {
   func setDragging(_ active: Bool) {
     isDragging = active
     if active {
+      hoveredRowID = nil
       hoverID = nil
       onHoverPreview?(nil)
+    }
+  }
+
+  func setRowHovered(_ id: UUID, inside: Bool) {
+    if inside {
+      guard !isDragging, hoveredRowID != id else { return }
+      hoveredRowID = id
+    } else if hoveredRowID == id {
+      hoveredRowID = nil
     }
   }
 
@@ -503,6 +517,7 @@ final class ClipboardController {
       let updated = await store.items
       let selected = items.indices.contains(currentIndex) ? items[currentIndex].id : nil
       let focused = trackedFocusedID
+      setRowHovered(id, inside: false)
       if hoverID == id {
         hoverID = nil
         onHoverPreview?(nil)

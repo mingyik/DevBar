@@ -253,6 +253,28 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
   #expect(observed.last! == nil)
 }
 
+@MainActor @Test func clipboardRowHoverMovesImmediatelyAndIgnoresLateExit() {
+  let directory = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  defer { try? FileManager.default.removeItem(at: directory) }
+  let controller = ClipboardController(
+    theme: ThemeManager(), directory: directory, startMonitoring: false)
+  let first = UUID()
+  let second = UUID()
+
+  controller.setRowHovered(first, inside: true)
+  #expect(controller.hoveredRowID == first)
+  controller.setRowHovered(second, inside: true)
+  #expect(controller.hoveredRowID == second)
+  controller.setRowHovered(first, inside: false)
+  #expect(controller.hoveredRowID == second)
+  #expect(controller.hoverID == nil)
+
+  controller.setDragging(true)
+  #expect(controller.hoveredRowID == nil)
+  controller.setRowHovered(second, inside: true)
+  #expect(controller.hoveredRowID == nil)
+}
+
 @MainActor @Test func clipboardHoverPreviewShowsTextWhileLoadingAndPreservesFullContent()
   async throws
 {
