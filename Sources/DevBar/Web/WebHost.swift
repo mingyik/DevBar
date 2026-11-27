@@ -140,6 +140,8 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
 
   func cycleDocumentMode() { send(type: "doc.cycleMode", payload: [:]) }
 
+  func saveCurrentDocument() { send(type: "doc.triggerSave", payload: [:]) }
+
   func setDocumentDisplay(_ mode: String) {
     send(type: "doc.display", payload: ["mode": .string(mode)])
   }

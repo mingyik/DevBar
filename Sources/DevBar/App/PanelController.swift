@@ -143,6 +143,11 @@ final class PanelController {
       }
       return true
     }
+    panel.onDocumentSave = { [weak self] in
+      guard let self, self.model.page == .doc else { return false }
+      self.webHost.saveCurrentDocument()
+      return true
+    }
     panel.onCyclePage = { [weak self] backwards in
       self?.model.cyclePage(backwards: backwards)
     }

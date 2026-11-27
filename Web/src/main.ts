@@ -87,6 +87,10 @@ const bridge = {
         if (current === "doc") await doc.togglePreview();
         else if (current === "qr") await qr.togglePreview();
         break;
+      case "doc.triggerSave":
+        await transitions.catch(() => {});
+        if (current === "doc") await doc.save();
+        break;
       case "doc.import": {
         const admission = await post("input.check", {
           bytes: new TextEncoder().encode(

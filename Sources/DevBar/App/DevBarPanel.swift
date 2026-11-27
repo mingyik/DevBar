@@ -3,6 +3,7 @@ import AppKit
 @MainActor
 final class DevBarPanel: NSPanel {
   var onDocumentMode: (() -> Bool)?
+  var onDocumentSave: (() -> Bool)?
   var globalCycleOwnsR: (() -> Bool)?
   var onCyclePage: ((Bool) -> Void)?
   var onClipboardKey: ((UInt16) -> Bool)?
@@ -62,6 +63,9 @@ final class DevBarPanel: NSPanel {
     let flags = event.modifierFlags.intersection([.command, .shift, .control, .option])
     if flags == .command, event.charactersIgnoringModifiers?.lowercased() == "e" {
       return onDocumentMode?() ?? false
+    }
+    if flags == .command, event.charactersIgnoringModifiers?.lowercased() == "s" {
+      return onDocumentSave?() ?? false
     }
     if flags == [.command, .shift],
       event.charactersIgnoringModifiers?.lowercased() == "p"

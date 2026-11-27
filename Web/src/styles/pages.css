@@ -434,9 +434,9 @@ button:disabled {
   opacity: 0.45;
 }
 
-#doc .page-toolbar .icon-save:disabled {
-  color: var(--icon-primary);
-  opacity: 0.45;
+#doc :is(.page-toolbar, .doc-floating-actions) .icon-save:disabled {
+  color: var(--icon-disabled);
+  opacity: 0.42;
 }
 
 /* Markdown actions float over the full-height panes. */

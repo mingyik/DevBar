@@ -743,3 +743,23 @@ import Testing
   #expect(Strings.switchNextPage("") == "切换到下一页 · ⌘R（面板内）")
   #expect(Strings.switchNextPage(nil) == "切换到下一页 · ⌘R（面板内）")
 }
+
+@MainActor @Test func commandSSavesOnlyOnDocumentPage() throws {
+  _ = NSApplication.shared
+  let panel = DevBarPanel()
+  var triggered = 0
+  panel.onDocumentSave = {
+    triggered += 1
+    return true
+  }
+  let event = try #require(
+    NSEvent.keyEvent(
+      with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
+      windowNumber: panel.windowNumber, context: nil, characters: "s",
+      charactersIgnoringModifiers: "s", isARepeat: false, keyCode: 1))
+  #expect(panel.performKeyEquivalent(with: event))
+  #expect(triggered == 1)
+
+  panel.onDocumentSave = { false }
+  #expect(!panel.performKeyEquivalent(with: event))
+}
