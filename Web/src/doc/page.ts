@@ -60,15 +60,10 @@ export class DocPage {
   private scrollSource: "editor" | "preview" | null = null;
   private pending: Promise<void> = Promise.resolve();
   private toggle: HTMLButtonElement;
-  private saveButton: HTMLButtonElement;
-  private clearButton: HTMLButtonElement;
+  private previewButton: HTMLButtonElement;
+  private splitButton: HTMLButtonElement;
   private exportButton: HTMLButtonElement;
-  private readingButton: HTMLButtonElement;
-  private solidReading = false;
-  private editingActions = element(
-    "div",
-    "doc-floating-actions doc-editing-actions",
-  );
+  private lastReportedDirty: boolean | null = null;
   private previewActions = element(
     "div",
     "doc-floating-actions doc-preview-actions",
@@ -89,22 +84,21 @@ export class DocPage {
       this.cycleDisplayMode();
     });
     shell.actions.append(this.toggle);
-    this.saveButton = iconButton("save", () => {
-      void this.save();
+    this.previewButton = iconButton("preview", () => {
+      this.setDisplayMode(this.display === "preview" ? "source" : "preview");
     });
-    this.saveButton.classList.add("save-button");
-    this.clearButton = iconButton("clear", () => {
-      shell.replace("", "devbar.clear");
-      this.locked = false;
-      this.setMode("markdown");
+    this.splitButton = iconButton("split", () => {
+      this.setDisplayMode(this.display === "split" ? "source" : "split");
     });
     this.exportButton = iconButton("exportImage", () => {
       void this.export();
     });
-    this.readingButton = iconButton("solidReading", () => {
-      void this.toggleSolidReading();
-    });
-    shell.content.append(this.editingActions, this.previewActions);
+    this.previewActions.append(
+      this.previewButton,
+      this.splitButton,
+      this.exportButton,
+    );
+    shell.content.append(this.previewActions);
     shell.preview.classList.add("prose");
     if (typeof ResizeObserver !== "undefined") {
       new ResizeObserver(() => {
@@ -286,40 +280,29 @@ export class DocPage {
           ? strings.modeSplit
           : strings.modeEdit,
     );
-    this.toggle.hidden = true; // Mode control lives in the native title bar.
-    if (this.display === "source") {
-      this.editingActions.append(
-        this.readingButton,
-        this.saveButton,
-        this.clearButton,
-      );
-    } else {
-      this.previewActions.append(
-        this.readingButton,
-        this.saveButton,
-        this.exportButton,
-      );
-      this.editingActions.append(this.clearButton);
-    }
+    this.toggle.hidden = true; // Mode control lives in the floating pill.
     setIcon(
-      this.readingButton,
-      this.solidReading ? "glassReading" : "solidReading",
+      this.previewButton,
+      this.display === "preview" ? "edit" : "preview",
     );
     setButtonLabel(
-      this.readingButton,
-      this.solidReading ? strings.glassReading : strings.solidReading,
+      this.previewButton,
+      this.display === "preview" ? strings.modeEdit : strings.modePreview,
     );
-    this.readingButton.setAttribute("aria-pressed", String(this.solidReading));
-    this.editingActions.hidden = this.display === "preview";
-    this.previewActions.hidden = this.display === "source";
-    this.clearButton.hidden = this.display === "preview";
+    setIcon(this.splitButton, this.display === "split" ? "edit" : "split");
+    setButtonLabel(
+      this.splitButton,
+      this.display === "split" ? strings.modeEdit : strings.modeSplit,
+    );
+    this.previewActions.hidden = !this.previewAllowed;
     this.exportButton.hidden =
       this.display === "source" || !this.previewAllowed;
-    setButtonLabel(this.clearButton, strings.clear);
     setButtonLabel(this.exportButton, strings.exportImage);
     const dirty = this.dirty();
-    this.saveButton.disabled = !dirty || this.saveInProgress;
-    setButtonLabel(this.saveButton, strings.saveDocument);
+    if (dirty !== this.lastReportedDirty) {
+      this.lastReportedDirty = dirty;
+      void post("doc.dirty", { dirty });
+    }
   }
   private dirty() {
     return isDirty(this.text(), this.savedText);
@@ -425,15 +408,10 @@ export class DocPage {
       this.updateControls();
     }
   }
-  setSolidReading(solid: boolean) {
-    this.solidReading = solid;
-    this.updateControls();
-  }
-  private async toggleSolidReading() {
-    const reply = await post("doc.toggleReading", {});
-    if (typeof reply.solid === "boolean") {
-      this.setSolidReading(reply.solid);
-    }
+  clear() {
+    this.shell.replace("", "devbar.clear");
+    this.locked = false;
+    this.setMode("markdown");
   }
   togglePreview() {
     this.cycleDisplayMode();

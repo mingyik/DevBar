@@ -133,6 +133,13 @@ struct PanelView: View {
             Text(model.page.title)
               .font(.system(size: 15, weight: .semibold))
               .foregroundStyle(DesignTokens.textPrimary(scheme))
+            if model.page == .doc && model.documentDirty {
+              Circle()
+                .fill(DesignTokens.textSecondary(scheme))
+                .frame(width: 5, height: 5)
+                .help(Strings.documentUnsavedIndicator)
+                .accessibilityLabel(Strings.documentUnsavedIndicator)
+            }
             if let titleShortcut {
               Text(titleShortcut).font(.system(size: 11))
                 .foregroundStyle(DesignTokens.textTertiary(scheme))
@@ -164,27 +171,17 @@ struct PanelView: View {
         }
       }
       if model.page == .doc {
-        ActionIcon(symbol: "eye", label: Strings.documentPreview, scheme: scheme) {
-          webHost.setDocumentDisplay("preview")
+        ActionIcon(
+          symbol: model.documentSolidReading ? "circle.dashed" : "circle.lefthalf.filled",
+          label: model.documentSolidReading
+            ? Strings.documentGlassReading : Strings.documentSolidReading,
+          scheme: scheme
+        ) {
+          model.documentSolidReading.toggle()
         }
-        Button {
-          webHost.setDocumentDisplay(model.documentSplitButtonTarget)
-        } label: {
-          Group {
-            if model.documentDisplay == "split" {
-              Image(nsImage: AppIcons.documentEdit).resizable().frame(width: 14, height: 14)
-            } else {
-              Image(systemName: "rectangle.split.2x1")
-                .font(.system(size: 13, weight: .regular))
-            }
-          }
-          .devbarIconColor(scheme)
-          .frame(width: 24, height: 24)
+        ActionIcon(symbol: "eraser", label: Strings.clipboardClear, scheme: scheme) {
+          webHost.clearDocument()
         }
-        .buttonStyle(DevBarToolbarIconButtonStyle(scheme: scheme))
-        .help(model.documentDisplay == "split" ? Strings.documentEdit : Strings.documentSplit)
-        .accessibilityLabel(
-          model.documentDisplay == "split" ? Strings.documentEdit : Strings.documentSplit)
       }
       ActionIcon(symbol: "xmark", label: Strings.panelClose, scheme: scheme) {
         model.onClosePanel?()

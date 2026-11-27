@@ -83,6 +83,7 @@ final class PanelModel {
   var documentSidebarVisible = false
   var documentSplit = false
   var documentDisplay = "source"
+  var documentDirty = false
   var documentSplitButtonTarget: String {
     documentDisplay == "split" ? "source" : "split"
   }

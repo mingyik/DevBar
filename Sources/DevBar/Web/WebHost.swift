@@ -23,8 +23,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   var onDocumentMode: ((String, String, String, String?) async -> Void)?
   var onDocumentLink: ((String) async -> Bool)?
   var onDocumentModeShortcut: (() -> Void)?
-  var onToggleDocumentSolidReading: (() -> Bool)?
-  var documentSolidReading = false
+  var onDocumentDirty: ((Bool) -> Void)?
 
   private let previewImage = PreviewImage()
   private let theme: ThemeManager
@@ -143,6 +142,8 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   func cycleDocumentMode() { send(type: "doc.cycleMode", payload: [:]) }
 
   func saveCurrentDocument() { send(type: "doc.triggerSave", payload: [:]) }
+
+  func clearDocument() { send(type: "doc.clear", payload: [:]) }
 
   func clearJSON() { send(type: "json.clear", payload: [:]) }
 
@@ -381,10 +382,11 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
         payload["docMode"]?.stringValue ?? "markdown",
         payload["documentId"]?.stringValue)
       return "{}"
-    case "doc.toggleReading":
-      let solid = onToggleDocumentSolidReading?() ?? !documentSolidReading
-      documentSolidReading = solid
-      return BridgeJSON.object(["solid": .bool(solid)]).canonical()
+    case "doc.dirty":
+      if case .bool(let dirty) = payload["dirty"] {
+        onDocumentDirty?(dirty)
+      }
+      return "{}"
     case "state.save":
       if let screen = payload["screen"]?.stringValue, let state = payload["state"] {
         let saved = await store.save(screen: screen, json: state.canonical())
@@ -427,7 +429,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     let themeName = theme.effective == .dark ? "dark" : "light"
     let mode = theme.mode.rawValue
     return """
-      {"theme":"\(themeName)","mode":"\(mode)","panelSize":"normal","settings":{"autoImport":\(autoImport),"documentSolidReading":\(documentSolidReading)}}
+      {"theme":"\(themeName)","mode":"\(mode)","panelSize":"normal","settings":{"autoImport":\(autoImport)}}
       """
   }
 

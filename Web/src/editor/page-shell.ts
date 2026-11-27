@@ -41,10 +41,6 @@ const icons: Record<string, string> = {
   clear:
     '<path d="m13 10 6.5-6.5a1.4 1.4 0 0 1 2 2L15 12"/><path d="m10 9 5 5-4 4-5-5 4-4Z"/><path d="M6 13c-3 0-4 2-4 5v3h3c3 0 5-1 5-4M5 18l2-2"/>',
   copied: '<path d="m5 12 4 4L19 6"/>',
-  solidReading:
-    '<circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none"/>',
-  glassReading:
-    '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3" opacity="0.45"/>',
 };
 export function setIcon(button: HTMLButtonElement, name: string): void {
   button.dataset.icon = name;

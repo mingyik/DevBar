@@ -118,11 +118,8 @@ final class PanelController {
     webHost.saveDocument = { [weak self] text, id in
       await self?.saveDocument(text: text, documentID: id) ?? #"{"status":"failed"}"#
     }
-    webHost.documentSolidReading = model.documentSolidReading
-    webHost.onToggleDocumentSolidReading = { [weak self] in
-      guard let self else { return false }
-      self.model.documentSolidReading.toggle()
-      return self.model.documentSolidReading
+    webHost.onDocumentDirty = { [weak self] dirty in
+      self?.model.documentDirty = dirty
     }
     webHost.documentImageBase = { [weak self] id in
       guard let self, documents.documentID == id else { return nil }

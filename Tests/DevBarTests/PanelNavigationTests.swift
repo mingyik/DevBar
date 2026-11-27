@@ -507,10 +507,10 @@ import Testing
     (() => {
       const view = document.querySelector('#doc .cm-content')?.cmTile?.root?.view;
       view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: '# Rapid' }, userEvent: 'input.type' });
-      document.querySelector('#doc .icon-save').click();
       return true;
     })()
     """)
+  host.saveCurrentDocument()
   for _ in 0..<100 {
     if saveContinuation != nil { break }
     try? await Task.sleep(for: .milliseconds(20))
@@ -527,9 +527,7 @@ import Testing
   saveContinuation?.resume(
     returning: ##"{"status":"saved","fileName":"note.md","documentId":"doc-1","text":"# Rapid"}"##)
   for _ in 0..<100 {
-    if (try? await host.webView.evaluateJavaScript(
-      "document.querySelector('#doc .icon-save')?.disabled === false"
-    )) as? Bool == true {
+    if (await host.documentStatus())?["documentId"] as? String == "doc-1" {
       break
     }
     try? await Task.sleep(for: .milliseconds(20))
@@ -620,11 +618,14 @@ import Testing
       const previewActions = content.querySelector('.doc-preview-actions');
       const editorActions = content.querySelector('.doc-editing-actions');
       const toolbar = content.querySelector('.page-toolbar');
-      const save = content.querySelector('.icon-save');
-      const clear = content.querySelector('.icon-clear');
-      const image = content.querySelector('.icon-exportImage');
-      return content.classList.contains('split') && previewActions.contains(save)
-        && previewActions.contains(image) && editorActions.contains(clear)
+      const preview = previewActions.querySelector('.icon-preview');
+      const split = previewActions.querySelector('.icon-split');
+      const image = previewActions.querySelector('.icon-exportImage');
+      return content.classList.contains('split') && editorActions === null
+        && content.querySelector('.icon-save') === null
+        && content.querySelector('.icon-clear') === null
+        && preview !== null && split !== null && image !== null
+        && split.dataset.icon === 'edit'
         && getComputedStyle(toolbar).display === 'none'
         && getComputedStyle(content.querySelector('.file-label')).display === 'none'
         && getComputedStyle(image).display === 'flex'

@@ -473,8 +473,8 @@ button:disabled {
   height: auto;
   flex-direction: row;
   align-items: center;
-  gap: 4px;
-  padding: 4px;
+  gap: 2px;
+  padding: 3px;
   border-radius: 999px;
   background: var(--panel-glassTint);
   backdrop-filter: blur(18px) saturate(180%);
@@ -496,14 +496,14 @@ button:disabled {
   flex-direction: row;
   align-items: center;
   height: auto;
-  gap: 4px;
+  gap: 2px;
   overflow: visible;
 }
 #tools .page-toolbar .pill {
   width: auto;
-  min-width: 48px;
-  height: 28px;
-  padding: 0 11px;
+  min-width: 44px;
+  height: 26px;
+  padding: 0 10px;
   border-radius: 999px;
   background: transparent;
   border-color: transparent;
@@ -518,16 +518,26 @@ button:disabled {
 }
 #qr .page-toolbar .icon-button,
 #doc .doc-floating-actions .icon-button {
-  width: 28px;
-  height: 28px;
-  padding: 4px;
+  width: 26px;
+  height: 26px;
+  padding: 0;
   border-radius: 999px;
 }
-#qr .page-toolbar .icon-button.icon-clear,
-#doc .doc-floating-actions .icon-button.icon-clear {
-  width: 28px;
-  height: 28px;
-  padding: 4px;
+#qr .page-toolbar .icon-button svg,
+#doc .doc-floating-actions .icon-button svg {
+  width: 16px;
+  height: 16px;
+}
+#qr .page-toolbar .icon-button[data-icon="edit"] svg,
+#doc .doc-floating-actions .icon-button[data-icon="edit"] svg {
+  width: 15px;
+  height: 15px;
+}
+#qr .page-toolbar .icon-button .system-icon,
+#doc .doc-floating-actions .icon-button .system-icon {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
 }
 #tools .json-convert:disabled {
   color: var(--text-primary);
@@ -539,11 +549,6 @@ button:disabled {
   #doc .doc-floating-actions {
     transition: none;
   }
-}
-
-#doc :is(.page-toolbar, .doc-floating-actions) .icon-save:disabled {
-  color: var(--icon-disabled);
-  opacity: 0.42;
 }
 
 /* Markdown actions float over the full-height panes. */
@@ -569,9 +574,6 @@ button:disabled {
   position: absolute;
   display: flex;
   z-index: 3;
-}
-#doc .page-content.split .doc-editing-actions {
-  right: calc(50% + 12px);
 }
 
 /* Pane bounds follow the native viewport directly, without a second geometry animation. */
