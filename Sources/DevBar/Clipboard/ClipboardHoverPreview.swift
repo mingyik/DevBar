@@ -279,7 +279,7 @@ struct ClipboardHoverPreview: View {
         }
         Spacer(minLength: 0)
       } else if let media = state.media {
-        ClipboardNativeMediaPreview(media: media)
+        ClipboardMediaPreviewContainer(media: media, scheme: scheme)
           .id(state.item?.id)
           .padding(.trailing, 14)
           .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -323,6 +323,64 @@ struct ClipboardHoverPreview: View {
   }
 }
 
+private struct ClipboardMediaPreviewContainer: View {
+  let media: ClipboardPreviewMedia
+  let scheme: ColorScheme
+
+  private var imageAspectRatio: CGFloat? {
+    switch media {
+    case .imageFile(let url):
+      guard let image = NSImage(contentsOf: url), image.size.width > 0, image.size.height > 0 else {
+        return nil
+      }
+      return image.size.width / image.size.height
+    case .webImage(let data, _):
+      if let source = CGImageSourceCreateWithData(data as CFData, nil),
+        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+        let width = properties[kCGImagePropertyPixelWidth] as? CGFloat,
+        let height = properties[kCGImagePropertyPixelHeight] as? CGFloat,
+        width > 0, height > 0
+      {
+        return width / height
+      }
+      if let image = NSImage(data: data), image.size.width > 0, image.size.height > 0 {
+        return image.size.width / image.size.height
+      }
+      return nil
+    case .pdf, .audiovisual:
+      return nil
+    }
+  }
+
+  private var isImageMedia: Bool {
+    switch media {
+    case .imageFile, .webImage: true
+    case .pdf, .audiovisual: false
+    }
+  }
+
+  var body: some View {
+    let imageShape = RoundedRectangle(cornerRadius: 8, style: .continuous)
+    if isImageMedia {
+      Group {
+        if let ratio = imageAspectRatio {
+          ClipboardNativeMediaPreview(media: media)
+            .aspectRatio(ratio, contentMode: .fit)
+        } else {
+          ClipboardNativeMediaPreview(media: media)
+        }
+      }
+      .clipShape(imageShape)
+      .overlay {
+        imageShape.strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: 0.5)
+      }
+    } else {
+      ClipboardNativeMediaPreview(media: media)
+        .clipShape(imageShape)
+    }
+  }
+}
+
 private struct ClipboardNativeMediaPreview: NSViewRepresentable {
   let media: ClipboardPreviewMedia
 
@@ -348,8 +406,8 @@ private struct ClipboardNativeMediaPreview: NSViewRepresentable {
       let view = imageWebView()
       let html = """
         <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'">
-        <style>body{margin:0;display:grid;place-items:center;height:100vh}
-        img{max-width:100vw;max-height:100vh;object-fit:contain}</style>
+        <style>html,body{margin:0;background:transparent;display:grid;place-items:center;height:100vh}
+        img{max-width:100vw;max-height:100vh;object-fit:contain;border-radius:8px}</style>
         <img src="data:\(mime);base64,\(data.base64EncodedString())">
         """
       view.loadHTMLString(html, baseURL: nil)
@@ -361,7 +419,9 @@ private struct ClipboardNativeMediaPreview: NSViewRepresentable {
     let configuration = WKWebViewConfiguration()
     configuration.websiteDataStore = .nonPersistent()
     configuration.defaultWebpagePreferences.allowsContentJavaScript = false
-    return WKWebView(frame: .zero, configuration: configuration)
+    let view = WKWebView(frame: .zero, configuration: configuration)
+    view.setValue(false, forKey: "drawsBackground")
+    return view
   }
 
   func updateNSView(_ view: NSView, context: Context) {}
