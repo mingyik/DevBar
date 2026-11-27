@@ -266,20 +266,22 @@ struct ClipboardHoverPreview: View {
   @State private var showsProgress = false
 
   var body: some View {
+    let activeScheme = theme.effective
+    let _ = theme.increaseContrast
     VStack(alignment: .leading, spacing: 10) {
       if state.item != nil {
-        ClipTagChip(tag: state.tag, scheme: scheme)
+        ClipTagChip(tag: state.tag, scheme: activeScheme)
       }
       if state.isLoading && state.item?.kind == .image {
         Spacer(minLength: 0)
         if showsProgress {
           ProgressView().controlSize(.small)
-            .tint(DesignTokens.textTertiary(scheme))
+            .tint(DesignTokens.textTertiary(activeScheme))
             .frame(maxWidth: .infinity)
         }
         Spacer(minLength: 0)
       } else if let media = state.media {
-        ClipboardMediaPreviewContainer(media: media, scheme: scheme)
+        ClipboardMediaPreviewContainer(media: media, scheme: activeScheme)
           .id(state.item?.id)
           .padding(.trailing, 14)
           .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -288,13 +290,13 @@ struct ClipboardHoverPreview: View {
         Image(nsImage: image).resizable().scaledToFit()
           .clipShape(imageShape)
           .overlay {
-            imageShape.strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: 0.5)
+            imageShape.strokeBorder(DesignTokens.lineBorder(activeScheme), lineWidth: 0.5)
           }
           .padding(.trailing, 14)
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else {
         ClipboardPreviewText(
-          content: state.content, scheme: scheme, onContentHeightChange: onContentHeightChange
+          content: state.content, scheme: activeScheme, onContentHeightChange: onContentHeightChange
         )
         .frame(maxWidth: .infinity, maxHeight: .infinity)
       }
@@ -302,13 +304,13 @@ struct ClipboardHoverPreview: View {
     .padding(.leading, 14)
     .padding(.vertical, 14)
     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    .background { PanelChrome(theme: theme, scheme: scheme) }
+    .background { PanelChrome(theme: theme, scheme: activeScheme) }
     .clipShape(RoundedRectangle(cornerRadius: DesignTokens.radiusLarge, style: .continuous))
-    .environment(\.colorScheme, scheme)
+    .environment(\.colorScheme, activeScheme)
     .overlay(alignment: .topTrailing) {
       if showsProgress && (state.isLoading || state.isSizing) && state.item?.kind != .image {
         ProgressView().controlSize(.mini)
-          .tint(DesignTokens.textTertiary(scheme))
+          .tint(DesignTokens.textTertiary(activeScheme))
           .padding(14)
           .allowsHitTesting(false)
       }
@@ -364,6 +366,12 @@ private struct ClipboardNativeMediaPreview: NSViewRepresentable {
   let media: ClipboardPreviewMedia
   let scheme: ColorScheme
 
+  final class Coordinator {
+    var borderCSS: String?
+  }
+
+  func makeCoordinator() -> Coordinator { Coordinator() }
+
   private func borderCSS() -> String {
     let resolved = NSColor(DesignTokens.lineBorder(scheme)).usingColorSpace(.sRGB)
     let r = Int(((resolved?.redComponent ?? 0) * 255).rounded())
@@ -371,6 +379,15 @@ private struct ClipboardNativeMediaPreview: NSViewRepresentable {
     let b = Int(((resolved?.blueComponent ?? 0) * 255).rounded())
     let a = String(format: "%.3f", resolved?.alphaComponent ?? 0.1)
     return "rgba(\(r),\(g),\(b),\(a))"  // devbar:allow-color
+  }
+
+  private func webImageHTML(data: Data, mime: String, border: String) -> String {
+    """
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'">
+    <style>html,body{margin:0;background:transparent;display:grid;place-items:center;height:100vh}
+    img{display:block;max-width:100vw;max-height:100vh;object-fit:contain;border-radius:8px;border:0.5px solid \(border);box-sizing:border-box}</style>
+    <img src="data:\(mime);base64,\(data.base64EncodedString())">
+    """
   }
 
   func makeNSView(context: Context) -> NSView {
@@ -394,13 +411,8 @@ private struct ClipboardNativeMediaPreview: NSViewRepresentable {
     case .webImage(let data, let mime):
       let view = imageWebView()
       let border = borderCSS()
-      let html = """
-        <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'">
-        <style>html,body{margin:0;background:transparent;display:grid;place-items:center;height:100vh}
-        img{display:block;max-width:100vw;max-height:100vh;object-fit:contain;border-radius:8px;border:0.5px solid \(border);box-sizing:border-box}</style>
-        <img src="data:\(mime);base64,\(data.base64EncodedString())">
-        """
-      view.loadHTMLString(html, baseURL: nil)
+      context.coordinator.borderCSS = border
+      view.loadHTMLString(webImageHTML(data: data, mime: mime, border: border), baseURL: nil)
       return view
     }
   }
@@ -414,9 +426,17 @@ private struct ClipboardNativeMediaPreview: NSViewRepresentable {
     return view
   }
 
-  func updateNSView(_ view: NSView, context: Context) {}
+  func updateNSView(_ view: NSView, context: Context) {
+    guard case .webImage(let data, let mime) = media, let webView = view as? WKWebView else {
+      return
+    }
+    let border = borderCSS()
+    guard context.coordinator.borderCSS != border else { return }
+    context.coordinator.borderCSS = border
+    webView.loadHTMLString(webImageHTML(data: data, mime: mime, border: border), baseURL: nil)
+  }
 
-  static func dismantleNSView(_ view: NSView, coordinator: ()) {
+  static func dismantleNSView(_ view: NSView, coordinator: Coordinator) {
     if let playerView = view as? AVPlayerView {
       playerView.player?.pause()
       playerView.player = nil
