@@ -173,6 +173,7 @@ button:not(.tree-toggle) {
   border-radius: var(--radius-small);
   background: var(--panel-control);
   transition:
+    background-color 120ms ease-out,
     border-color 120ms ease-out,
     box-shadow 120ms ease-out,
     transform 80ms ease-out;
@@ -379,6 +380,14 @@ button:disabled {
   height: 24px;
   padding: 3px;
   color: var(--icon-primary);
+  background: transparent;
+  border-color: transparent;
+}
+:is(.page-toolbar, .doc-floating-actions) .icon-button:hover:not(:disabled),
+:is(.page-toolbar, .doc-floating-actions) .icon-button:active:not(:disabled) {
+  background: var(--panel-control);
+  border-color: var(--line-border);
+  box-shadow: none;
 }
 :is(.page-toolbar, .doc-floating-actions) .icon-button svg {
   width: 18px;

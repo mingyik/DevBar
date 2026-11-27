@@ -45,7 +45,7 @@ struct DocumentSidebarView: View {
         .font(.system(size: 13))
         .frame(width: 24, height: 24)
     }
-    .buttonStyle(DevBarSurfaceButtonStyle(scheme: scheme))
+    .buttonStyle(DevBarToolbarIconButtonStyle(scheme: scheme))
     .help(Strings.documentChooseFile)
     .accessibilityLabel(Strings.documentChooseFile)
     .padding(.leading, 8)
@@ -99,7 +99,7 @@ private struct DocumentRecentRow: View {
   var body: some View {
     Button(action: onOpen) {
       HStack(spacing: 6) {
-        Image(systemName: "tag").devbarIconColor(scheme)
+        Image(systemName: "doc.text").devbarIconColor(scheme)
           .font(.system(size: 12))
           .foregroundStyle(DesignTokens.textTertiary(scheme))
           .frame(width: 16)
@@ -120,16 +120,9 @@ private struct DocumentRecentRow: View {
         RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
           .fill(
             selected
-              ? Color.clear
-              : DesignTokens.panelControl(scheme).opacity(hovered ? 0.35 : 0)
+              ? DesignTokens.panelControl(scheme)
+              : DesignTokens.panelControl(scheme).opacity(hovered ? 0.45 : 0)
           )
-      }
-      .overlay {
-        if selected {
-          RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
-            .strokeBorder(
-              DesignTokens.lineBorder(scheme), lineWidth: 1)
-        }
       }
     }
     .buttonStyle(.plain)
@@ -168,15 +161,9 @@ private struct DocumentDraftRow: View {
         RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
           .fill(
             selected
-              ? Color.clear
-              : DesignTokens.panelControl(scheme).opacity(hovered ? 0.35 : 0)
+              ? DesignTokens.panelControl(scheme)
+              : DesignTokens.panelControl(scheme).opacity(hovered ? 0.45 : 0)
           )
-      }
-      .overlay {
-        if selected {
-          RoundedRectangle(cornerRadius: DesignTokens.radiusSmall, style: .continuous)
-            .strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: 1)
-        }
       }
     }
     .buttonStyle(.plain)

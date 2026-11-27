@@ -284,7 +284,12 @@ struct ClipboardHoverPreview: View {
           .padding(.trailing, 14)
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else if let image = state.image {
+        let imageShape = RoundedRectangle(cornerRadius: 8, style: .continuous)
         Image(nsImage: image).resizable().scaledToFit()
+          .clipShape(imageShape)
+          .overlay {
+            imageShape.strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: 0.5)
+          }
           .padding(.trailing, 14)
           .frame(maxWidth: .infinity, maxHeight: .infinity)
       } else {
