@@ -121,6 +121,7 @@ final class PanelController {
     webHost.onDocumentDirty = { [weak self] dirty in
       self?.model.documentDirty = dirty
     }
+    webHost.autoImport = model.autoImport
     webHost.documentSolidReading = model.documentSolidReading
     webHost.onToggleDocumentSolidReading = { [weak self] in
       guard let self else { return false }
@@ -144,8 +145,16 @@ final class PanelController {
     }
     activationObserver = NotificationCenter.default.addObserver(
       forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
-    ) { [weak clipboard] _ in
-      Task { @MainActor in await clipboard?.monitor.poll() }
+    ) { [weak self] _ in
+      Task { @MainActor [weak self] in
+        guard let self else { return }
+        await self.clipboard.monitor.poll()
+        if self.panel.isVisible, self.model.autoImport,
+          self.model.page == .json || self.model.page == .qr
+        {
+          self.webHost.showScreen(self.model.page.rawValue)
+        }
+      }
     }
     installChrome()
     model.onClosePanel = { [weak self] in

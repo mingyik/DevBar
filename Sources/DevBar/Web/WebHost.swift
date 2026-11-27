@@ -34,6 +34,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   private let logger = Logger(subsystem: "local.devbar.app", category: "web")
   private var ready = false
   private var pending: [String] = []
+  private var deliveryTask: Task<Void, Never>?
   private var memorySource: DispatchSourceMemoryPressure?
   private var hiddenFlushTask: Task<Void, Never>?
   private var memoryFlushInProgress = false
@@ -263,6 +264,8 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   }
 
   private func rebuild() {
+    deliveryTask?.cancel()
+    deliveryTask = nil
     webViewReleased = false
     ready = false
     loading = true
@@ -460,16 +463,20 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   }
 
   private func deliver(_ envelope: String) {
-    Task {
+    let previous = deliveryTask
+    let currentWebView = webView
+    deliveryTask = Task { [weak self] in
+      await previous?.value
+      guard let self, self.webView === currentWebView, !Task.isCancelled else { return }
       do {
-        _ = try await webView.callAsyncJavaScript(
+        _ = try await currentWebView.callAsyncJavaScript(
           "return await window.__devbar.receive(env)",
           arguments: ["env": envelope],
           in: nil,
           contentWorld: .page
         )
       } catch {
-        logger.error("bridgeOutFailed")
+        self.logger.error("bridgeOutFailed")
       }
     }
     logger.notice("bridgeOut bytes=\(envelope.utf8.count, privacy: .public)")

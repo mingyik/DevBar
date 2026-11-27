@@ -19,3 +19,21 @@ import Testing
   #expect(restored.data(forType: .png) == png)
   #expect(restored.string(forType: .fileURL) == file.absoluteString)
 }
+
+@MainActor @Test func pasteboardBridgeReadTextReadsPlainTextAndSkipsConcealed() {
+  let board = NSPasteboard.withUniqueName()
+  defer { board.releaseGlobally() }
+
+  #expect(PasteboardBridge.readText(board: board) == #"{"status":"empty"}"#)
+
+  board.clearContents()
+  board.setString(#"{"a":1}"#, forType: .string)
+  #expect(PasteboardBridge.readText(board: board) == #"{"status":"ok","text":"{\"a\":1}"}"#)
+
+  board.clearContents()
+  let concealed = NSPasteboardItem()
+  concealed.setString("secret", forType: .string)
+  concealed.setData(Data(), forType: NSPasteboard.PasteboardType("org.nspasteboard.ConcealedType"))
+  board.writeObjects([concealed])
+  #expect(PasteboardBridge.readText(board: board) == #"{"status":"concealed"}"#)
+}

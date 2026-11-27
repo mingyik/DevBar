@@ -9,17 +9,14 @@ enum PasteboardBridge {
   ]
   private static let logger = Logger(subsystem: "local.devbar.app", category: "web")
 
-  static func readText() -> String {
-    let board = NSPasteboard.general
+  static func readText(board: NSPasteboard = .general) -> String {
     let count = board.changeCount
     let types = board.types ?? []
     if types.contains(where: { concealed.contains($0.rawValue) }) {
       return #"{"status":"concealed"}"#
     }
-    switch board.devbarAccessBehavior {
-    case .deny: return #"{"status":"denied"}"#
-    case .allow: break
-    default: return #"{"status":"ask"}"#
+    if board.devbarAccessBehavior == .deny {
+      return #"{"status":"denied"}"#
     }
     guard types.contains(where: { $0 == .string }) else {
       return types.isEmpty ? #"{"status":"empty"}"# : #"{"status":"notText"}"#
