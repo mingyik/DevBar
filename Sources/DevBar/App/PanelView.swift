@@ -153,13 +153,24 @@ struct PanelView: View {
         ActionIcon(symbol: "eye", label: Strings.documentPreview, scheme: scheme) {
           webHost.setDocumentDisplay("preview")
         }
-        ActionIcon(
-          symbol: model.documentDisplay == "split" ? "square.and.pencil" : "rectangle.split.2x1",
-          label: model.documentDisplay == "split" ? Strings.documentEdit : Strings.documentSplit,
-          scheme: scheme
-        ) {
+        Button {
           webHost.setDocumentDisplay(model.documentSplitButtonTarget)
+        } label: {
+          Group {
+            if model.documentDisplay == "split" {
+              Image(nsImage: AppIcons.documentEdit).resizable().frame(width: 14, height: 14)
+            } else {
+              Image(systemName: "rectangle.split.2x1")
+                .font(.system(size: 13, weight: .regular))
+            }
+          }
+          .devbarIconColor(scheme)
+          .frame(width: 24, height: 24)
         }
+        .buttonStyle(DevBarToolbarIconButtonStyle(scheme: scheme))
+        .help(model.documentDisplay == "split" ? Strings.documentEdit : Strings.documentSplit)
+        .accessibilityLabel(
+          model.documentDisplay == "split" ? Strings.documentEdit : Strings.documentSplit)
       }
       ActionIcon(symbol: "xmark", label: Strings.panelClose, scheme: scheme) {
         model.onClosePanel?()
