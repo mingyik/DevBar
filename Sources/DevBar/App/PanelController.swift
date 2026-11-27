@@ -817,7 +817,7 @@ final class PanelController {
   }
 
   private func saveDocument(text: String, documentID: String?) async -> String {
-    if let documentID, documentID != documents.documentID {
+    guard documentID == documents.documentID else {
       return #"{"status":"failed"}"#
     }
     let outcome = await documents.save(text, saveAs: false)

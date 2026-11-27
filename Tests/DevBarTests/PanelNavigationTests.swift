@@ -763,3 +763,92 @@ import Testing
   panel.onDocumentSave = { false }
   #expect(!panel.performKeyEquivalent(with: event))
 }
+
+@MainActor @Test func commandSDoesNotOverwriteNewlyAdoptedFileBeforeWebLoadsIt() async throws {
+  _ = NSApplication.shared
+  let webRoot = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+    .appending(path: "Web/dist")
+  let tempDir = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+  try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+  defer { try? FileManager.default.removeItem(at: tempDir) }
+  let fileB = tempDir.appending(path: "target-b.md")
+  let originalB = "# Original File B\n"
+  try Data(originalB.utf8).write(to: fileB)
+
+  let defaults = UserDefaults(suiteName: "devbar.save-race.\(UUID())")!
+  let controller = PanelController(theme: ThemeManager(defaults: defaults), webRoot: webRoot)
+  controller.model.prepareToOpen(page: .doc)
+  controller.show(anchor: nil, activateApplication: false)
+  defer { controller.dismiss() }
+  for _ in 0..<100 {
+    if (try? await controller.webHost.webView.evaluateJavaScript("!!window.__devbar")) as? Bool
+      == true
+    {
+      break
+    }
+    try await Task.sleep(for: .milliseconds(50))
+  }
+
+  // Create an untitled dirty draft A in Web (documentID == nil).
+  _ = try await controller.webHost.webView.evaluateJavaScript(
+    """
+    (() => {
+      const view = document.querySelector('#doc .cm-content')?.cmTile?.root?.view;
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: '# Untitled Draft A' }, userEvent: 'input.type' });
+      return true;
+    })()
+    """)
+  for _ in 0..<50 {
+    if await controller.webHost.documentText() == "# Untitled Draft A" { break }
+    try await Task.sleep(for: .milliseconds(20))
+  }
+  #expect((await controller.webHost.documentStatus())?["dirty"] as? Bool == true)
+
+  // Native adopts file B before Web has imported file B.
+  let openedB = try await controller.documents.read(fileB).get()
+  controller.documents.adopt(openedB)
+
+  let commandS = try #require(
+    NSEvent.keyEvent(
+      with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
+      windowNumber: controller.panel.windowNumber, context: nil, characters: "s",
+      charactersIgnoringModifiers: "s", isARepeat: false, keyCode: 1))
+  #expect(controller.panel.performKeyEquivalent(with: commandS))
+
+  // Wait for the rejected save round-trip to show the failure notice in Web.
+  for _ in 0..<100 {
+    if (try? await controller.webHost.webView.evaluateJavaScript(
+      "document.querySelector('#doc .page-info')?.hidden === false"
+    )) as? Bool == true {
+      break
+    }
+    try await Task.sleep(for: .milliseconds(25))
+  }
+  #expect(try String(contentsOf: fileB, encoding: .utf8) == originalB)
+
+  // Once Web loads file B and edits it, ⌘S saves normally to file B.
+  controller.webHost.importDocument(openedB, display: "source")
+  for _ in 0..<100 {
+    if await controller.webHost.documentText() == originalB { break }
+    try await Task.sleep(for: .milliseconds(25))
+  }
+  _ = try await controller.webHost.webView.evaluateJavaScript(
+    """
+    (() => {
+      const view = document.querySelector('#doc .cm-content')?.cmTile?.root?.view;
+      view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: '# Updated File B\\n' }, userEvent: 'input.type' });
+      return true;
+    })()
+    """)
+  for _ in 0..<50 {
+    if await controller.webHost.documentText() == "# Updated File B\n" { break }
+    try await Task.sleep(for: .milliseconds(20))
+  }
+  #expect(controller.panel.performKeyEquivalent(with: commandS))
+  for _ in 0..<100 {
+    if (try? String(contentsOf: fileB, encoding: .utf8)) == "# Updated File B\n" { break }
+    try await Task.sleep(for: .milliseconds(25))
+  }
+  #expect(try String(contentsOf: fileB, encoding: .utf8) == "# Updated File B\n")
+}
