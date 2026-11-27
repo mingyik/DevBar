@@ -63,6 +63,8 @@ export class DocPage {
   private saveButton: HTMLButtonElement;
   private clearButton: HTMLButtonElement;
   private exportButton: HTMLButtonElement;
+  private readingButton: HTMLButtonElement;
+  private solidReading = false;
   private editingActions = element(
     "div",
     "doc-floating-actions doc-editing-actions",
@@ -98,6 +100,9 @@ export class DocPage {
     });
     this.exportButton = iconButton("exportImage", () => {
       void this.export();
+    });
+    this.readingButton = iconButton("solidReading", () => {
+      void this.toggleSolidReading();
     });
     shell.content.append(this.editingActions, this.previewActions);
     shell.preview.classList.add("prose");
@@ -283,11 +288,28 @@ export class DocPage {
     );
     this.toggle.hidden = true; // Mode control lives in the native title bar.
     if (this.display === "source") {
-      this.editingActions.append(this.saveButton, this.clearButton);
+      this.editingActions.append(
+        this.readingButton,
+        this.saveButton,
+        this.clearButton,
+      );
     } else {
-      this.previewActions.append(this.saveButton, this.exportButton);
+      this.previewActions.append(
+        this.readingButton,
+        this.saveButton,
+        this.exportButton,
+      );
       this.editingActions.append(this.clearButton);
     }
+    setIcon(
+      this.readingButton,
+      this.solidReading ? "glassReading" : "solidReading",
+    );
+    setButtonLabel(
+      this.readingButton,
+      this.solidReading ? strings.glassReading : strings.solidReading,
+    );
+    this.readingButton.setAttribute("aria-pressed", String(this.solidReading));
     this.editingActions.hidden = this.display === "preview";
     this.previewActions.hidden = this.display === "source";
     this.clearButton.hidden = this.display === "preview";
@@ -401,6 +423,16 @@ export class DocPage {
     } finally {
       this.saveInProgress = false;
       this.updateControls();
+    }
+  }
+  setSolidReading(solid: boolean) {
+    this.solidReading = solid;
+    this.updateControls();
+  }
+  private async toggleSolidReading() {
+    const reply = await post("doc.toggleReading", {});
+    if (typeof reply.solid === "boolean") {
+      this.setSolidReading(reply.solid);
     }
   }
   togglePreview() {

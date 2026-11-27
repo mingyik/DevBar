@@ -23,6 +23,8 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
   var onDocumentMode: ((String, String, String, String?) async -> Void)?
   var onDocumentLink: ((String) async -> Bool)?
   var onDocumentModeShortcut: (() -> Void)?
+  var onToggleDocumentSolidReading: (() -> Bool)?
+  var documentSolidReading = false
 
   private let previewImage = PreviewImage()
   private let theme: ThemeManager
@@ -379,6 +381,10 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
         payload["docMode"]?.stringValue ?? "markdown",
         payload["documentId"]?.stringValue)
       return "{}"
+    case "doc.toggleReading":
+      let solid = onToggleDocumentSolidReading?() ?? !documentSolidReading
+      documentSolidReading = solid
+      return BridgeJSON.object(["solid": .bool(solid)]).canonical()
     case "state.save":
       if let screen = payload["screen"]?.stringValue, let state = payload["state"] {
         let saved = await store.save(screen: screen, json: state.canonical())
@@ -421,7 +427,7 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
     let themeName = theme.effective == .dark ? "dark" : "light"
     let mode = theme.mode.rawValue
     return """
-      {"theme":"\(themeName)","mode":"\(mode)","panelSize":"normal","settings":{"autoImport":\(autoImport)}}
+      {"theme":"\(themeName)","mode":"\(mode)","panelSize":"normal","settings":{"autoImport":\(autoImport),"documentSolidReading":\(documentSolidReading)}}
       """
   }
 

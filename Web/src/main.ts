@@ -211,9 +211,13 @@ async function start(): Promise<void> {
   const reply = await post("app.ready", { version: "1" });
   document.documentElement.dataset.theme =
     reply.theme === "dark" ? "dark" : "light";
-  if (reply.settings && typeof reply.settings === "object")
-    autoImport =
-      (reply.settings as Record<string, unknown>).autoImport !== false;
+  if (reply.settings && typeof reply.settings === "object") {
+    const settings = reply.settings as Record<string, unknown>;
+    autoImport = settings.autoImport !== false;
+    if (typeof settings.documentSolidReading === "boolean") {
+      doc.setSolidReading(settings.documentSolidReading);
+    }
+  }
 }
 async function show(page: Page): Promise<void> {
   if (current !== page) {

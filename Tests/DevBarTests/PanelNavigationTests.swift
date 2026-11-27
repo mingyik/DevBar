@@ -745,6 +745,17 @@ import Testing
   #expect(Strings.switchNextPage(nil) == "切换到下一页 · ⌘R（面板内）")
 }
 
+@MainActor @Test func documentSolidReadingPersistsAcrossPanelModels() {
+  let suite = "devbar.solid-reading.\(UUID())"
+  let defaults = UserDefaults(suiteName: suite)!
+  defer { defaults.removePersistentDomain(forName: suite) }
+  let first = PanelModel(defaults: defaults)
+  #expect(!first.documentSolidReading)
+  first.documentSolidReading = true
+  let second = PanelModel(defaults: defaults)
+  #expect(second.documentSolidReading)
+}
+
 @MainActor @Test func commandSSavesOnlyOnDocumentPage() throws {
   _ = NSApplication.shared
   let panel = DevBarPanel()

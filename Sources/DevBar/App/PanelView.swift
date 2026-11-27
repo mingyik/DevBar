@@ -41,7 +41,11 @@ struct PanelView: View {
     }
     .animation(.easeInOut(duration: 0.15), value: model.dropActive)
     .onDrop(of: [.fileURL], delegate: PanelFileDrop(model: model))
-    .background { PanelChrome(theme: theme, scheme: scheme) }
+    .background {
+      PanelChrome(
+        theme: theme, scheme: scheme,
+        solidSurface: model.page == .doc && model.documentSolidReading)
+    }
     .clipShape(panelShape)
     .environment(\.colorScheme, scheme)
     .onAppear(perform: refreshTitleShortcut)
@@ -475,6 +479,7 @@ struct PanelView: View {
 struct PanelChrome: View {
   @Bindable var theme: ThemeManager
   let scheme: ColorScheme
+  var solidSurface = false
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
   private var panelShape: RoundedRectangle {
     RoundedRectangle(cornerRadius: DesignTokens.radiusLarge, style: .continuous)
@@ -482,7 +487,10 @@ struct PanelChrome: View {
   var body: some View { chrome(scheme) }
   @ViewBuilder
   private func chrome(_ scheme: ColorScheme) -> some View {
-    if reduceTransparency || theme.reduceTransparency {
+    if solidSurface {
+      panelShape.fill(DesignTokens.opaqueBackdrop(scheme))
+        .overlay(panelOutline(scheme))
+    } else if reduceTransparency || theme.reduceTransparency {
       panelShape.fill(DesignTokens.opaqueBackdrop(scheme))
         .overlay(panelShape.fill(DesignTokens.panelBase(scheme)))
         .overlay(panelOutline(scheme))
