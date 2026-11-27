@@ -327,55 +327,34 @@ private struct ClipboardMediaPreviewContainer: View {
   let media: ClipboardPreviewMedia
   let scheme: ColorScheme
 
-  private var imageAspectRatio: CGFloat? {
-    switch media {
-    case .imageFile(let url):
-      guard let image = NSImage(contentsOf: url), image.size.width > 0, image.size.height > 0 else {
-        return nil
-      }
-      return image.size.width / image.size.height
-    case .webImage(let data, _):
-      if let source = CGImageSourceCreateWithData(data as CFData, nil),
-        let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
-        let width = properties[kCGImagePropertyPixelWidth] as? CGFloat,
-        let height = properties[kCGImagePropertyPixelHeight] as? CGFloat,
-        width > 0, height > 0
-      {
-        return width / height
-      }
-      if let image = NSImage(data: data), image.size.width > 0, image.size.height > 0 {
-        return image.size.width / image.size.height
-      }
-      return nil
-    case .pdf, .audiovisual:
-      return nil
-    }
-  }
-
-  private var isImageMedia: Bool {
-    switch media {
-    case .imageFile, .webImage: true
-    case .pdf, .audiovisual: false
-    }
+  private var imageFileAspectRatio: CGFloat? {
+    guard case .imageFile(let url) = media,
+      let image = NSImage(contentsOf: url),
+      image.size.width > 0, image.size.height > 0
+    else { return nil }
+    return image.size.width / image.size.height
   }
 
   var body: some View {
     let imageShape = RoundedRectangle(cornerRadius: 8, style: .continuous)
-    if isImageMedia {
+    switch media {
+    case .imageFile:
       Group {
-        if let ratio = imageAspectRatio {
-          ClipboardNativeMediaPreview(media: media)
+        if let ratio = imageFileAspectRatio {
+          ClipboardNativeMediaPreview(media: media, scheme: scheme)
             .aspectRatio(ratio, contentMode: .fit)
         } else {
-          ClipboardNativeMediaPreview(media: media)
+          ClipboardNativeMediaPreview(media: media, scheme: scheme)
         }
       }
       .clipShape(imageShape)
       .overlay {
         imageShape.strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: 0.5)
       }
-    } else {
-      ClipboardNativeMediaPreview(media: media)
+    case .webImage:
+      ClipboardNativeMediaPreview(media: media, scheme: scheme)
+    case .pdf, .audiovisual:
+      ClipboardNativeMediaPreview(media: media, scheme: scheme)
         .clipShape(imageShape)
     }
   }
@@ -383,6 +362,16 @@ private struct ClipboardMediaPreviewContainer: View {
 
 private struct ClipboardNativeMediaPreview: NSViewRepresentable {
   let media: ClipboardPreviewMedia
+  let scheme: ColorScheme
+
+  private func borderCSS() -> String {
+    let resolved = NSColor(DesignTokens.lineBorder(scheme)).usingColorSpace(.sRGB)
+    let r = Int(((resolved?.redComponent ?? 0) * 255).rounded())
+    let g = Int(((resolved?.greenComponent ?? 0) * 255).rounded())
+    let b = Int(((resolved?.blueComponent ?? 0) * 255).rounded())
+    let a = String(format: "%.3f", resolved?.alphaComponent ?? 0.1)
+    return "rgba(\(r),\(g),\(b),\(a))"  // devbar:allow-color
+  }
 
   func makeNSView(context: Context) -> NSView {
     switch media {
@@ -404,10 +393,11 @@ private struct ClipboardNativeMediaPreview: NSViewRepresentable {
       return view
     case .webImage(let data, let mime):
       let view = imageWebView()
+      let border = borderCSS()
       let html = """
         <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'">
         <style>html,body{margin:0;background:transparent;display:grid;place-items:center;height:100vh}
-        img{max-width:100vw;max-height:100vh;object-fit:contain;border-radius:8px}</style>
+        img{display:block;max-width:100vw;max-height:100vh;object-fit:contain;border-radius:8px;border:0.5px solid \(border);box-sizing:border-box}</style>
         <img src="data:\(mime);base64,\(data.base64EncodedString())">
         """
       view.loadHTMLString(html, baseURL: nil)
