@@ -460,6 +460,15 @@ func clipboardReadsAndClassifiesEachOriginalImageType(type: String) {
   #expect(ClipboardListScroll.anchor(index: 0, offset: 0, viewport: 0) == nil)
 }
 
+@Test func clipboardRowHoverZoneOnlyAllowsPreviewInLeadingHalf() {
+  #expect(ClipboardRowHoverZone.allowsPreview(localX: 0, width: 320))
+  #expect(ClipboardRowHoverZone.allowsPreview(localX: 159.5, width: 320))
+  #expect(!ClipboardRowHoverZone.allowsPreview(localX: 160, width: 320))
+  #expect(!ClipboardRowHoverZone.allowsPreview(localX: 310, width: 320))
+  #expect(!ClipboardRowHoverZone.allowsPreview(localX: -1, width: 320))
+  #expect(!ClipboardRowHoverZone.allowsPreview(localX: 10, width: 0))
+}
+
 @MainActor @Test func clipboardRemovalPreservesFocusedItemByID() async throws {
   _ = NSApplication.shared
   let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)

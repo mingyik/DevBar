@@ -2,14 +2,24 @@ import AppKit
 import DevBarCore
 import SwiftUI
 
+enum ClipboardRowHoverZone {
+  /// Only the leading half of a clipboard cell triggers hover preview; the trailing half stays quiet for dragging.
+  static func allowsPreview(localX: CGFloat, width: CGFloat) -> Bool {
+    guard width > 0 else { return false }
+    return localX >= 0 && localX < width * 0.5
+  }
+}
+
 /// AppKit supplies one dragging item per file; a single SwiftUI provider would lose extra URLs.
 struct ClipboardDragView: NSViewRepresentable {
   let payloads: [ClipboardPayload]
   let cardContent: ClipCardContent
   let scheme: ColorScheme
   let onClick: () -> Void
+  let onRightClick: () -> Void
   let onDelete: () -> Void
   let onHover: (Bool) -> Void
+  let onPreviewHover: (Bool) -> Void
   let onDragging: @MainActor @Sendable (Bool) -> Void
 
   func makeNSView(context: Context) -> DragSource { DragSource() }
@@ -18,8 +28,10 @@ struct ClipboardDragView: NSViewRepresentable {
     view.cardContent = cardContent
     view.scheme = scheme
     view.onClick = onClick
+    view.onRightClick = onRightClick
     view.onDelete = onDelete
     view.onHover = onHover
+    view.onPreviewHover = onPreviewHover
     view.onDragging = onDragging
   }
 
@@ -28,11 +40,14 @@ struct ClipboardDragView: NSViewRepresentable {
     var cardContent = ClipCardContent()
     var scheme: ColorScheme = .light
     var onClick: (() -> Void)?
+    var onRightClick: (() -> Void)?
     var onDelete: (() -> Void)?
     var onHover: ((Bool) -> Void)?
+    var onPreviewHover: ((Bool) -> Void)?
     var onDragging: (@MainActor @Sendable (Bool) -> Void)?
     private var origin: NSPoint?
     private var dragging = false
+    private var previewHovered = false
     private var deleteZones: [NSPanel] = []
     private var menuFrames: [NSRect] = []
     private var deleteHover = false
@@ -47,11 +62,41 @@ struct ClipboardDragView: NSViewRepresentable {
       for area in trackingAreas { removeTrackingArea(area) }
       addTrackingArea(
         NSTrackingArea(
-          rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+          rect: .zero,
+          options: [.mouseEnteredAndExited, .mouseMoved, .activeAlways, .inVisibleRect],
           owner: self, userInfo: nil))
     }
-    override func mouseEntered(with event: NSEvent) { onHover?(true) }
-    override func mouseExited(with event: NSEvent) { onHover?(false) }
+
+    override func mouseEntered(with event: NSEvent) {
+      onHover?(true)
+      updatePreviewHover(with: event)
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+      updatePreviewHover(with: event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+      onHover?(false)
+      setPreviewHovered(false)
+    }
+
+    private func updatePreviewHover(with event: NSEvent) {
+      let local = convert(event.locationInWindow, from: nil)
+      let allows = ClipboardRowHoverZone.allowsPreview(localX: local.x, width: bounds.width)
+      setPreviewHovered(allows)
+    }
+
+    private func setPreviewHovered(_ value: Bool) {
+      guard previewHovered != value else { return }
+      previewHovered = value
+      onPreviewHover?(value)
+    }
+
+    override func rightMouseDown(with event: NSEvent) {
+      setPreviewHovered(false)
+      onRightClick?()
+    }
 
     override func mouseDown(with event: NSEvent) {
       origin = event.locationInWindow

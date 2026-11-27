@@ -27,6 +27,7 @@ struct ClipboardListView: View {
   @State private var cycleShortcut = KeyboardShortcuts.getShortcut(for: .cycleOlder)?.description
   @State private var scrollOffset: CGFloat = 0
   @State private var viewportHeight: CGFloat = 0
+  @State private var revealedDeleteID: UUID?
   var body: some View {
     VStack(spacing: 0) {
       authorization
@@ -38,14 +39,20 @@ struct ClipboardListView: View {
             scheme: scheme, contentTrailingInset: 6, indicatorTrailingInset: -1,
             indicatorWidth: 2,
             onViewportChange: { offset, viewport in
+              if abs(scrollOffset - offset) > 1, revealedDeleteID != nil {
+                revealedDeleteID = nil
+              }
               scrollOffset = offset
               viewportHeight = viewport
             }
           ) {
             LazyVStack(spacing: ClipboardRowLayout.rowSpacing) {
               ForEach(Array(controller.items.enumerated()), id: \.element.id) { index, item in
-                ClipboardRow(controller: controller, item: item, index: index, scheme: scheme)
-                  .id(item.id)
+                ClipboardRow(
+                  controller: controller, item: item, index: index, scheme: scheme,
+                  revealedDeleteID: $revealedDeleteID
+                )
+                .id(item.id)
               }
             }
             .padding(.leading, 2)
@@ -70,6 +77,7 @@ struct ClipboardListView: View {
       cycleShortcut = KeyboardShortcuts.getShortcut(for: .cycleOlder)?.description
     }
     .onDisappear {
+      revealedDeleteID = nil
       if let id = controller.hoverID { controller.setHovered(id, inside: false) }
     }
   }
@@ -145,6 +153,9 @@ private enum ClipboardRowLayout {
   static let rowHeight: CGFloat = 56
   static let rowSpacing: CGFloat = 8
   static let verticalPadding: CGFloat = 2
+  static let deleteActionWidth: CGFloat = 48
+  static let deleteActionGap: CGFloat = 6
+  static let revealOffset: CGFloat = deleteActionWidth + deleteActionGap
 }
 
 private struct ClipboardRow: View {
@@ -152,6 +163,7 @@ private struct ClipboardRow: View {
   let item: ClipItem
   let index: Int
   let scheme: ColorScheme
+  @Binding var revealedDeleteID: UUID?
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @State private var hovered = false
   @State private var dragging = false
@@ -159,6 +171,7 @@ private struct ClipboardRow: View {
     item.preview.contains("\n") && ["{", ";", "=>", "</"].contains(where: item.preview.contains)
   }
   private var selected: Bool { controller.focusedItemID == item.id }
+  private var revealed: Bool { revealedDeleteID == item.id }
   private var payloads: [ClipboardPayload] { controller.originals[item.id] ?? [] }
 
   var body: some View {
@@ -168,92 +181,139 @@ private struct ClipboardRow: View {
       cornerRadius: ClipboardRowLayout.innerCornerRadius, style: .continuous)
     let activeHover = hovered && !dragging
     let activeSelect = selected && !dragging
-    HStack(spacing: 8) {
-      HStack(spacing: 8) {
-        if let color = ClipboardColor.parse(item.preview) {
-          innerShape
-            .fill(
-              Color(  // devbar:allow-color
-                .sRGB, red: color.red, green: color.green, blue: color.blue, opacity: color.alpha)
-            )
-            .overlay {
-              innerShape.strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: 0.5)
-            }
-            .frame(width: 16, height: 16)
-        }
-        if let image = controller.thumbnails[item.id] {
-          Image(nsImage: image).resizable().scaledToFill().frame(width: 32, height: 32)
-            .clipShape(innerShape)
-            .overlay {
-              innerShape.strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: 0.5)
-            }
-        }
-        Text(item.preview)
-          .font(.system(size: 13, design: mono ? .monospaced : .default))
+    ZStack(alignment: .trailing) {
+      Button {
+        revealedDeleteID = nil
+        controller.setHovered(item.id, inside: false)
+        Task { await controller.remove(item.id) }
+      } label: {
+        Image(systemName: "trash")
+          .font(.system(size: 14, weight: .regular))
           .foregroundStyle(DesignTokens.textPrimary(scheme))
-          .lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
+          .frame(width: ClipboardRowLayout.deleteActionWidth, height: ClipboardRowLayout.rowHeight)
+          .background {
+            rowShape.fill(DesignTokens.panelControl(scheme))
+          }
+          .overlay {
+            rowShape.strokeBorder(
+              DesignTokens.lineBorder(scheme), lineWidth: DesignTokens.strokeHairline)
+          }
       }
-      .frame(maxHeight: .infinity)
+      .buttonStyle(.plain)
+      .help(Strings.deleteItem)
+      .accessibilityLabel(Strings.deleteItem)
+      .opacity(revealed && !dragging ? 1 : 0)
+      .allowsHitTesting(revealed && !dragging)
+
+      HStack(spacing: 8) {
+        HStack(spacing: 8) {
+          if let color = ClipboardColor.parse(item.preview) {
+            innerShape
+              .fill(
+                Color(  // devbar:allow-color
+                  .sRGB, red: color.red, green: color.green, blue: color.blue, opacity: color.alpha)
+              )
+              .overlay {
+                innerShape.strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: 0.5)
+              }
+              .frame(width: 16, height: 16)
+          }
+          if let image = controller.thumbnails[item.id] {
+            Image(nsImage: image).resizable().scaledToFill().frame(width: 32, height: 32)
+              .clipShape(innerShape)
+              .overlay {
+                innerShape.strokeBorder(DesignTokens.lineBorder(scheme), lineWidth: 0.5)
+              }
+          }
+          Text(item.preview)
+            .font(.system(size: 13, design: mono ? .monospaced : .default))
+            .foregroundStyle(DesignTokens.textPrimary(scheme))
+            .lineLimit(2).frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxHeight: .infinity)
+        if controller.copiedID == item.id {
+          Image(systemName: "checkmark").font(.system(size: 11))
+            .foregroundStyle(DesignTokens.textPrimary(scheme))
+            .transition(reduceMotion ? .identity : .opacity.combined(with: .scale(scale: 0.7)))
+        }
+        ClipTagChip(tag: cardContent.tag, scheme: scheme)
+      }
+      .animation(
+        reduceMotion ? nil : .easeOut(duration: 0.14), value: controller.copiedID == item.id
+      )
+      .padding(.horizontal, 10).frame(height: ClipboardRowLayout.rowHeight)
+      .background {
+        ZStack {
+          rowShape.fill(DesignTokens.panelCard(scheme))
+          if activeSelect || activeHover {
+            rowShape.fill(DesignTokens.panelControl(scheme))
+          }
+        }
+      }
+      .overlay {
+        if activeSelect {
+          rowShape.strokeBorder(
+            DesignTokens.selectionBorder(scheme).opacity(activeHover ? 0.9 : 0.72),
+            lineWidth: DesignTokens.strokeStrong
+          )
+          .allowsHitTesting(false)
+        } else if activeHover {
+          rowShape.strokeBorder(
+            DesignTokens.lineBorder(scheme).opacity(1.35),
+            lineWidth: DesignTokens.strokeHairline
+          )
+          .allowsHitTesting(false)
+        }
+      }
       .overlay {
         ClipboardDragView(
           payloads: payloads,
           cardContent: cardContent,
           scheme: scheme,
-          onClick: { controller.select(index) },
-          onDelete: { Task { await controller.remove(item.id) } },
+          onClick: {
+            if revealed {
+              revealedDeleteID = nil
+            } else {
+              revealedDeleteID = nil
+              controller.select(index)
+            }
+          },
+          onRightClick: {
+            controller.setHovered(item.id, inside: false)
+            revealedDeleteID = revealed ? nil : item.id
+          },
+          onDelete: {
+            if revealed { revealedDeleteID = nil }
+            Task { await controller.remove(item.id) }
+          },
           onHover: { inside in
             hovered = inside
-            controller.setHovered(item.id, inside: inside && !dragging)
+          },
+          onPreviewHover: { allowPreview in
+            controller.setHovered(item.id, inside: allowPreview && !dragging && !revealed)
           },
           onDragging: { isDragging in
+            if isDragging { revealedDeleteID = nil }
             dragging = isDragging
             controller.setDragging(isDragging)
           }
         )
       }
-      if controller.copiedID == item.id {
-        Image(systemName: "checkmark").font(.system(size: 11))
-          .foregroundStyle(DesignTokens.textPrimary(scheme))
-          .transition(reduceMotion ? .identity : .opacity.combined(with: .scale(scale: 0.7)))
-      }
-      ClipTagChip(tag: cardContent.tag, scheme: scheme)
+      .offset(x: revealed && !dragging ? -ClipboardRowLayout.revealOffset : 0)
+      .opacity(dragging ? 0 : 1)
     }
-    .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: controller.copiedID == item.id)
-    .padding(.horizontal, 10).frame(height: ClipboardRowLayout.rowHeight)
-    .background {
-      ZStack {
-        rowShape.fill(DesignTokens.panelCard(scheme))
-        if activeSelect || activeHover {
-          rowShape.fill(DesignTokens.panelControl(scheme))
-        }
-      }
-    }
-    .overlay {
-      if activeSelect {
-        rowShape.strokeBorder(
-          DesignTokens.selectionBorder(scheme).opacity(activeHover ? 0.9 : 0.72),
-          lineWidth: DesignTokens.strokeStrong
-        )
-        .allowsHitTesting(false)
-      } else if activeHover {
-        rowShape.strokeBorder(
-          DesignTokens.lineBorder(scheme).opacity(1.35),
-          lineWidth: DesignTokens.strokeHairline
-        )
-        .allowsHitTesting(false)
-      }
-    }
-    .opacity(dragging ? 0 : 1)
+    .frame(height: ClipboardRowLayout.rowHeight)
+    .animation(
+      reduceMotion ? nil : .spring(response: 0.24, dampingFraction: 0.86), value: revealed
+    )
     .animation(reduceMotion || dragging ? nil : .easeOut(duration: 0.16), value: dragging)
     .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: activeHover)
     .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: activeSelect)
-    .contentShape(Rectangle()).onTapGesture { controller.select(index) }
-    .onHover { inside in
-      hovered = inside
-      controller.setHovered(item.id, inside: inside && !dragging)
-    }
     .onAppear { if dragging { dragging = false } }
-    .onDisappear { controller.setHovered(item.id, inside: false) }
+    .onDisappear {
+      if revealed { revealedDeleteID = nil }
+      controller.setHovered(item.id, inside: false)
+    }
   }
 
   private var cardContent: ClipCardContent {
