@@ -35,10 +35,12 @@ jobs:
             if [ -n "$previous" ]; then
               git log --max-count=30 --pretty=format:'- %s' \
                 --invert-grep --grep='^ci:' --grep='^release:' \
+                --grep='^test:' --grep='^docs:' \
                 "$previous..$GITHUB_REF_NAME"
             else
               git log --max-count=30 --pretty=format:'- %s' \
                 --invert-grep --grep='^ci:' --grep='^release:' \
+                --grep='^test:' --grep='^docs:' \
                 "$GITHUB_REF_NAME"
             fi
             printf '\n\n## 安装\n\n要求 macOS 15 或更高版本、Apple Silicon。免费包为 ad-hoc 签名，首次打开请右键选择“打开”。\n'
