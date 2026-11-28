@@ -179,7 +179,7 @@ final class PanelController {
     }
     panel.onDocumentSave = { [weak self] in
       guard let self, self.model.page == .doc else { return false }
-      self.webHost.saveCurrentDocument()
+      self.webHost.saveCurrentDocument(needsLocation: self.documents.url == nil)
       return true
     }
     panel.onCyclePage = { [weak self] backwards in

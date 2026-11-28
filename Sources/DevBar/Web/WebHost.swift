@@ -144,7 +144,9 @@ final class WebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigationDele
 
   func cycleDocumentMode() { send(type: "doc.cycleMode", payload: [:]) }
 
-  func saveCurrentDocument() { send(type: "doc.triggerSave", payload: [:]) }
+  func saveCurrentDocument(needsLocation: Bool = false) {
+    send(type: "doc.triggerSave", payload: ["needsLocation": .bool(needsLocation)])
+  }
 
   func clearDocument() { send(type: "doc.clear", payload: [:]) }
 

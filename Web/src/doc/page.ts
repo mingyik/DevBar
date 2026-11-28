@@ -385,9 +385,10 @@ export class DocPage {
       this.shell.updateInfo();
     }, 2600);
   }
-  async save() {
-    if (this.saveInProgress || !this.dirty()) return;
+  async save(needsLocation = false) {
     const snapshot = this.text();
+    const canSave = this.dirty() || (needsLocation && snapshot.length > 0);
+    if (this.saveInProgress || !canSave) return;
     this.saveInProgress = true;
     this.updateControls();
     try {

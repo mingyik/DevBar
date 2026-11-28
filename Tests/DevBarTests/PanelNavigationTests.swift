@@ -902,6 +902,38 @@ import Testing
     try await Task.sleep(for: .milliseconds(50))
   }
 
+  let commandS = try #require(
+    NSEvent.keyEvent(
+      with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
+      windowNumber: controller.panel.windowNumber, context: nil, characters: "s",
+      charactersIgnoringModifiers: "s", isARepeat: false, keyCode: 1))
+
+  // Untitled content may have a clean editor baseline before its first file save.
+  let firstSaveText = "# Untitled content"
+  controller.webHost.importFile(text: firstSaveText, name: "note.md", document: true)
+  for _ in 0..<100 {
+    if (await controller.webHost.documentStatus())?["dirty"] as? Bool == false,
+      await controller.webHost.documentText() == firstSaveText
+    {
+      break
+    }
+    try await Task.sleep(for: .milliseconds(20))
+  }
+  #expect(controller.documents.url == nil)
+  let saveToFile = controller.webHost.saveDocument
+  var firstSaveRequest: String?
+  controller.webHost.saveDocument = { text, _ in
+    firstSaveRequest = text
+    return #"{"status":"canceled"}"#
+  }
+  #expect(controller.panel.performKeyEquivalent(with: commandS))
+  for _ in 0..<100 {
+    if firstSaveRequest != nil { break }
+    try await Task.sleep(for: .milliseconds(20))
+  }
+  #expect(firstSaveRequest == firstSaveText)
+  controller.webHost.saveDocument = saveToFile
+
   // Create an untitled dirty draft A in Web (documentID == nil).
   _ = try await controller.webHost.webView.evaluateJavaScript(
     """
@@ -921,11 +953,6 @@ import Testing
   let openedB = try await controller.documents.read(fileB).get()
   controller.documents.adopt(openedB)
 
-  let commandS = try #require(
-    NSEvent.keyEvent(
-      with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
-      windowNumber: controller.panel.windowNumber, context: nil, characters: "s",
-      charactersIgnoringModifiers: "s", isARepeat: false, keyCode: 1))
   #expect(controller.panel.performKeyEquivalent(with: commandS))
 
   // Wait for the rejected save round-trip to show the failure notice in Web.

@@ -89,7 +89,7 @@ const bridge = {
         break;
       case "doc.triggerSave":
         await transitions.catch(() => {});
-        if (current === "doc") await doc.save();
+        if (current === "doc") await doc.save(payload.needsLocation === true);
         break;
       case "json.clear":
         await transitions.catch(() => {});
