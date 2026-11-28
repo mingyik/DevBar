@@ -143,16 +143,16 @@ import Testing
   #expect(PanelModel(defaults: defaults).cyclingPages == [.clipboard])
 }
 
-@MainActor @Test func commandRCyclesPagesWhileShiftRAndCommandPDoNot() throws {
+@MainActor @Test func commandShiftDCyclesPagesWhileCommandRAndCommandPDoNot() throws {
   let panel = DevBarPanel()
   var calls = 0
   panel.onCyclePage = { _ in calls += 1 }
-  let shiftR = try #require(
+  let cmdR = try #require(
     NSEvent.keyEvent(
-      with: .keyDown, location: .zero, modifierFlags: [.command, .shift], timestamp: 0,
-      windowNumber: 0, context: nil, characters: "R", charactersIgnoringModifiers: "r",
+      with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
+      windowNumber: 0, context: nil, characters: "r", charactersIgnoringModifiers: "r",
       isARepeat: false, keyCode: 15))
-  _ = panel.performKeyEquivalent(with: shiftR)
+  #expect(!panel.performKeyEquivalent(with: cmdR))
   let oldP = try #require(
     NSEvent.keyEvent(
       with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
@@ -160,16 +160,16 @@ import Testing
       isARepeat: false, keyCode: 35))
   #expect(!panel.performKeyEquivalent(with: oldP))
   #expect(calls == 0)
-  let cmdR = try #require(
+  let shiftD = try #require(
     NSEvent.keyEvent(
-      with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
-      windowNumber: 0, context: nil, characters: "r", charactersIgnoringModifiers: "r",
-      isARepeat: false, keyCode: 15))
-  #expect(panel.performKeyEquivalent(with: cmdR))
+      with: .keyDown, location: .zero, modifierFlags: [.command, .shift], timestamp: 0,
+      windowNumber: 0, context: nil, characters: "D", charactersIgnoringModifiers: "d",
+      isARepeat: false, keyCode: 2))
+  #expect(panel.performKeyEquivalent(with: shiftD))
   #expect(calls == 1)
 }
 
-@MainActor @Test func commandEDispatchesModeToggleInsteadOfPageCycle() throws {
+@MainActor @Test func commandShiftPDispatchesModeToggleWhileCommandEDoesNot() throws {
   let panel = DevBarPanel()
   var modeCalls = 0
   var cycleCalls = 0
@@ -191,8 +191,8 @@ import Testing
       with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
       windowNumber: 0, context: nil, characters: "e", charactersIgnoringModifiers: "e",
       isARepeat: false, keyCode: 14))
-  #expect(panel.performKeyEquivalent(with: cmdE))
-  #expect(modeCalls == 2)
+  #expect(!panel.performKeyEquivalent(with: cmdE))
+  #expect(modeCalls == 1)
   #expect(cycleCalls == 0)
 }
 
@@ -302,7 +302,7 @@ import Testing
   #expect(qrReturnedToEdit)
 }
 
-@MainActor @Test func commandRDoesNotCycleTwiceAndCommandWClosesThePanel() throws {
+@MainActor @Test func commandShiftDDoesNotCycleTwiceAndCommandWClosesThePanel() throws {
   _ = NSApplication.shared
   let controller = PanelController(theme: ThemeManager())
   controller.show(anchor: nil)
@@ -310,13 +310,13 @@ import Testing
   var cycles = 0
   let panel = controller.panel
   panel.onCyclePage = { _ in cycles += 1 }
-  panel.globalCycleOwnsR = { true }
-  let eventR = try #require(
+  panel.globalCycleOwnsShiftD = { true }
+  let eventShiftD = try #require(
     NSEvent.keyEvent(
-      with: .keyDown, location: .zero, modifierFlags: .command, timestamp: 0,
-      windowNumber: panel.windowNumber, context: nil, characters: "r",
-      charactersIgnoringModifiers: "r", isARepeat: false, keyCode: 15))
-  _ = panel.performKeyEquivalent(with: eventR)
+      with: .keyDown, location: .zero, modifierFlags: [.command, .shift], timestamp: 0,
+      windowNumber: panel.windowNumber, context: nil, characters: "D",
+      charactersIgnoringModifiers: "d", isARepeat: false, keyCode: 2))
+  _ = panel.performKeyEquivalent(with: eventShiftD)
   #expect(cycles == 0)
   #expect(panel.isVisible)
   let eventW = try #require(
@@ -825,9 +825,9 @@ import Testing
   #expect(PanelModel.Page.json.title == "JSON")
   #expect(PanelModel.Page.qr.title == "QR")
   #expect(PanelModel.Page.doc.title == "Markdown")
-  #expect(Strings.switchNextPage("⌘R") == "切换到下一页 · ⌘R")
-  #expect(Strings.switchNextPage("") == "切换到下一页 · ⌘R（面板内）")
-  #expect(Strings.switchNextPage(nil) == "切换到下一页 · ⌘R（面板内）")
+  #expect(Strings.switchNextPage("⌘⇧D") == "切换到下一页 · ⌘⇧D")
+  #expect(Strings.switchNextPage("") == "切换到下一页 · ⌘⇧D（面板内）")
+  #expect(Strings.switchNextPage(nil) == "切换到下一页 · ⌘⇧D（面板内）")
 }
 
 @MainActor @Test func documentSolidReadingPersistsAcrossPanelModels() {

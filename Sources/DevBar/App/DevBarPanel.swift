@@ -4,7 +4,7 @@ import AppKit
 final class DevBarPanel: NSPanel {
   var onDocumentMode: (() -> Bool)?
   var onDocumentSave: (() -> Bool)?
-  var globalCycleOwnsR: (() -> Bool)?
+  var globalCycleOwnsShiftD: (() -> Bool)?
   var onCyclePage: ((Bool) -> Void)?
   var onClipboardKey: ((UInt16) -> Bool)?
   var onClosePanel: (() -> Void)?
@@ -61,9 +61,6 @@ final class DevBarPanel: NSPanel {
 
   private func handle(_ event: NSEvent) -> Bool {
     let flags = event.modifierFlags.intersection([.command, .shift, .control, .option])
-    if flags == .command, event.charactersIgnoringModifiers?.lowercased() == "e" {
-      return onDocumentMode?() ?? false
-    }
     if flags == .command, event.charactersIgnoringModifiers?.lowercased() == "s" {
       return onDocumentSave?() ?? false
     }
@@ -72,11 +69,11 @@ final class DevBarPanel: NSPanel {
     {
       return onDocumentMode?() ?? false
     }
-    if flags == .command,
-      event.charactersIgnoringModifiers?.lowercased() == "r"
+    if flags == [.command, .shift],
+      event.charactersIgnoringModifiers?.lowercased() == "d"
     {
       // The registered global shortcut handles this key on key-up.
-      if globalCycleOwnsR?() != true {
+      if globalCycleOwnsShiftD?() != true {
         onCyclePage?(false)
       }
       return true

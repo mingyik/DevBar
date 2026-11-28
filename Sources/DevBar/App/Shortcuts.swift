@@ -9,7 +9,7 @@ extension KeyboardShortcuts.Name {
   static let pageQR = Self("page.qr")
   static let pageDoc = Self("page.doc")
   static let togglePanel = Self(
-    "togglePanel", default: .init(.r, modifiers: [.command]))
+    "togglePanel", default: .init(.d, modifiers: [.command, .shift]))
   static let cycleOlder = Self("cycleOlder", default: .init(.v, modifiers: [.command, .shift]))
   static let captureRegion = Self(
     "captureRegion", default: .init(.a, modifiers: [.command, .shift]))
@@ -23,9 +23,9 @@ enum ShortcutActions {
   private static let logger = Logger(subsystem: "local.devbar.app", category: "shortcut")
 
   static func register(panel: PanelController, status: StatusItemController) {
-    panel.panel.globalCycleOwnsR = {
+    panel.panel.globalCycleOwnsShiftD = {
       KeyboardShortcuts.getShortcut(for: .togglePanel)
-        == KeyboardShortcuts.Shortcut(.r, modifiers: [.command])
+        == KeyboardShortcuts.Shortcut(.d, modifiers: [.command, .shift])
     }
     for (name, old) in [
       (
@@ -50,6 +50,7 @@ enum ShortcutActions {
       KeyboardShortcuts.Shortcut(.space, modifiers: [.option, .command]),
       KeyboardShortcuts.Shortcut(.d, modifiers: [.control, .option]),
       KeyboardShortcuts.Shortcut(.w, modifiers: [.command]),
+      KeyboardShortcuts.Shortcut(.r, modifiers: [.command]),
     ]
     if let current = KeyboardShortcuts.getShortcut(for: .togglePanel), retired.contains(current) {
       KeyboardShortcuts.reset(.togglePanel)
