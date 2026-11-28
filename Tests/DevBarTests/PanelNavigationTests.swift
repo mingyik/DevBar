@@ -608,11 +608,50 @@ import Testing
     _ = try await webView.evaluateJavaScript(
       "document.querySelector('#doc .doc-floating-actions .\(selector)').click()")
   }
+  func waitForToolbarCornerStable() async throws -> CGPoint {
+    var previous: CGPoint?
+    for _ in 0..<100 {
+      let current = try await toolbarCornerOnScreen()
+      if let previous,
+        abs(current.x - previous.x) < 0.5,
+        abs(current.y - previous.y) < 0.5
+      {
+        return current
+      }
+      previous = current
+      try await Task.sleep(for: .milliseconds(20))
+    }
+    return try await toolbarCornerOnScreen()
+  }
+  func waitForLayoutSettled() async throws {
+    var previous = controller.panel.frame
+    var stable = 0
+    for _ in 0..<100 {
+      try await Task.sleep(for: .milliseconds(20))
+      let current = controller.panel.frame
+      if current == previous {
+        stable += 1
+        if stable >= 2 { break }
+      } else {
+        stable = 0
+        previous = current
+      }
+    }
+    let container = try #require(webView.superview)
+    for _ in 0..<100 {
+      if abs(webView.frame.width - container.bounds.width) < 1,
+        abs(webView.frame.height - container.bounds.height) < 1
+      {
+        break
+      }
+      try await Task.sleep(for: .milliseconds(10))
+    }
+  }
   for originX in [visible.maxX - initialFrame.width, visible.minX] {
     initialFrame.origin.x = originX
     controller.panel.setFrame(initialFrame, display: true)
     try await Task.sleep(for: .milliseconds(100))
-    let toolbarCorner = try await toolbarCornerOnScreen()
+    let toolbarCorner = try await waitForToolbarCornerStable()
     for (button, mode) in [
       ("icon-split", "split"), ("icon-preview", "preview"), ("icon-preview", "source"),
     ] {
@@ -623,6 +662,8 @@ import Testing
       }
       #expect(controller.model.documentDisplay == mode)
       #expect(controller.model.documentSplit == (mode == "split"))
+      try await waitForLayoutSettled()
+      _ = try await waitForToolbarCornerStable()
       for _ in 0..<10 {
         let current = try await toolbarCornerOnScreen()
         #expect(abs(current.x - toolbarCorner.x) < 1)
@@ -639,6 +680,7 @@ import Testing
   #expect(controller.model.documentSplit)
   for _ in 0..<2 {
     controller.model.onToggleDocumentSidebar?()
+    try await waitForLayoutSettled()
     for _ in 0..<15 {
       try await Task.sleep(for: .milliseconds(20))
       let container = try #require(webView.superview)

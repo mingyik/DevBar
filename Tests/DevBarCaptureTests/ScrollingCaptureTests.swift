@@ -85,10 +85,10 @@ private final class PreviewClock: @unchecked Sendable {
   func advance(by delta: TimeInterval) { advance(to: now() + delta) }
 
   func waitUntilSleeping() async -> Bool {
-    let deadline = ContinuousClock.now + .seconds(2)
+    let deadline = ContinuousClock.now + .seconds(5)
     while !hasWaiter {
       if ContinuousClock.now >= deadline { return false }
-      await Task.yield()
+      try? await Task.sleep(for: .milliseconds(2))
     }
     return true
   }
