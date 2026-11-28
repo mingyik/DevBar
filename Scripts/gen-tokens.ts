@@ -328,8 +328,8 @@ function renderCSS(tokens: Tokens): string {
       }
       return lines.join("\n");
     });
-    const base = resolveColor(tokens, scheme, "panel.base");
-    body.push(`  --snapshot-background: ${compositeOpaque(base.color, base.alpha, tokens.opaqueBackdrop[scheme])};`);
+    const card = resolveColor(tokens, scheme, "panel.card");
+    body.push(`  --snapshot-background: ${compositeOpaque(card.color, card.alpha, tokens.opaqueBackdrop[scheme])};`);
     return [`:root[data-theme="${scheme}"] {`, ...body, "}", ""].join("\n");
   });
   return [...shared, ...themes].join("\n");

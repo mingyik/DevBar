@@ -74,7 +74,7 @@
   --markdown-syntax-punct: rgba(96, 97, 94, 1);
   --markdown-syntax-function: rgba(0, 155, 201, 1);
   --markdown-syntax-type: rgba(0, 115, 168, 1);
-  --snapshot-background: #fbfbfb;
+  --snapshot-background: #f7f7f7;
 }
 
 :root[data-theme="dark"] {
@@ -140,5 +140,5 @@
   --markdown-syntax-punct: rgba(215, 219, 217, 1);
   --markdown-syntax-function: rgba(140, 205, 198, 1);
   --markdown-syntax-type: rgba(200, 163, 200, 1);
-  --snapshot-background: #101011;
+  --snapshot-background: #2d2d2f;
 }
