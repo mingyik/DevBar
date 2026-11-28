@@ -570,6 +570,9 @@ button:disabled {
 #doc .source .cm-content {
   color: var(--markdown-editor-body);
 }
+#doc .source .cm-activeLine {
+  background: transparent;
+}
 #doc .page-content.split::after {
   bottom: 0;
 }

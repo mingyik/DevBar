@@ -35,10 +35,47 @@ export const devbarMarkdownHighlightStyle = HighlightStyle.define([
       tags.heading6,
     ],
     color: "var(--markdown-editor-heading)",
+    fontWeight: "600",
   },
   { tag: [tags.link, tags.url], color: "var(--markdown-editor-link)" },
-  { tag: tags.strong, color: "var(--markdown-editor-strong)" },
-  { tag: tags.emphasis, color: "var(--markdown-editor-emphasis)" },
+  { tag: tags.quote, color: "var(--markdown-text-quote)" },
+  {
+    tag: tags.strong,
+    color: "var(--markdown-editor-strong)",
+    fontWeight: "600",
+  },
+  {
+    tag: tags.emphasis,
+    color: "var(--markdown-editor-emphasis)",
+    fontStyle: "italic",
+  },
   { tag: tags.monospace, color: "var(--markdown-editor-inline-code)" },
-  { tag: tags.processingInstruction, color: "var(--markdown-editor-marker)" },
+  {
+    tag: [tags.processingInstruction, tags.meta],
+    color: "var(--markdown-editor-marker)",
+  },
+  {
+    tag: [tags.propertyName, tags.definition(tags.propertyName)],
+    color: "var(--markdown-syntax-key)",
+  },
+  {
+    tag: [tags.keyword, tags.modifier, tags.operatorKeyword],
+    color: "var(--markdown-syntax-keyword)",
+  },
+  { tag: tags.string, color: "var(--markdown-syntax-string)" },
+  { tag: tags.number, color: "var(--markdown-syntax-number)" },
+  {
+    tag: [tags.bool, tags.null, tags.atom],
+    color: "var(--markdown-syntax-constant)",
+  },
+  { tag: tags.comment, color: "var(--markdown-syntax-comment)" },
+  { tag: tags.punctuation, color: "var(--markdown-syntax-punct)" },
+  {
+    tag: [tags.function(tags.variableName), tags.function(tags.propertyName)],
+    color: "var(--markdown-syntax-function)",
+  },
+  {
+    tag: [tags.typeName, tags.className],
+    color: "var(--markdown-syntax-type)",
+  },
 ]);
