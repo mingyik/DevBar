@@ -345,6 +345,9 @@ button:disabled {
     13px ui-monospace,
     monospace;
 }
+.snapshot-root.prose {
+  padding: 28px 32px;
+}
 .snapshot-root.snapshot-measure {
   display: block;
   position: absolute;

@@ -35,7 +35,7 @@ enum DesignTokens {
     case .light:
       return Color(red: 1, green: 1, blue: 1, opacity: 0.38)
     case .dark:
-      return Color(red: 1, green: 1, blue: 1, opacity: 0.075)
+      return Color(red: 1, green: 1, blue: 1, opacity: 0.055)
     @unknown default:
       return Color(red: 1, green: 1, blue: 1, opacity: 0.38)
     }
@@ -571,7 +571,7 @@ enum DesignTokens {
     case .light:
       return Color(red: 235.0 / 255, green: 235.0 / 255, blue: 235.0 / 255, opacity: 1)
     case .dark:
-      return Color(red: 52.0 / 255, green: 56.0 / 255, blue: 60.0 / 255, opacity: 1)
+      return Color(red: 46.0 / 255, green: 49.0 / 255, blue: 53.0 / 255, opacity: 1)
     @unknown default:
       return Color(red: 235.0 / 255, green: 235.0 / 255, blue: 235.0 / 255, opacity: 1)
     }
@@ -582,7 +582,7 @@ enum DesignTokens {
     case .light:
       return Color(red: 223.0 / 255, green: 223.0 / 255, blue: 223.0 / 255, opacity: 1)
     case .dark:
-      return Color(red: 71.0 / 255, green: 76.0 / 255, blue: 83.0 / 255, opacity: 1)
+      return Color(red: 54.0 / 255, green: 57.0 / 255, blue: 61.0 / 255, opacity: 1)
     @unknown default:
       return Color(red: 223.0 / 255, green: 223.0 / 255, blue: 223.0 / 255, opacity: 1)
     }
@@ -593,7 +593,7 @@ enum DesignTokens {
     case .light:
       return Color(red: 235.0 / 255, green: 235.0 / 255, blue: 235.0 / 255, opacity: 1)
     case .dark:
-      return Color(red: 52.0 / 255, green: 56.0 / 255, blue: 60.0 / 255, opacity: 1)
+      return Color(red: 46.0 / 255, green: 49.0 / 255, blue: 53.0 / 255, opacity: 1)
     @unknown default:
       return Color(red: 235.0 / 255, green: 235.0 / 255, blue: 235.0 / 255, opacity: 1)
     }
@@ -736,7 +736,7 @@ enum DesignTokens {
     case .light:
       return Color(red: 242.0 / 255, green: 242.0 / 255, blue: 242.0 / 255, opacity: 1)
     case .dark:
-      return Color(red: 28.0 / 255, green: 28.0 / 255, blue: 30.0 / 255, opacity: 1)
+      return Color(red: 24.0 / 255, green: 24.0 / 255, blue: 26.0 / 255, opacity: 1)
     @unknown default:
       return Color(red: 242.0 / 255, green: 242.0 / 255, blue: 242.0 / 255, opacity: 1)
     }

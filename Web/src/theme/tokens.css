@@ -79,7 +79,7 @@
 
 :root[data-theme="dark"] {
   --panel-base: rgba(0, 0, 0, 0.42);
-  --panel-card: rgba(255, 255, 255, 0.075);
+  --panel-card: rgba(255, 255, 255, 0.055);
   --panel-control: rgba(255, 255, 255, 0.085);
   --panel-raised: rgba(255, 255, 255, 0.14);
   --panel-glassTint: rgba(0, 0, 0, 0.08);
@@ -125,9 +125,9 @@
   --markdown-editor-emphasis: rgba(190, 205, 121, 1);
   --markdown-editor-inline-code: rgba(215, 219, 217, 1);
   --markdown-editor-marker: rgba(166, 169, 168, 1);
-  --markdown-surface-code: rgba(52, 56, 60, 1);
-  --markdown-surface-inline-code: rgba(71, 76, 83, 1);
-  --markdown-surface-table-header: rgba(52, 56, 60, 1);
+  --markdown-surface-code: rgba(46, 49, 53, 1);
+  --markdown-surface-inline-code: rgba(54, 57, 61, 1);
+  --markdown-surface-table-header: rgba(46, 49, 53, 1);
   --markdown-table-line: rgba(106, 106, 106, 1);
   --markdown-line: rgba(71, 76, 83, 1);
   --markdown-quote-border: rgba(231, 115, 115, 1);
@@ -140,5 +140,5 @@
   --markdown-syntax-punct: rgba(215, 219, 217, 1);
   --markdown-syntax-function: rgba(140, 205, 198, 1);
   --markdown-syntax-type: rgba(200, 163, 200, 1);
-  --snapshot-background: #2d2d2f;
+  --snapshot-background: #252527;
 }

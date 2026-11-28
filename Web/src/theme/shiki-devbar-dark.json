@@ -4,7 +4,7 @@
   "displayName": "DevBar Tomorrow Dark",
   "type": "dark",
   "colors": {
-    "editor.background": "#34383C",
+    "editor.background": "#2E3135",
     "editor.foreground": "#D7DBD9"
   },
   "tokenColors": [
